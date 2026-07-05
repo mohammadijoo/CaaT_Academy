@@ -1,9 +1,0 @@
-ros_ws/
-  src/
-    sensor_pkg/
-    controller_pkg/
-    motor_pkg/
-    tf_pkg/
-  install/
-  build/
-  log/
