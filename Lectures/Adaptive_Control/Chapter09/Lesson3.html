@@ -1,0 +1,3026 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 9: Parameter Projection and Normalization Techniques - Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>Chapter 9: Parameter Projection and Normalization Techniques</h1>
+    <h3>
+      <strong
+        >Lesson 3: Implementing Projection in Continuous-Time Adaptive
+        Laws</strong
+      >
+    </h3>
+    <p>
+      This lesson converts the projection definitions and properties from the
+      previous lesson into implementable continuous-time adaptive laws. We
+      derive component-wise and convex-set projection rules, prove forward
+      invariance of the admissible parameter set, preserve the Lyapunov
+      cancellation used in MRAC, and address the numerical difference between an
+      ideal continuous-time law and its finite-step software realization.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1: Learning Objectives and Prerequisites -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>1. Learning Objectives and Prerequisites</h2>
+    <div class="down-content">
+      <p>
+        Students are assumed to know the scalar and vector MRAC constructions
+        from Chapters 5–7, the robust-modification motivation from Chapter 8,
+        and the definition of a projection operator from Lessons 1–2 of this
+        chapter. By the end of this lesson, students should be able to:
+      </p>
+      <ul>
+        <li>
+          insert a projection operator into a continuous-time gradient or
+          Lyapunov adaptive law;
+        </li>
+        <li>implement box constraints and smooth convex constraints;</li>
+        <li>
+          prove that the parameter estimate remains in its admissible set;
+        </li>
+        <li>use the projection inequality in a Lyapunov derivative;</li>
+        <li>
+          handle boundary tolerances, ODE-solver overshoot, and numerical
+          retraction; and
+        </li>
+        <li>
+          verify the implementation in Python, C++, Java, MATLAB/Simulink, and
+          Wolfram Mathematica.
+        </li>
+      </ul>
+      <p>
+        The nominal update direction will be denoted by
+        <strong>\( \mathbf{y}(t) \in \mathbb{R}^{p} \)</strong>. In a gradient
+        MRAC law it commonly has the form
+        <strong>\( \mathbf{y}=-\Gamma\boldsymbol{\phi}e \)</strong>. The
+        direction is intentionally left unnormalized here; signal normalization
+        is the subject of Lesson 4.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2: From a Nominal Law to a Projected Law -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. From a Nominal Law to a Projected Law</h2>
+    <div class="down-content">
+      <p>
+        Let <strong>\( \hat{\boldsymbol{\theta} }(t) \)</strong> be the adaptive
+        parameter vector and let
+        <strong>\( \Omega \subset \mathbb{R}^{p} \)</strong>
+        be a closed, convex set known to contain the ideal parameter vector
+        <strong>\( \boldsymbol{\theta}^{\ast} \)</strong>. A nominal law is
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\hat{\boldsymbol{\theta} } }=\mathbf{y} \]
+      </h4>
+      <p>and its projected replacement is</p>
+      <h4 class="mathJax">
+        \[ \dot{\hat{\boldsymbol{\theta} } } = \operatorname{Proj}_{\Omega}
+        \left(\hat{\boldsymbol{\theta} },\mathbf{y}\right). \]
+      </h4>
+      <p>
+        Projection changes the update only when the estimate is on, or
+        sufficiently close to, the boundary and the nominal direction points
+        outward. Tangential and inward directions are preserved.
+      </p>
+
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  R["Reference r"] --> C["Adaptive controller"]
+  X["Measured state x"] --> C
+  C --> P["Plant"]
+  P --> X
+  X --> E["Tracking error e"]
+  R --> M["Reference model"]
+  M --> E
+  E --> N["Nominal update direction y"]
+  X --> N
+  N --> B["Boundary and outward-direction test"]
+  H["Current parameter estimate"] --> B
+  B --> D["Projected parameter derivative"]
+  D --> I["Continuous-time integrator"]
+  I --> H
+  H --> C
+        </pre>
+      </div>
+
+      <p>
+        This architecture separates three objects that should not be confused:
+        the <em>nominal adaptation direction</em>, the <em>projection map</em>,
+        and the <em>numerical integrator</em>. Correct continuous-time
+        mathematics does not automatically imply a correct finite-step
+        implementation.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3: Component-Wise Box Projection -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. Component-Wise Box Projection</h2>
+    <div class="down-content">
+      <p>
+        The most direct implementation uses independently specified lower and
+        upper bounds:
+      </p>
+      <h4 class="mathJax">
+        \[ \Omega_{\mathrm{box} } = \left\{
+        \boldsymbol{\theta}\in\mathbb{R}^{p}: \ell_i\leq\theta_i\leq u_i,\;
+        i=1,\ldots,p \right\}. \]
+      </h4>
+      <p>For the nominal component <strong>\( y_i \)</strong>, define</p>
+      <h4 class="mathJax">
+        \[ \operatorname{Proj}_{[\ell_i,u_i]}(\hat{\theta}_i,y_i) =
+        \begin{cases} 0, &amp; \hat{\theta}_i=\ell_i \text{ and } y_i &lt; 0, \\
+        0, &amp; \hat{\theta}_i=u_i \text{ and } y_i &gt; 0, \\ y_i, &amp;
+        \text{otherwise}. \end{cases} \]
+      </h4>
+      <p>The vector projection is obtained component by component:</p>
+      <h4 class="mathJax">
+        \[ \operatorname{Proj}_{\Omega_{\mathrm{box} } }
+        (\hat{\boldsymbol{\theta} },\mathbf{y}) = \begin{bmatrix}
+        \operatorname{Proj}_{[\ell_1,u_1]}(\hat{\theta}_1,y_1) \\ \vdots \\
+        \operatorname{Proj}_{[\ell_p,u_p]}(\hat{\theta}_p,y_p) \end{bmatrix}. \]
+      </h4>
+      <p>
+        In floating-point software, exact equality with a boundary is
+        unreliable. A practical test uses a tolerance
+        <strong>\( \varepsilon_b &gt; 0 \)</strong>:
+      </p>
+      <h4 class="mathJax">
+        \[ \hat{\theta}_i\leq\ell_i+\varepsilon_b \quad\text{or}\quad
+        \hat{\theta}_i\geq u_i-\varepsilon_b. \]
+      </h4>
+      <p>
+        A tolerance must be small relative to the width
+        <strong>\( u_i-\ell_i \)</strong>. It is a numerical device, not an
+        additional theoretical boundary layer.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4: Projection on a Smooth Convex Boundary -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Projection on a Smooth Convex Boundary</h2>
+    <div class="down-content">
+      <p>
+        Box constraints are simple but create corners. For an admissible set
+      </p>
+      <h4 class="mathJax">
+        \[ \Omega = \left\{ \boldsymbol{\theta}:h(\boldsymbol{\theta})\leq0
+        \right\}, \]
+      </h4>
+      <p>
+        where <strong>\( h \)</strong> is differentiable and convex, the outward
+        normal at a regular boundary point is
+        <strong>\( \mathbf{n}=\nabla h(\hat{\boldsymbol{\theta} }) \)</strong>.
+        The tangent-cone projection is
+      </p>
+      <h4 class="mathJax">
+        \[ \operatorname{Proj}_{\Omega} (\hat{\boldsymbol{\theta} },\mathbf{y})
+        = \begin{cases} \mathbf{y}, &amp; h(\hat{\boldsymbol{\theta} }) &lt; 0
+        \text{ or } \nabla h(\hat{\boldsymbol{\theta} })^{T}\mathbf{y}\leq0, \\
+        \mathbf{y} - \dfrac{ \nabla h(\hat{\boldsymbol{\theta} }) \nabla
+        h(\hat{\boldsymbol{\theta} })^{T} }{ \left\| \nabla
+        h(\hat{\boldsymbol{\theta} }) \right\|^{2} }\mathbf{y}, &amp;
+        h(\hat{\boldsymbol{\theta} })=0 \text{ and } \nabla
+        h(\hat{\boldsymbol{\theta} })^{T}\mathbf{y} &gt; 0. \end{cases} \]
+      </h4>
+      <p>
+        The second branch removes only the outward normal component. The
+        tangential component remains unchanged.
+      </p>
+      <p>A common ellipsoid is</p>
+      <h4 class="mathJax">
+        \[ h(\boldsymbol{\theta}) = (\boldsymbol{\theta}-\mathbf{c})^{T} W
+        (\boldsymbol{\theta}-\mathbf{c}) -\rho^{2}, \qquad W=W^{T}\succ0, \]
+      </h4>
+      <p>with normal</p>
+      <h4 class="mathJax">
+        \[ \nabla h(\boldsymbol{\theta}) = 2W(\boldsymbol{\theta}-\mathbf{c}).
+        \]
+      </h4>
+      <p>
+        Smooth projection operators may introduce an inner set and a thin outer
+        shell so the correction turns on continuously. Such operators are useful
+        when later controller derivations differentiate the adaptive law. The
+        box implementation in this lesson is deliberately transparent and
+        directly exposes the boundary logic.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5: Forward Invariance -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Forward Invariance of the Admissible Parameter Set</h2>
+    <div class="down-content">
+      <p>
+        <strong>Theorem 1 (box invariance).</strong> Suppose
+        <strong
+          >\( \hat{\boldsymbol{\theta} }(0)\in\Omega_{\mathrm{box} } \)</strong
+        >
+        and
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\hat{\boldsymbol{\theta} } } =
+        \operatorname{Proj}_{\Omega_{\mathrm{box} } } (\hat{\boldsymbol{\theta}
+        },\mathbf{y}(t)), \]
+      </h4>
+      <p>
+        where <strong>\( \mathbf{y}(t) \)</strong> is locally bounded. Then
+        <strong
+          >\( \hat{\boldsymbol{\theta} }(t)\in\Omega_{\mathrm{box} } \)</strong
+        >
+        for every time for which the solution exists.
+      </p>
+      <p>
+        <strong>Proof.</strong> Consider component <strong>\( i \)</strong>.
+      </p>
+      <ul>
+        <li>
+          At <strong>\( \hat{\theta}_i=\ell_i \)</strong>, every outward
+          direction has <strong>\( y_i &lt; 0 \)</strong> and is replaced by
+          zero. Hence <strong>\( \dot{\hat{\theta} }_i\geq0 \)</strong> at the
+          lower boundary.
+        </li>
+        <li>
+          At <strong>\( \hat{\theta}_i=u_i \)</strong>, every outward direction
+          has <strong>\( y_i &gt; 0 \)</strong> and is replaced by zero. Hence
+          <strong>\( \dot{\hat{\theta} }_i\leq0 \)</strong> at the upper
+          boundary.
+        </li>
+      </ul>
+      <p>
+        Therefore the vector field belongs to the tangent cone of the interval
+        at both endpoints. No component can cross its interval boundary, so the
+        Cartesian product of the intervals is forward invariant.
+        <strong>\( \square \)</strong>
+      </p>
+
+      <p>
+        For a smooth convex set, the same conclusion follows because the active
+        branch enforces
+      </p>
+      <h4 class="mathJax">
+        \[ \nabla h(\hat{\boldsymbol{\theta} })^{T}
+        \dot{\hat{\boldsymbol{\theta} } } = 0 \]
+      </h4>
+      <p>
+        whenever the nominal direction has a positive outward normal component.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6: Projection Inequality -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. The Projection Inequality Used in Lyapunov Proofs</h2>
+    <div class="down-content">
+      <p>
+        The key analytical property is not merely boundedness. For every ideal
+        parameter vector
+        <strong>\( \boldsymbol{\theta}^{\ast}\in\Omega \)</strong>, a standard
+        projection is selected to satisfy
+      </p>
+      <h4 class="mathJax">
+        \[ \left( \hat{\boldsymbol{\theta} } - \boldsymbol{\theta}^{\ast}
+        \right)^{T} \left[ \operatorname{Proj}_{\Omega}
+        (\hat{\boldsymbol{\theta} },\mathbf{y}) - \mathbf{y} \right] \leq0. \]
+      </h4>
+      <p>
+        <strong>Proof for the box.</strong> If component
+        <strong>\( i \)</strong>
+        is not projected, its contribution is zero. At the upper boundary with
+        <strong>\( y_i &gt; 0 \)</strong>,
+      </p>
+      <h4 class="mathJax">
+        \[ (\hat{\theta}_i-\theta_i^{\ast}) \left[
+        \operatorname{Proj}(\hat{\theta}_i,y_i)-y_i \right] =
+        -(u_i-\theta_i^{\ast})y_i \leq0. \]
+      </h4>
+      <p>At the lower boundary with <strong>\( y_i &lt; 0 \)</strong>,</p>
+      <h4 class="mathJax">
+        \[ (\hat{\theta}_i-\theta_i^{\ast}) \left[
+        \operatorname{Proj}(\hat{\theta}_i,y_i)-y_i \right] =
+        -(\ell_i-\theta_i^{\ast})y_i \leq0. \]
+      </h4>
+      <p>
+        Summing the component contributions proves the inequality.
+        <strong>\( \square \)</strong>
+      </p>
+
+      <p>
+        <strong>Proof for a smooth convex boundary.</strong> On an active
+        boundary, let
+        <strong>\( \mathbf{n}=\nabla h(\hat{\boldsymbol{\theta} }) \)</strong>.
+        Then
+      </p>
+      <h4 class="mathJax">
+        \[ \operatorname{Proj}_{\Omega} (\hat{\boldsymbol{\theta} },\mathbf{y})
+        - \mathbf{y} = - \mathbf{n} \dfrac{\mathbf{n}^{T}\mathbf{y}
+        }{\|\mathbf{n}\|^{2} }. \]
+      </h4>
+      <p>
+        Convexity and
+        <strong
+          >\( h(\boldsymbol{\theta}^{\ast})\leq0=h(\hat{\boldsymbol{\theta} })
+          \)</strong
+        >
+        imply
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{n}^{T} (\hat{\boldsymbol{\theta}
+        }-\boldsymbol{\theta}^{\ast}) \geq0. \]
+      </h4>
+      <p>
+        Because the branch is active only when
+        <strong>\( \mathbf{n}^{T}\mathbf{y} &gt; 0 \)</strong>, their product
+        appears with a minus sign and the projection inequality follows.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7: Projected MRAC Derivation -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Projected Continuous-Time MRAC for a First-Order Plant</h2>
+    <div class="down-content">
+      <p>
+        Reuse the first-order plant and reference-model structure introduced in
+        Chapter 5:
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{x}=ax+bu, \qquad \dot{x}_m=a_mx_m+b_mr, \qquad a_m &lt; 0. \]
+      </h4>
+      <p>
+        Assume the sign of <strong>\( b \)</strong> is known and, for this
+        derivation, take <strong>\( b &gt; 0 \)</strong>. Use
+      </p>
+      <h4 class="mathJax">
+        \[ u=\hat{k}_x x+\hat{k}_r r = \hat{\boldsymbol{\theta}
+        }^{T}\boldsymbol{\omega}, \qquad \hat{\boldsymbol{\theta} } =
+        \begin{bmatrix} \hat{k}_x\\ \hat{k}_r \end{bmatrix}, \qquad
+        \boldsymbol{\omega} = \begin{bmatrix} x\\ r \end{bmatrix}. \]
+      </h4>
+      <p>The matching parameters satisfy</p>
+      <h4 class="mathJax">\[ a+bk_x^{\ast}=a_m, \qquad bk_r^{\ast}=b_m. \]</h4>
+      <p>
+        With tracking error <strong>\( e=x-x_m \)</strong> and parameter error
+        <strong
+          >\( \tilde{\boldsymbol{\theta} } =\hat{\boldsymbol{\theta}
+          }-\boldsymbol{\theta}^{\ast} \)</strong
+        >,
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{e} = a_m e + b\tilde{\boldsymbol{\theta}
+        }^{T}\boldsymbol{\omega}. \]
+      </h4>
+      <p>Select the projected adaptive law</p>
+      <h4 class="mathJax">
+        \[ \dot{\hat{\boldsymbol{\theta} } } = \operatorname{Proj}_{\Omega}
+        \left( \hat{\boldsymbol{\theta} }, -\gamma e\boldsymbol{\omega} \right),
+        \qquad \gamma &gt; 0. \]
+      </h4>
+      <p>Consider</p>
+      <h4 class="mathJax">
+        \[ V = \frac{1}{2}e^{2} + \frac{b}{2\gamma} \tilde{\boldsymbol{\theta}
+        }^{T} \tilde{\boldsymbol{\theta} }. \]
+      </h4>
+      <p>Its derivative is</p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \dot{V} &amp;= a_m e^{2} +
+        be\tilde{\boldsymbol{\theta} }^{T}\boldsymbol{\omega} + \frac{b}{\gamma}
+        \tilde{\boldsymbol{\theta} }^{T} \operatorname{Proj}_{\Omega} \left(
+        \hat{\boldsymbol{\theta} }, -\gamma e\boldsymbol{\omega} \right) \\
+        &amp;= a_m e^{2} + \frac{b}{\gamma} \tilde{\boldsymbol{\theta} }^{T}
+        \left[ \operatorname{Proj}_{\Omega} \left( \hat{\boldsymbol{\theta} },
+        -\gamma e\boldsymbol{\omega} \right) + \gamma e\boldsymbol{\omega}
+        \right]. \end{aligned} \]
+      </h4>
+      <p>
+        Apply the projection inequality with
+        <strong>\( \mathbf{y}=-\gamma e\boldsymbol{\omega} \)</strong>:
+      </p>
+      <h4 class="mathJax">\[ \dot{V}\leq a_m e^{2}\leq0. \]</h4>
+      <p>
+        Thus projection does not destroy the Lyapunov cancellation. It replaces
+        exact cancellation by an inequality in the favorable direction. As in
+        the earlier MRAC lessons, boundedness and convergence of the tracking
+        error follow under the standard regularity assumptions. Parameter
+        convergence still requires excitation and is not guaranteed by
+        projection alone.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8: Numerical Implementation -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Numerical Implementation: Boundary Detection and Retraction</h2>
+    <div class="down-content">
+      <p>
+        The ideal projected differential equation prevents outward motion at the
+        boundary. A finite-step method can nevertheless evaluate the vector
+        field inside the set and jump beyond the boundary before the next
+        evaluation. Therefore a robust software implementation normally
+        combines:
+      </p>
+      <ol>
+        <li>projection of the derivative at every ODE stage;</li>
+        <li>a boundary tolerance for floating-point comparisons;</li>
+        <li>small integration steps or event detection; and</li>
+        <li>a final numerical retraction after each accepted step.</li>
+      </ol>
+      <h4 class="mathJax">
+        \[ \hat{\theta}_{i,k+1} \leftarrow \min \left\{ u_i, \max \left\{
+        \ell_i, \hat{\theta}_{i,k+1}^{\mathrm{raw} } \right\} \right\}. \]
+      </h4>
+      <p>
+        Retraction corrects integration error. It should not replace the
+        continuous-time projected derivative, because clipping alone hides the
+        active-boundary dynamics and may introduce step-size-dependent behavior.
+      </p>
+
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  S["Start ODE stage"] --> R["Read theta and nominal direction y"]
+  R --> L["Near lower bound and y points lower?"]
+  L -->|yes| Z1["Set that derivative \ncomponent to zero"]
+  L -->|no| U["Near upper bound and y points upper?"]
+  U -->|yes| Z2["Set that derivative \ncomponent to zero"]
+  U -->|no| K["Keep nominal \nderivative component"]
+  Z1 --> A["Assemble projected derivative"]
+  Z2 --> A
+  K --> A
+  A --> O["Advance one numerical step"]
+  O --> C["Retract tiny overshoot into parameter box"]
+  C --> N["Log active constraint and continue"]
+        </pre>
+      </div>
+
+      <h3>Implementation Checklist</h3>
+      <ul>
+        <li>
+          Verify <strong>\( \ell_i &lt; u_i \)</strong> for every component.
+        </li>
+        <li>
+          Initialize inside the set or explicitly project the initial estimate.
+        </li>
+        <li>
+          Choose bounds from credible physical or design knowledge, not merely
+          to improve a plot.
+        </li>
+        <li>
+          Record which constraints are active; frequent activation can indicate
+          poor bounds or excessive adaptation gain.
+        </li>
+        <li>
+          Keep actuator saturation logic separate from parameter projection.
+        </li>
+        <li>
+          Test inward, outward, and tangential directions at every boundary
+          face.
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9: Numerical Experiment -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Numerical Experiment and Expected Behavior</h2>
+    <div class="down-content">
+      <p>The multilingual implementations use</p>
+      <h4 class="mathJax">
+        \[ a=-0.5,\quad b=1,\quad a_m=-2,\quad b_m=2,\quad\gamma=8, \]
+      </h4>
+      <p>so the matching parameters are</p>
+      <h4 class="mathJax">
+        \[ k_x^{\ast}=\frac{a_m-a}{b}=-1.5, \qquad k_r^{\ast}=\frac{b_m}{b}=2.
+        \]
+      </h4>
+      <p>The admissible box is</p>
+      <h4 class="mathJax">
+        \[ -2\leq\hat{k}_x\leq-0.2, \qquad 0.5\leq\hat{k}_r\leq2.5. \]
+      </h4>
+      <p>A bounded sinusoidal disturbance is included as a stress test:</p>
+      <h4 class="mathJax">\[ d(t)=0.15\sin(4t). \]</h4>
+      <p>
+        In the ideal disturbance-free proof,
+        <strong>\( \dot V\leq a_m e^2 \)</strong>. With a disturbance, an
+        additional term <strong>\( ed(t) \)</strong> appears and the basic
+        result becomes a boundedness or ultimate-bound argument unless another
+        robust modification is added. The experiment is intended to expose
+        parameter drift pressure, not to replace the Chapter 8 robustness
+        analysis.
+      </p>
+      <p>
+        With the supplied step size, the projected run keeps both parameters
+        inside the box, while the identical unprojected law leaves it. The
+        implementations also write a CSV file so the trajectories can be checked
+        independently.
+      </p>
+      <div class="table-responsive">
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Observed range of \( \hat{k}_x \)</th>
+              <th>Observed range of \( \hat{k}_r \)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Projected</td>
+              <td>\( [-2.000000,\,-1.019206] \)</td>
+              <td>\( [0.500000,\,2.500000] \)</td>
+            </tr>
+            <tr>
+              <td>Unprojected</td>
+              <td>\( [-2.784088,\,-1.687905] \)</td>
+              <td>\( [-0.526810,\,3.415859] \)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10: Python Implementation -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. Python Implementation</h2>
+    <div class="down-content">
+      <p>
+        This implementation uses <code>NumPy</code> for arrays and
+        <code>Matplotlib</code> for plots. The RK4 stages call the projection
+        function separately, and the accepted state is retracted to the box.
+      </p>
+      <h3>Chapter9_Lesson3.py</h3>
+      <pre><code class="language-python">&quot;&quot;&quot;Chapter 9, Lesson 3: continuous-time MRAC with box projection.
+
+The script compares a projected adaptive law with the same unprojected law.
+Dependencies: NumPy and Matplotlib.
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+@dataclass(frozen=True)
+class Config:
+    a: float = -0.5
+    b: float = 1.0
+    a_m: float = -2.0
+    b_m: float = 2.0
+    gamma: float = 8.0
+    dt: float = 1.0e-3
+    final_time: float = 20.0
+    lower: tuple[float, float] = (-2.0, 0.5)
+    upper: tuple[float, float] = (-0.2, 2.5)
+
+
+CFG = Config()
+LOWER = np.asarray(CFG.lower, dtype=float)
+UPPER = np.asarray(CFG.upper, dtype=float)
+
+
+def reference(t: float) -&gt; float:
+    return 1.0 + 0.5 * np.sin(0.7 * t) + 0.25 * np.sin(1.9 * t)
+
+
+def disturbance(t: float) -&gt; float:
+    return 0.15 * np.sin(4.0 * t)
+
+
+def box_projection(theta: np.ndarray, direction: np.ndarray, tol: float = 1.0e-10) -&gt; tuple[np.ndarray, bool]:
+    &quot;&quot;&quot;Project a velocity onto the tangent cone of a parameter box.&quot;&quot;&quot;
+    projected = direction.copy()
+    active = False
+    for i in range(theta.size):
+        outward_at_lower = theta[i] &lt;= LOWER[i] + tol and direction[i] &lt; 0.0
+        outward_at_upper = theta[i] &gt;= UPPER[i] - tol and direction[i] &gt; 0.0
+        if outward_at_lower or outward_at_upper:
+            projected[i] = 0.0
+            active = True
+    return projected, active
+
+
+def dynamics(t: float, state: np.ndarray, use_projection: bool) -&gt; tuple[np.ndarray, bool]:
+    x, x_m, k_x, k_r = state
+    r = reference(t)
+    u = k_x * x + k_r * r
+    e = x - x_m
+
+    nominal_direction = -CFG.gamma * e * np.array([x, r], dtype=float)
+    if use_projection:
+        theta_dot, active = box_projection(np.array([k_x, k_r]), nominal_direction)
+    else:
+        theta_dot, active = nominal_direction, False
+
+    return np.array(
+        [
+            CFG.a * x + CFG.b * u + disturbance(t),
+            CFG.a_m * x_m + CFG.b_m * r,
+            theta_dot[0],
+            theta_dot[1],
+        ],
+        dtype=float,
+    ), active
+
+
+def rk4_step(t: float, state: np.ndarray, step: float, use_projection: bool) -&gt; tuple[np.ndarray, bool]:
+    k1, a1 = dynamics(t, state, use_projection)
+    k2, a2 = dynamics(t + 0.5 * step, state + 0.5 * step * k1, use_projection)
+    k3, a3 = dynamics(t + 0.5 * step, state + 0.5 * step * k2, use_projection)
+    k4, a4 = dynamics(t + step, state + step * k3, use_projection)
+    next_state = state + (step / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+    # Numerical retraction: the continuous-time projection guarantees invariance,
+    # but a finite integration step can overshoot a boundary slightly.
+    if use_projection:
+        next_state[2:4] = np.clip(next_state[2:4], LOWER, UPPER)
+
+    return next_state, bool(a1 or a2 or a3 or a4)
+
+
+def simulate(use_projection: bool) -&gt; dict[str, np.ndarray]:
+    steps = int(round(CFG.final_time / CFG.dt))
+    time = np.linspace(0.0, CFG.final_time, steps + 1)
+    state = np.zeros((steps + 1, 4), dtype=float)
+    active = np.zeros(steps + 1, dtype=bool)
+    state[0] = np.array([1.0, 0.0, LOWER[0], LOWER[1]], dtype=float)
+
+    for k in range(steps):
+        state[k + 1], active[k] = rk4_step(time[k], state[k], CFG.dt, use_projection)
+
+    return {
+        &quot;time&quot;: time,
+        &quot;state&quot;: state,
+        &quot;error&quot;: state[:, 0] - state[:, 1],
+        &quot;active&quot;: active,
+    }
+
+
+def save_csv(path: Path, projected: dict[str, np.ndarray], plain: dict[str, np.ndarray]) -&gt; None:
+    table = np.column_stack(
+        [
+            projected[&quot;time&quot;],
+            projected[&quot;state&quot;],
+            projected[&quot;error&quot;],
+            projected[&quot;active&quot;].astype(int),
+            plain[&quot;state&quot;][:, 2],
+            plain[&quot;state&quot;][:, 3],
+            plain[&quot;error&quot;],
+        ]
+    )
+    header = &quot;t,x_projected,xm_projected,kx_projected,kr_projected,e_projected,projection_active,kx_plain,kr_plain,e_plain&quot;
+    np.savetxt(path, table, delimiter=&quot;,&quot;, header=header, comments=&quot;&quot;)
+
+
+def plot_results(projected: dict[str, np.ndarray], plain: dict[str, np.ndarray]) -&gt; None:
+    t = projected[&quot;time&quot;]
+
+    plt.figure()
+    plt.plot(t, projected[&quot;state&quot;][:, 0], label=&quot;x projected&quot;)
+    plt.plot(t, projected[&quot;state&quot;][:, 1], &quot;--&quot;, label=&quot;x_m&quot;)
+    plt.xlabel(&quot;Time (s)&quot;)
+    plt.ylabel(&quot;State&quot;)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.figure()
+    plt.plot(t, projected[&quot;state&quot;][:, 2], label=&quot;k_x projected&quot;)
+    plt.plot(t, projected[&quot;state&quot;][:, 3], label=&quot;k_r projected&quot;)
+    plt.plot(t, plain[&quot;state&quot;][:, 2], &quot;--&quot;, label=&quot;k_x plain&quot;)
+    plt.plot(t, plain[&quot;state&quot;][:, 3], &quot;--&quot;, label=&quot;k_r plain&quot;)
+    plt.axhline(LOWER[0], linestyle=&quot;:&quot;)
+    plt.axhline(UPPER[0], linestyle=&quot;:&quot;)
+    plt.axhline(LOWER[1], linestyle=&quot;:&quot;)
+    plt.axhline(UPPER[1], linestyle=&quot;:&quot;)
+    plt.xlabel(&quot;Time (s)&quot;)
+    plt.ylabel(&quot;Adaptive parameters&quot;)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def main() -&gt; None:
+    projected = simulate(use_projection=True)
+    plain = simulate(use_projection=False)
+    save_csv(Path(&quot;Chapter9_Lesson3_results.csv&quot;), projected, plain)
+
+    theta_projected = projected[&quot;state&quot;][:, 2:4]
+    theta_plain = plain[&quot;state&quot;][:, 2:4]
+    print(&quot;Projected parameter minima:&quot;, theta_projected.min(axis=0))
+    print(&quot;Projected parameter maxima:&quot;, theta_projected.max(axis=0))
+    print(&quot;Plain parameter minima:&quot;, theta_plain.min(axis=0))
+    print(&quot;Plain parameter maxima:&quot;, theta_plain.max(axis=0))
+    print(&quot;RK4 steps with active projection:&quot;, int(projected[&quot;active&quot;].sum()))
+
+    plot_results(projected, plain)
+
+
+if __name__ == &quot;__main__&quot;:
+    main()
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11: C++ Implementation -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. C++ Implementation</h2>
+    <div class="down-content">
+      <p>
+        The C++17 version uses only the standard library. It writes the same CSV
+        columns as the other implementations and uses <code>std::clamp</code>
+        for numerical retraction.
+      </p>
+      <h3>Chapter9_Lesson3.cpp</h3>
+      <pre><code class="language-cpp">// Chapter 9, Lesson 3: continuous-time MRAC with box projection.
+// Build: g++ -std=c++17 -O2 Chapter9_Lesson3.cpp -o Chapter9_Lesson3
+
+#include &lt;algorithm&gt;
+#include &lt;array&gt;
+#include &lt;cmath&gt;
+#include &lt;fstream&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;stdexcept&gt;
+#include &lt;string&gt;
+
+namespace {
+constexpr double A = -0.5;
+constexpr double B = 1.0;
+constexpr double AM = -2.0;
+constexpr double BM = 2.0;
+constexpr double GAMMA = 8.0;
+constexpr double DT = 1.0e-3;
+constexpr double FINAL_TIME = 20.0;
+constexpr double TOL = 1.0e-10;
+
+using State = std::array&lt;double, 4&gt;;  // x, x_m, k_x, k_r
+using Pair = std::array&lt;double, 2&gt;;
+
+constexpr Pair LOWER{-2.0, 0.5};
+constexpr Pair UPPER{-0.2, 2.5};
+
+struct Derivative {
+    State value{};
+    bool projection_active{false};
+};
+
+double reference(double t) {
+    return 1.0 + 0.5 * std::sin(0.7 * t) + 0.25 * std::sin(1.9 * t);
+}
+
+double disturbance(double t) {
+    return 0.15 * std::sin(4.0 * t);
+}
+
+std::pair&lt;Pair, bool&gt; box_projection(const Pair&amp; theta, const Pair&amp; direction) {
+    Pair projected = direction;
+    bool active = false;
+    for (std::size_t i = 0; i &lt; theta.size(); ++i) {
+        const bool outward_at_lower = theta[i] &lt;= LOWER[i] + TOL &amp;&amp; direction[i] &lt; 0.0;
+        const bool outward_at_upper = theta[i] &gt;= UPPER[i] - TOL &amp;&amp; direction[i] &gt; 0.0;
+        if (outward_at_lower || outward_at_upper) {
+            projected[i] = 0.0;
+            active = true;
+        }
+    }
+    return {projected, active};
+}
+
+Derivative dynamics(double t, const State&amp; z, bool use_projection) {
+    const double x = z[0];
+    const double x_m = z[1];
+    const double k_x = z[2];
+    const double k_r = z[3];
+    const double r = reference(t);
+    const double u = k_x * x + k_r * r;
+    const double e = x - x_m;
+
+    Pair direction{-GAMMA * e * x, -GAMMA * e * r};
+    bool active = false;
+    if (use_projection) {
+        const auto result = box_projection(Pair{k_x, k_r}, direction);
+        direction = result.first;
+        active = result.second;
+    }
+
+    return { {A * x + B * u + disturbance(t), AM * x_m + BM * r,
+             direction[0], direction[1]}, active};
+}
+
+State add_scaled(const State&amp; z, const State&amp; k, double scale) {
+    State result{};
+    for (std::size_t i = 0; i &lt; z.size(); ++i) {
+        result[i] = z[i] + scale * k[i];
+    }
+    return result;
+}
+
+std::pair&lt;State, bool&gt; rk4_step(double t, const State&amp; z, double h, bool use_projection) {
+    const Derivative k1 = dynamics(t, z, use_projection);
+    const Derivative k2 = dynamics(t + 0.5 * h, add_scaled(z, k1.value, 0.5 * h), use_projection);
+    const Derivative k3 = dynamics(t + 0.5 * h, add_scaled(z, k2.value, 0.5 * h), use_projection);
+    const Derivative k4 = dynamics(t + h, add_scaled(z, k3.value, h), use_projection);
+
+    State next{};
+    for (std::size_t i = 0; i &lt; z.size(); ++i) {
+        next[i] = z[i] + (h / 6.0) *
+            (k1.value[i] + 2.0 * k2.value[i] + 2.0 * k3.value[i] + k4.value[i]);
+    }
+
+    if (use_projection) {
+        next[2] = std::clamp(next[2], LOWER[0], UPPER[0]);
+        next[3] = std::clamp(next[3], LOWER[1], UPPER[1]);
+    }
+
+    return {next, k1.projection_active || k2.projection_active ||
+                  k3.projection_active || k4.projection_active};
+}
+
+}  // namespace
+
+int main() {
+    try {
+        const int steps = static_cast&lt;int&gt;(std::llround(FINAL_TIME / DT));
+        State projected{1.0, 0.0, LOWER[0], LOWER[1]};
+        State plain = projected;
+
+        std::ofstream csv(&quot;Chapter9_Lesson3_results.csv&quot;);
+        if (!csv) {
+            throw std::runtime_error(&quot;Cannot open Chapter9_Lesson3_results.csv&quot;);
+        }
+        csv &lt;&lt; &quot;t,x_projected,xm_projected,kx_projected,kr_projected,e_projected,&quot;
+               &quot;projection_active,kx_plain,kr_plain,e_plain\n&quot;;
+        csv &lt;&lt; std::setprecision(12);
+
+        Pair min_projected{projected[2], projected[3]};
+        Pair max_projected = min_projected;
+        Pair min_plain{plain[2], plain[3]};
+        Pair max_plain = min_plain;
+        int active_steps = 0;
+
+        for (int k = 0; k &lt;= steps; ++k) {
+            const double t = k * DT;
+            bool active = false;
+            if (k &lt; steps) {
+                const auto projected_step = rk4_step(t, projected, DT, true);
+                const auto plain_step = rk4_step(t, plain, DT, false);
+                active = projected_step.second;
+
+                csv &lt;&lt; t &lt;&lt; &#x27;,&#x27; &lt;&lt; projected[0] &lt;&lt; &#x27;,&#x27; &lt;&lt; projected[1] &lt;&lt; &#x27;,&#x27;
+                    &lt;&lt; projected[2] &lt;&lt; &#x27;,&#x27; &lt;&lt; projected[3] &lt;&lt; &#x27;,&#x27;
+                    &lt;&lt; projected[0] - projected[1] &lt;&lt; &#x27;,&#x27; &lt;&lt; (active ? 1 : 0) &lt;&lt; &#x27;,&#x27;
+                    &lt;&lt; plain[2] &lt;&lt; &#x27;,&#x27; &lt;&lt; plain[3] &lt;&lt; &#x27;,&#x27; &lt;&lt; plain[0] - plain[1] &lt;&lt; &#x27;\n&#x27;;
+
+                projected = projected_step.first;
+                plain = plain_step.first;
+                active_steps += active ? 1 : 0;
+            }
+
+            for (std::size_t i = 0; i &lt; 2; ++i) {
+                min_projected[i] = std::min(min_projected[i], projected[i + 2]);
+                max_projected[i] = std::max(max_projected[i], projected[i + 2]);
+                min_plain[i] = std::min(min_plain[i], plain[i + 2]);
+                max_plain[i] = std::max(max_plain[i], plain[i + 2]);
+            }
+        }
+
+        std::cout &lt;&lt; &quot;Projected parameter ranges: k_x=[&quot; &lt;&lt; min_projected[0] &lt;&lt; &quot;, &quot;
+                  &lt;&lt; max_projected[0] &lt;&lt; &quot;], k_r=[&quot; &lt;&lt; min_projected[1] &lt;&lt; &quot;, &quot;
+                  &lt;&lt; max_projected[1] &lt;&lt; &quot;]\n&quot;;
+        std::cout &lt;&lt; &quot;Plain parameter ranges: k_x=[&quot; &lt;&lt; min_plain[0] &lt;&lt; &quot;, &quot;
+                  &lt;&lt; max_plain[0] &lt;&lt; &quot;], k_r=[&quot; &lt;&lt; min_plain[1] &lt;&lt; &quot;, &quot;
+                  &lt;&lt; max_plain[1] &lt;&lt; &quot;]\n&quot;;
+        std::cout &lt;&lt; &quot;RK4 steps with active projection: &quot; &lt;&lt; active_steps &lt;&lt; &#x27;\n&#x27;;
+        return 0;
+    } catch (const std::exception&amp; ex) {
+        std::cerr &lt;&lt; &quot;Error: &quot; &lt;&lt; ex.what() &lt;&lt; &#x27;\n&#x27;;
+        return 1;
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12: Java Implementation -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. Java Implementation</h2>
+    <div class="down-content">
+      <p>
+        The Java version uses the standard numerical and file APIs. Records are
+        used to return a derivative together with the active-constraint flag.
+      </p>
+      <h3>Chapter9_Lesson3.java</h3>
+      <pre><code class="language-java">// Chapter 9, Lesson 3: continuous-time MRAC with box projection.
+// Build: javac Chapter9_Lesson3.java
+// Run:   java Chapter9_Lesson3
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Locale;
+
+public final class Chapter9_Lesson3 {
+    private static final double A = -0.5;
+    private static final double B = 1.0;
+    private static final double AM = -2.0;
+    private static final double BM = 2.0;
+    private static final double GAMMA = 8.0;
+    private static final double DT = 1.0e-3;
+    private static final double FINAL_TIME = 20.0;
+    private static final double TOL = 1.0e-10;
+    private static final double[] LOWER = {-2.0, 0.5};
+    private static final double[] UPPER = {-0.2, 2.5};
+
+    private record Derivative(double[] value, boolean active) {}
+    private record StepResult(double[] state, boolean active) {}
+
+    private Chapter9_Lesson3() {}
+
+    private static double reference(double t) {
+        return 1.0 + 0.5 * Math.sin(0.7 * t) + 0.25 * Math.sin(1.9 * t);
+    }
+
+    private static double disturbance(double t) {
+        return 0.15 * Math.sin(4.0 * t);
+    }
+
+    private static Derivative dynamics(double t, double[] z, boolean useProjection) {
+        double x = z[0];
+        double xm = z[1];
+        double kx = z[2];
+        double kr = z[3];
+        double r = reference(t);
+        double u = kx * x + kr * r;
+        double e = x - xm;
+
+        double[] direction = {-GAMMA * e * x, -GAMMA * e * r};
+        boolean active = false;
+        if (useProjection) {
+            double[] theta = {kx, kr};
+            for (int i = 0; i &lt; 2; i++) {
+                boolean outwardAtLower = theta[i] &lt;= LOWER[i] + TOL &amp;&amp; direction[i] &lt; 0.0;
+                boolean outwardAtUpper = theta[i] &gt;= UPPER[i] - TOL &amp;&amp; direction[i] &gt; 0.0;
+                if (outwardAtLower || outwardAtUpper) {
+                    direction[i] = 0.0;
+                    active = true;
+                }
+            }
+        }
+
+        return new Derivative(new double[] {
+            A * x + B * u + disturbance(t),
+            AM * xm + BM * r,
+            direction[0],
+            direction[1]
+        }, active);
+    }
+
+    private static double[] addScaled(double[] z, double[] k, double scale) {
+        double[] result = new double[z.length];
+        for (int i = 0; i &lt; z.length; i++) {
+            result[i] = z[i] + scale * k[i];
+        }
+        return result;
+    }
+
+    private static StepResult rk4Step(double t, double[] z, boolean useProjection) {
+        Derivative k1 = dynamics(t, z, useProjection);
+        Derivative k2 = dynamics(t + 0.5 * DT, addScaled(z, k1.value(), 0.5 * DT), useProjection);
+        Derivative k3 = dynamics(t + 0.5 * DT, addScaled(z, k2.value(), 0.5 * DT), useProjection);
+        Derivative k4 = dynamics(t + DT, addScaled(z, k3.value(), DT), useProjection);
+
+        double[] next = new double[z.length];
+        for (int i = 0; i &lt; z.length; i++) {
+            next[i] = z[i] + (DT / 6.0) *
+                (k1.value()[i] + 2.0 * k2.value()[i] + 2.0 * k3.value()[i] + k4.value()[i]);
+        }
+
+        if (useProjection) {
+            next[2] = Math.max(LOWER[0], Math.min(UPPER[0], next[2]));
+            next[3] = Math.max(LOWER[1], Math.min(UPPER[1], next[3]));
+        }
+
+        boolean active = k1.active() || k2.active() || k3.active() || k4.active();
+        return new StepResult(next, active);
+    }
+
+    public static void main(String[] args) {
+        Locale.setDefault(Locale.US);
+        int steps = (int) Math.round(FINAL_TIME / DT);
+        double[] projected = {1.0, 0.0, LOWER[0], LOWER[1]};
+        double[] plain = projected.clone();
+        double[] minProjected = {projected[2], projected[3]};
+        double[] maxProjected = minProjected.clone();
+        double[] minPlain = {plain[2], plain[3]};
+        double[] maxPlain = minPlain.clone();
+        int activeSteps = 0;
+
+        Path output = Path.of(&quot;Chapter9_Lesson3_results.csv&quot;);
+        try (BufferedWriter writer = Files.newBufferedWriter(output, StandardCharsets.UTF_8)) {
+            writer.write(&quot;t,x_projected,xm_projected,kx_projected,kr_projected,e_projected,&quot; +
+                         &quot;projection_active,kx_plain,kr_plain,e_plain\n&quot;);
+
+            for (int k = 0; k &lt;= steps; k++) {
+                double t = k * DT;
+                if (k &lt; steps) {
+                    StepResult projectedStep = rk4Step(t, projected, true);
+                    StepResult plainStep = rk4Step(t, plain, false);
+
+                    writer.write(String.format(Locale.US,
+                        &quot;%.9f,%.12f,%.12f,%.12f,%.12f,%.12f,%d,%.12f,%.12f,%.12f%n&quot;,
+                        t, projected[0], projected[1], projected[2], projected[3],
+                        projected[0] - projected[1], projectedStep.active() ? 1 : 0,
+                        plain[2], plain[3], plain[0] - plain[1]));
+
+                    projected = projectedStep.state();
+                    plain = plainStep.state();
+                    if (projectedStep.active()) {
+                        activeSteps++;
+                    }
+                }
+
+                for (int i = 0; i &lt; 2; i++) {
+                    minProjected[i] = Math.min(minProjected[i], projected[i + 2]);
+                    maxProjected[i] = Math.max(maxProjected[i], projected[i + 2]);
+                    minPlain[i] = Math.min(minPlain[i], plain[i + 2]);
+                    maxPlain[i] = Math.max(maxPlain[i], plain[i + 2]);
+                }
+            }
+        } catch (IOException ex) {
+            System.err.println(&quot;Cannot write results: &quot; + ex.getMessage());
+            System.exit(1);
+        }
+
+        System.out.printf(&quot;Projected parameter ranges: k_x=[%.6f, %.6f], k_r=[%.6f, %.6f]%n&quot;,
+            minProjected[0], maxProjected[0], minProjected[1], maxProjected[1]);
+        System.out.printf(&quot;Plain parameter ranges: k_x=[%.6f, %.6f], k_r=[%.6f, %.6f]%n&quot;,
+            minPlain[0], maxPlain[0], minPlain[1], maxPlain[1]);
+        System.out.println(&quot;RK4 steps with active projection: &quot; + activeSteps);
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13: MATLAB Implementation -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. MATLAB Implementation</h2>
+    <div class="down-content">
+      <p>
+        The MATLAB script uses local functions, a fixed-step RK4 method, CSV
+        export, and plots. It requires base MATLAB.
+      </p>
+      <h3>Chapter9_Lesson3.m</h3>
+      <pre><code class="language-matlab">% Chapter 9, Lesson 3: continuous-time MRAC with box projection.
+% Uses base MATLAB only and compares projected and unprojected adaptive laws.
+
+clear; clc; close all;
+
+cfg.a = -0.5;
+cfg.b = 1.0;
+cfg.am = -2.0;
+cfg.bm = 2.0;
+cfg.gamma = 8.0;
+cfg.dt = 1.0e-3;
+cfg.finalTime = 20.0;
+cfg.lower = [-2.0; 0.5];
+cfg.upper = [-0.2; 2.5];
+
+[t, zProjected, active] = simulateMRAC(cfg, true);
+[~, zPlain, ~] = simulateMRAC(cfg, false);
+
+eProjected = zProjected(:,1) - zProjected(:,2);
+ePlain = zPlain(:,1) - zPlain(:,2);
+
+results = table(t, zProjected(:,1), zProjected(:,2), zProjected(:,3), ...
+    zProjected(:,4), eProjected, active, zPlain(:,3), zPlain(:,4), ePlain, ...
+    &#x27;VariableNames&#x27;, {&#x27;t&#x27;,&#x27;x_projected&#x27;,&#x27;xm_projected&#x27;,&#x27;kx_projected&#x27;, ...
+    &#x27;kr_projected&#x27;,&#x27;e_projected&#x27;,&#x27;projection_active&#x27;,&#x27;kx_plain&#x27;,&#x27;kr_plain&#x27;,&#x27;e_plain&#x27;});
+writetable(results, &#x27;Chapter9_Lesson3_results.csv&#x27;);
+
+fprintf(&#x27;Projected parameter minima: [%.6f, %.6f]\n&#x27;, min(zProjected(:,3)), min(zProjected(:,4)));
+fprintf(&#x27;Projected parameter maxima: [%.6f, %.6f]\n&#x27;, max(zProjected(:,3)), max(zProjected(:,4)));
+fprintf(&#x27;Plain parameter minima: [%.6f, %.6f]\n&#x27;, min(zPlain(:,3)), min(zPlain(:,4)));
+fprintf(&#x27;Plain parameter maxima: [%.6f, %.6f]\n&#x27;, max(zPlain(:,3)), max(zPlain(:,4)));
+fprintf(&#x27;RK4 steps with active projection: %d\n&#x27;, nnz(active));
+
+figure;
+plot(t, zProjected(:,1), &#x27;LineWidth&#x27;, 1.2); hold on;
+plot(t, zProjected(:,2), &#x27;--&#x27;, &#x27;LineWidth&#x27;, 1.2);
+grid on; xlabel(&#x27;Time (s)&#x27;); ylabel(&#x27;State&#x27;);
+legend(&#x27;x projected&#x27;,&#x27;x_m&#x27;,&#x27;Location&#x27;,&#x27;best&#x27;);
+title(&#x27;Projected MRAC tracking&#x27;);
+
+figure;
+plot(t, zProjected(:,3), &#x27;LineWidth&#x27;, 1.2); hold on;
+plot(t, zProjected(:,4), &#x27;LineWidth&#x27;, 1.2);
+plot(t, zPlain(:,3), &#x27;--&#x27;, &#x27;LineWidth&#x27;, 1.0);
+plot(t, zPlain(:,4), &#x27;--&#x27;, &#x27;LineWidth&#x27;, 1.0);
+yline(cfg.lower(1), &#x27;:&#x27;); yline(cfg.upper(1), &#x27;:&#x27;);
+yline(cfg.lower(2), &#x27;:&#x27;); yline(cfg.upper(2), &#x27;:&#x27;);
+grid on; xlabel(&#x27;Time (s)&#x27;); ylabel(&#x27;Adaptive parameters&#x27;);
+legend(&#x27;k_x projected&#x27;,&#x27;k_r projected&#x27;,&#x27;k_x plain&#x27;,&#x27;k_r plain&#x27;,&#x27;Location&#x27;,&#x27;best&#x27;);
+title(&#x27;Projection enforces the parameter box&#x27;);
+
+function [t, z, active] = simulateMRAC(cfg, useProjection)
+    steps = round(cfg.finalTime / cfg.dt);
+    t = (0:steps)&#x27; * cfg.dt;
+    z = zeros(steps + 1, 4);
+    active = false(steps + 1, 1);
+    z(1,:) = [1.0, 0.0, cfg.lower(1), cfg.lower(2)];
+
+    for k = 1:steps
+        [z(k+1,:), active(k)] = rk4Step(t(k), z(k,:), cfg, useProjection);
+    end
+end
+
+function [next, active] = rk4Step(t, z, cfg, useProjection)
+    [k1, a1] = rhs(t, z, cfg, useProjection);
+    [k2, a2] = rhs(t + 0.5*cfg.dt, z + 0.5*cfg.dt*k1, cfg, useProjection);
+    [k3, a3] = rhs(t + 0.5*cfg.dt, z + 0.5*cfg.dt*k2, cfg, useProjection);
+    [k4, a4] = rhs(t + cfg.dt, z + cfg.dt*k3, cfg, useProjection);
+    next = z + (cfg.dt/6.0) * (k1 + 2*k2 + 2*k3 + k4);
+
+    if useProjection
+        next(3:4) = min(max(next(3:4)&#x27;, cfg.lower), cfg.upper)&#x27;;
+    end
+    active = a1 || a2 || a3 || a4;
+end
+
+function [dz, active] = rhs(t, z, cfg, useProjection)
+    x = z(1); xm = z(2); kx = z(3); kr = z(4);
+    r = referenceSignal(t);
+    u = kx*x + kr*r;
+    e = x - xm;
+    direction = -cfg.gamma * e * [x; r];
+
+    if useProjection
+        [thetaDot, active] = boxProjection([kx; kr], direction, cfg.lower, cfg.upper);
+    else
+        thetaDot = direction;
+        active = false;
+    end
+
+    dz = [cfg.a*x + cfg.b*u + disturbanceSignal(t), ...
+          cfg.am*xm + cfg.bm*r, thetaDot(1), thetaDot(2)];
+end
+
+function [projected, active] = boxProjection(theta, direction, lower, upper)
+    tol = 1.0e-10;
+    projected = direction;
+    active = false;
+    for i = 1:numel(theta)
+        outwardLower = theta(i) &lt;= lower(i) + tol &amp;&amp; direction(i) &lt; 0.0;
+        outwardUpper = theta(i) &gt;= upper(i) - tol &amp;&amp; direction(i) &gt; 0.0;
+        if outwardLower || outwardUpper
+            projected(i) = 0.0;
+            active = true;
+        end
+    end
+end
+
+function r = referenceSignal(t)
+    r = 1.0 + 0.5*sin(0.7*t) + 0.25*sin(1.9*t);
+end
+
+function d = disturbanceSignal(t)
+    d = 0.15*sin(4.0*t);
+end
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 14: Simulink Implementation -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>14. Simulink Implementation</h2>
+    <div class="down-content">
+      <p>
+        The following MATLAB script programmatically creates a Simulink model
+        containing a reference generator, a MATLAB Function block for the
+        projected MRAC dynamics, a continuous integrator, and workspace logging.
+        It requires Simulink.
+      </p>
+      <h3>Chapter9_Lesson3_Simulink.m</h3>
+      <pre><code class="language-matlab">% Chapter 9, Lesson 3: programmatically build a Simulink projection subsystem.
+% Requires Simulink. The generated model is Chapter9_Lesson3_ProjectionModel.slx.
+
+clear; clc;
+
+model = &#x27;Chapter9_Lesson3_ProjectionModel&#x27;;
+if bdIsLoaded(model)
+    close_system(model, 0);
+end
+new_system(model);
+open_system(model);
+
+set_param(model, &#x27;Solver&#x27;, &#x27;ode4&#x27;, &#x27;FixedStep&#x27;, &#x27;0.001&#x27;, &#x27;StopTime&#x27;, &#x27;20&#x27;);
+
+add_block(&#x27;simulink/Sources/Clock&#x27;, [model &#x27;/Clock&#x27;], &#x27;Position&#x27;, [30 40 60 70]);
+add_block(&#x27;simulink/User-Defined Functions/MATLAB Function&#x27;, [model &#x27;/Reference&#x27;], ...
+    &#x27;Position&#x27;, [110 25 260 85]);
+add_block(&#x27;simulink/User-Defined Functions/MATLAB Function&#x27;, [model &#x27;/Projected MRAC Dynamics&#x27;], ...
+    &#x27;Position&#x27;, [330 20 560 150]);
+add_block(&#x27;simulink/Continuous/Integrator&#x27;, [model &#x27;/State Integrator&#x27;], ...
+    &#x27;InitialCondition&#x27;, &#x27;[1;0;-2;0.5]&#x27;, &#x27;Position&#x27;, [630 45 660 125]);
+add_block(&#x27;simulink/Sinks/To Workspace&#x27;, [model &#x27;/Log State&#x27;], ...
+    &#x27;VariableName&#x27;, &#x27;zLog&#x27;, &#x27;SaveFormat&#x27;, &#x27;Structure With Time&#x27;, ...
+    &#x27;Position&#x27;, [730 55 830 95]);
+
+referenceCode = sprintf([ ...
+    &#x27;function r = fcn(t)\n&#x27; ...
+    &#x27;r = 1.0 + 0.5*sin(0.7*t) + 0.25*sin(1.9*t);\n&#x27; ...
+    &#x27;end\n&#x27;]);
+
+mracCode = sprintf([ ...
+    &#x27;function dz = fcn(t,r,z)\n&#x27; ...
+    &#x27;%%#codegen\n&#x27; ...
+    &#x27;a=-0.5; b=1.0; am=-2.0; bm=2.0; gamma=8.0;\n&#x27; ...
+    &#x27;lower=[-2.0;0.5]; upper=[-0.2;2.5]; tol=1e-10;\n&#x27; ...
+    &#x27;x=z(1); xm=z(2); theta=z(3:4);\n&#x27; ...
+    &#x27;u=theta(1)*x + theta(2)*r; e=x-xm;\n&#x27; ...
+    &#x27;v=-gamma*e*[x;r]; thetaDot=v;\n&#x27; ...
+    &#x27;for i=1:2\n&#x27; ...
+    &#x27;  if (theta(i)&lt;=lower(i)+tol &amp;&amp; v(i)&lt;0) || ...\n&#x27; ...
+    &#x27;     (theta(i)&gt;=upper(i)-tol &amp;&amp; v(i)&gt;0)\n&#x27; ...
+    &#x27;    thetaDot(i)=0;\n&#x27; ...
+    &#x27;  end\n&#x27; ...
+    &#x27;end\n&#x27; ...
+    &#x27;d=0.15*sin(4.0*t);\n&#x27; ...
+    &#x27;dz=[a*x+b*u+d; am*xm+bm*r; thetaDot];\n&#x27; ...
+    &#x27;end\n&#x27;]);
+
+setFunctionScript([model &#x27;/Reference&#x27;], referenceCode);
+setFunctionScript([model &#x27;/Projected MRAC Dynamics&#x27;], mracCode);
+
+add_line(model, &#x27;Clock/1&#x27;, &#x27;Reference/1&#x27;, &#x27;autorouting&#x27;, &#x27;on&#x27;);
+add_line(model, &#x27;Clock/1&#x27;, &#x27;Projected MRAC Dynamics/1&#x27;, &#x27;autorouting&#x27;, &#x27;on&#x27;);
+add_line(model, &#x27;Reference/1&#x27;, &#x27;Projected MRAC Dynamics/2&#x27;, &#x27;autorouting&#x27;, &#x27;on&#x27;);
+add_line(model, &#x27;State Integrator/1&#x27;, &#x27;Projected MRAC Dynamics/3&#x27;, &#x27;autorouting&#x27;, &#x27;on&#x27;);
+add_line(model, &#x27;Projected MRAC Dynamics/1&#x27;, &#x27;State Integrator/1&#x27;, &#x27;autorouting&#x27;, &#x27;on&#x27;);
+add_line(model, &#x27;State Integrator/1&#x27;, &#x27;Log State/1&#x27;, &#x27;autorouting&#x27;, &#x27;on&#x27;);
+
+save_system(model, [model &#x27;.slx&#x27;]);
+fprintf(&#x27;Created %s.slx\n&#x27;, model);
+fprintf(&#x27;Run the model, then inspect zLog.signals.values.\n&#x27;);
+
+function setFunctionScript(blockPath, scriptText)
+    chart = find(sfroot, &#x27;-isa&#x27;, &#x27;Stateflow.EMChart&#x27;, &#x27;Path&#x27;, blockPath);
+    if isempty(chart)
+        error(&#x27;Could not access MATLAB Function block: %s&#x27;, blockPath);
+    end
+    chart.Script = scriptText;
+end
+</code></pre>
+      <p>
+        The generated integrator contains the full state
+        <strong>\( [x,\;x_m,\;\hat{k}_x,\;\hat{k}_r]^T \)</strong>. For
+        production use, add explicit parameter-bound monitors and consider
+        zero-crossing detection at each active face.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 15: Wolfram Mathematica Implementation -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>15. Wolfram Mathematica Implementation</h2>
+    <div class="down-content">
+      <p>
+        The notebook uses <code>NDSolveValue</code> for the projected and plain
+        systems and exports sampled trajectories. The projection is written as a
+        reusable Wolfram Language function.
+      </p>
+      <h3>Chapter9_Lesson3.nb</h3>
+      <pre><code class="language-mathematica">
+Notebook[
+ {
+  Cell[
+   "Chapter 9, Lesson 3: Continuous-Time MRAC with Box Projection",
+   "Title"
+  ],
+
+  Cell[
+   "The notebook compares projected and unprojected adaptive laws and verifies the parameter bounds.",
+   "Text"
+  ],
+
+  Cell[
+   BoxData[
+"ClearAll[\"Global`*\"];
+
+a = -0.5;
+b = 1.0;
+am = -2.0;
+bm = 2.0;
+gamma = 8.0;
+
+lower = {-2.0, 0.5};
+upper = {-0.2, 2.5};
+
+reference[t_] :=
+  1.0 + 0.5 Sin[0.7 t] + 0.25 Sin[1.9 t];
+
+disturbance[t_] :=
+  0.15 Sin[4.0 t];
+
+boxProjection[theta_List, direction_List] :=
+ Module[
+  {p = direction, tol = 10^-10},
+
+  Do[
+   If[
+    (theta[[i]] <= lower[[i]] + tol &&
+       direction[[i]] < 0) ||
+     (theta[[i]] >= upper[[i]] - tol &&
+       direction[[i]] > 0),
+
+    p[[i]] = 0
+   ],
+   {i, Length[theta]}
+  ];
+
+  p
+ ];
+
+projectedSolution =
+ NDSolveValue[
+  {
+   x'[t] ==
+    a x[t] +
+     b (kx[t] x[t] + kr[t] reference[t]) +
+     disturbance[t],
+
+   xm'[t] ==
+    am xm[t] + bm reference[t],
+
+   kx'[t] ==
+    boxProjection[
+      {kx[t], kr[t]},
+      -gamma (x[t] - xm[t]) {x[t], reference[t]}
+     ][[1]],
+
+   kr'[t] ==
+    boxProjection[
+      {kx[t], kr[t]},
+      -gamma (x[t] - xm[t]) {x[t], reference[t]}
+     ][[2]],
+
+   x[0] == 1.0,
+   xm[0] == 0.0,
+   kx[0] == lower[[1]],
+   kr[0] == lower[[2]]
+  },
+
+  {x, xm, kx, kr},
+  {t, 0, 20},
+
+  Method -> {
+   \"TimeIntegration\" -> {
+    \"EventLocator\",
+    \"EventAction\" -> None
+   }
+  },
+
+  MaxStepFraction -> 1/20000
+ ];
+
+plainSolution =
+ NDSolveValue[
+  {
+   xp'[t] ==
+    a xp[t] +
+     b (kxp[t] xp[t] + krp[t] reference[t]) +
+     disturbance[t],
+
+   xmp'[t] ==
+    am xmp[t] + bm reference[t],
+
+   kxp'[t] ==
+    -gamma (xp[t] - xmp[t]) xp[t],
+
+   krp'[t] ==
+    -gamma (xp[t] - xmp[t]) reference[t],
+
+   xp[0] == 1.0,
+   xmp[0] == 0.0,
+   kxp[0] == lower[[1]],
+   krp[0] == lower[[2]]
+  },
+
+  {xp, xmp, kxp, krp},
+  {t, 0, 20},
+
+  MaxStepFraction -> 1/20000
+ ];
+
+trackingPlot =
+ Plot[
+  Evaluate[
+   {
+    projectedSolution[[1]][t],
+    projectedSolution[[2]][t]
+   }
+  ],
+
+  {t, 0, 20},
+
+  PlotLegends -> {
+   \"x projected\",
+   \"x_m\"
+  },
+
+  AxesLabel -> {
+   \"Time (s)\",
+   \"State\"
+  },
+
+  GridLines -> Automatic
+ ];
+
+parameterPlot =
+ Plot[
+  Evaluate[
+   {
+    projectedSolution[[3]][t],
+    projectedSolution[[4]][t],
+    plainSolution[[3]][t],
+    plainSolution[[4]][t]
+   }
+  ],
+
+  {t, 0, 20},
+
+  PlotLegends -> {
+   \"k_x projected\",
+   \"k_r projected\",
+   \"k_x plain\",
+   \"k_r plain\"
+  },
+
+  AxesLabel -> {
+   \"Time (s)\",
+   \"Adaptive parameters\"
+  },
+
+  GridLines -> Automatic
+ ];
+
+Show[trackingPlot]
+Show[parameterPlot]
+
+samples =
+ Table[
+  {
+   tt,
+   Sequence @@ Through[projectedSolution[tt]],
+   Sequence @@ Through[plainSolution[tt]]
+  },
+
+  {tt, 0, 20, 0.01}
+ ];
+
+Export[
+ \"Chapter9_Lesson3_results.csv\",
+ samples
+];
+
+projectedRange =
+ MinMax /@
+  Transpose[
+   samples[[All, {4, 5}]]
+  ];
+
+plainRange =
+ MinMax /@
+  Transpose[
+   samples[[All, {8, 9}]]
+  ];
+
+Print[
+ \"Projected parameter ranges: \",
+ projectedRange
+];
+
+Print[
+ \"Plain parameter ranges: \",
+ plainRange
+];"
+   ],
+   "Input"
+  ]
+ },
+
+ WindowTitle -> "Chapter9_Lesson3",
+ StyleDefinitions -> "Default.nb"
+]        
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 16: Verification Tests -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>16. Verification Tests for a Projection Routine</h2>
+    <div class="down-content">
+      <p>
+        A projection function should be unit-tested before it is inserted into a
+        closed-loop simulation. For each parameter component, test:
+      </p>
+      <ol>
+        <li>
+          <strong>Interior:</strong> the output equals the nominal direction.
+        </li>
+        <li>
+          <strong>Lower boundary, inward:</strong> a positive direction is
+          unchanged.
+        </li>
+        <li>
+          <strong>Lower boundary, outward:</strong> a negative direction becomes
+          zero.
+        </li>
+        <li>
+          <strong>Upper boundary, inward:</strong> a negative direction is
+          unchanged.
+        </li>
+        <li>
+          <strong>Upper boundary, outward:</strong> a positive direction becomes
+          zero.
+        </li>
+        <li>
+          <strong>Near-boundary tolerance:</strong> behavior matches the chosen
+          numerical policy.
+        </li>
+        <li>
+          <strong>Long simulation:</strong> every logged estimate satisfies its
+          bounds within roundoff.
+        </li>
+      </ol>
+      <p>A useful automated invariant is</p>
+      <h4 class="mathJax">
+        \[ \max_{k,i} \left\{ \ell_i-\hat{\theta}_{i,k}, \hat{\theta}_{i,k}-u_i,
+        0 \right\} \leq\varepsilon_{\mathrm{test} }. \]
+      </h4>
+      <p>
+        A second test numerically checks the Lyapunov-compatible inequality for
+        randomly sampled ideal parameters inside the box:
+      </p>
+      <h4 class="mathJax">
+        \[ (\hat{\boldsymbol{\theta} }-\boldsymbol{\theta}^{\ast})^{T} \left[
+        \operatorname{Proj} (\hat{\boldsymbol{\theta} },\mathbf{y})-\mathbf{y}
+        \right] \leq\varepsilon_{\mathrm{test} }. \]
+      </h4>
+    </div>
+  </div>
+</section>
+
+<!-- Section 17: Problems and Solutions -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>17. Problems and Solutions</h2>
+    <div class="down-content">
+      <p>
+        <strong>Problem 1 (component-wise evaluation).</strong> Let
+        <strong>\( \Omega=[-2,1]\times[0,3] \)</strong>,
+        <strong>\( \hat{\boldsymbol{\theta} }=[1,\;0]^T \)</strong>, and
+        <strong>\( \mathbf{y}=[4,\;-5]^T \)</strong>. Evaluate the box
+        projection.
+      </p>
+      <p>
+        <strong>Solution.</strong> The first estimate is at its upper bound and
+        its direction is positive, so the first component is outward and is
+        removed. The second estimate is at its lower bound and its direction is
+        negative, so the second component is also outward and is removed:
+      </p>
+      <h4 class="mathJax">
+        \[ \operatorname{Proj}_{\Omega} (\hat{\boldsymbol{\theta} },\mathbf{y})
+        = \begin{bmatrix} 0\\ 0 \end{bmatrix}. \]
+      </h4>
+
+      <p>
+        <strong>Problem 2 (projection inequality for one interval).</strong>
+        Let <strong>\( \theta^{\ast}\in[\ell,u] \)</strong>. Prove
+      </p>
+      <h4 class="mathJax">
+        \[ (\hat{\theta}-\theta^{\ast}) \left[
+        \operatorname{Proj}_{[\ell,u]}(\hat{\theta},y)-y \right] \leq0. \]
+      </h4>
+      <p><strong>Solution.</strong> There are three cases.</p>
+      <ol>
+        <li>If projection is inactive, the bracket is zero.</li>
+        <li>
+          At <strong>\( \hat{\theta}=u \)</strong> with
+          <strong>\( y &gt; 0 \)</strong>, the expression is
+          <strong>\( -(u-\theta^{\ast})y\leq0 \)</strong>.
+        </li>
+        <li>
+          At <strong>\( \hat{\theta}=\ell \)</strong> with
+          <strong>\( y &lt; 0 \)</strong>, the expression is
+          <strong>\( -(\ell-\theta^{\ast})y\leq0 \)</strong>, because both
+          <strong>\( \ell-\theta^{\ast} \)</strong> and
+          <strong>\( y \)</strong> are nonpositive.
+        </li>
+      </ol>
+      <p>These cases exhaust the definition.</p>
+
+      <p><strong>Problem 3 (ellipsoidal tangent projection).</strong> Let</p>
+      <h4 class="mathJax">
+        \[ h(\boldsymbol{\theta}) = \boldsymbol{\theta}^{T} \begin{bmatrix}
+        4&amp;0\\ 0&amp;1 \end{bmatrix} \boldsymbol{\theta} -1. \]
+      </h4>
+      <p>
+        At <strong>\( \hat{\boldsymbol{\theta} }=[0.5,\;0]^T \)</strong> and
+        <strong>\( \mathbf{y}=[2,\;3]^T \)</strong>, compute the projected
+        direction.
+      </p>
+      <p>
+        <strong>Solution.</strong> The point is on the boundary because
+        <strong>\( 4(0.5)^2=1 \)</strong>. The outward normal is
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{n} = 2 \begin{bmatrix} 4&amp;0\\ 0&amp;1 \end{bmatrix}
+        \begin{bmatrix} 0.5\\ 0 \end{bmatrix} = \begin{bmatrix} 4\\ 0
+        \end{bmatrix}. \]
+      </h4>
+      <p>
+        Since <strong>\( \mathbf{n}^{T}\mathbf{y}=8 &gt; 0 \)</strong>, remove
+        the outward normal component:
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{y}_{p} = \begin{bmatrix} 2\\ 3 \end{bmatrix} -
+        \begin{bmatrix} 4\\ 0 \end{bmatrix} \frac{8}{16} = \begin{bmatrix} 0\\ 3
+        \end{bmatrix}. \]
+      </h4>
+
+      <p>
+        <strong>Problem 4 (Lyapunov compatibility).</strong> For the MRAC error
+        model
+      </p>
+      <h4 class="mathJax">
+        \[ \dot e=a_m e+b\tilde{\boldsymbol{\theta} }^T\boldsymbol{\omega},
+        \qquad a_m &lt; 0,\quad b &gt; 0, \]
+      </h4>
+      <p>
+        show that the projected law from Section 7 yields
+        <strong>\( \dot V\leq a_m e^2 \)</strong>.
+      </p>
+      <p><strong>Solution.</strong> Differentiate</p>
+      <h4 class="mathJax">
+        \[ V = \frac{1}{2}e^2 + \frac{b}{2\gamma} \tilde{\boldsymbol{\theta} }^T
+        \tilde{\boldsymbol{\theta} }. \]
+      </h4>
+      <p>
+        Add and subtract the nominal direction
+        <strong>\( -\gamma e\boldsymbol{\omega} \)</strong>. The nominal
+        cross-term cancels the error-model cross-term, leaving
+      </p>
+      <h4 class="mathJax">
+        \[ \dot V = a_m e^2 + \frac{b}{\gamma} \tilde{\boldsymbol{\theta} }^T
+        \left[ \operatorname{Proj} (\hat{\boldsymbol{\theta} },-\gamma
+        e\boldsymbol{\omega}) - (-\gamma e\boldsymbol{\omega}) \right]. \]
+      </h4>
+      <p>
+        The bracketed contribution is nonpositive by the projection inequality.
+        Since <strong>\( b/\gamma &gt; 0 \)</strong>,
+        <strong>\( \dot V\leq a_m e^2\leq0 \)</strong>.
+      </p>
+
+      <p>
+        <strong>Problem 5 (finite-step overshoot).</strong> A scalar estimate
+        has upper bound <strong>\( u=1 \)</strong>, current value
+        <strong>\( \hat\theta_k=0.99 \)</strong>, nominal direction
+        <strong>\( y=4 \)</strong>, and forward-Euler step
+        <strong>\( \Delta t=0.01 \)</strong>. Explain why a boundary-only
+        derivative test can produce an invalid numerical state and give the
+        corrected update.
+      </p>
+      <p>
+        <strong>Solution.</strong> Because the current value is strictly inside
+        the interval, the continuous-time projection initially leaves the
+        derivative unchanged. A single Euler step gives
+      </p>
+      <h4 class="mathJax">
+        \[ \hat\theta_{k+1}^{\mathrm{raw} } = 0.99+0.01(4) = 1.03, \]
+      </h4>
+      <p>
+        which crosses the upper bound. The true continuous-time trajectory would
+        reach the boundary and then have its outward derivative removed. A
+        finite-step implementation should use event detection, a smaller step,
+        or retraction:
+      </p>
+      <h4 class="mathJax">
+        \[ \hat\theta_{k+1} = \min \left\{ 1, \max \left\{ \ell, 1.03 \right\}
+        \right\} = 1. \]
+      </h4>
+
+      <p>
+        <strong>Problem 6 (choosing a valid box).</strong> For the numerical
+        plant in Section 9, calculate the matching parameters and verify that
+        the selected box contains them.
+      </p>
+      <p><strong>Solution.</strong></p>
+      <h4 class="mathJax">
+        \[ k_x^{\ast} = \frac{-2-(-0.5)}{1} = -1.5, \qquad k_r^{\ast} =
+        \frac{2}{1} = 2. \]
+      </h4>
+      <p>
+        Since <strong>\( -2\leq-1.5\leq-0.2 \)</strong> and
+        <strong>\( 0.5\leq2\leq2.5 \)</strong>, the ideal parameter vector lies
+        inside the box. If the chosen set excluded the ideal parameter, the
+        projection inequality relative to that ideal vector would no longer be
+        available in the stated form, and exact model matching could be
+        impossible.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 18: Summary -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>18. Summary</h2>
+    <div class="down-content">
+      <p>
+        A continuous-time projection law modifies only outward parameter motion
+        at the admissible-set boundary. The box implementation is a
+        component-wise tangent-cone rule, while a smooth convex-set
+        implementation removes the outward normal component. Two properties
+        drive the analysis: forward invariance of the parameter set and the
+        projection inequality that makes the correction term nonpositive in the
+        Lyapunov derivative. In software, derivative projection should be
+        combined with stage-wise evaluation, boundary tolerances, suitable
+        integration steps, and a small numerical retraction. Projection bounds
+        parameter estimates; it does not by itself create persistent excitation,
+        identify the true parameters, normalize regressors, or solve actuator
+        saturation.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 19: References -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>19. References</h2>
+    <ol>
+      <li>
+        Naik, S.M., Kumar, P.R., &amp; Ydstie, B.E. (1992). Robust
+        continuous-time adaptive control by parameter projection.
+        <em>IEEE Transactions on Automatic Control</em>, 37(2), 182–197. DOI:
+        10.1109/9.121620.
+      </li>
+      <li>
+        Tsao, T.-C., &amp; Ioannou, P.A. (1993). On the stability proof of
+        adaptive schemes with static normalizing signals and parameter
+        projection.
+        <em>IEEE Transactions on Automatic Control</em>, 38(1), 170–173. DOI:
+        10.1109/9.186334.
+      </li>
+      <li>
+        Cai, Z., de Queiroz, M.S., &amp; Dawson, D.M. (2006). A sufficiently
+        smooth projection operator.
+        <em>IEEE Transactions on Automatic Control</em>, 51(1), 135–139. DOI:
+        10.1109/TAC.2005.861704.
+      </li>
+      <li>
+        Goodwin, G.C., &amp; Mayne, D.Q. (1987). A parameter estimation
+        perspective of continuous time model reference adaptive control.
+        <em>Automatica</em>, 23(1), 57–70. DOI: 10.1016/0005-1098(87)90118-X.
+      </li>
+      <li>
+        Ioannou, P.A., &amp; Kokotović, P.V. (1984). Instability analysis and
+        improvement of robustness of adaptive control. <em>Automatica</em>,
+        20(5), 583–594. DOI: 10.1016/0005-1098(84)90009-8.
+      </li>
+      <li>
+        Narendra, K.S., &amp; Annaswamy, A.M. (1987). A new adaptive law for
+        robust adaptation without persistent excitation.
+        <em>IEEE Transactions on Automatic Control</em>, 32(2), 134–145. DOI:
+        10.1109/TAC.1987.1104543.
+      </li>
+      <li>
+        Sanei, A., &amp; French, M. (2004). Towards a performance theory of
+        robust adaptive control.
+        <em>International Journal of Adaptive Control and Signal Processing</em
+        >, 18(4), 403–421.
+      </li>
+      <li>
+        Lavretsky, E., &amp; Gibson, T.E. (2011). Projection operator in
+        adaptive systems. <em>arXiv preprint</em>, arXiv:1112.4232.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter09/Lesson2.html">
+          Lesson 2: Projection Operator Definition and Properties
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter09/Lesson4.html">
+          Lesson 4: Normalization of Signals and Regressors
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#">
+              <input
+                type="text"
+                name="search"
+                id="search"
+                placeholder="Search..."
+              />
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <br />
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: \( \theta^T\phi(x,u) \) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="active-lesson" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression \( \boldsymbol{\phi}^{\mathsf{T}}(t)\boldsymbol{\theta} \)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <br />
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>

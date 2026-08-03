@@ -1,0 +1,2945 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 28: Advanced Directions and Links to Other Courses - Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control) | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>Chapter 28: Advanced Directions and Links to Other Courses</h1>
+    <h3>
+      <strong>
+        Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer
+        to Neural/Intelligent Control)
+      </strong>
+    </h3>
+    <p>
+      This lesson connects adaptive control to approximate dynamic programming
+      (ADP), reinforcement learning, and neural control. The central idea is to
+      adapt an approximation of the long-horizon value function, called the
+      <em>critic</em>, and to use that approximation to improve a control
+      policy, called the <em>actor</em>. The treatment remains
+      control-theoretic: Bellman equations, Hamilton-Jacobi-Bellman equations,
+      policy iteration, temporal- difference residuals, approximation error,
+      admissibility, and stability limitations are emphasized before
+      neural-network implementation details.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>
+      1. Why Adaptive Critics Belong Near the End of an Adaptive-Control Course
+    </h2>
+    <div class="down-content">
+      <p>
+        Earlier chapters adapted plant parameters, controller gains, or both in
+        order to obtain tracking and regulation despite uncertainty. Adaptive
+        critics adapt a different mathematical object: an approximation to the
+        <strong>cost-to-go</strong>. For a state <strong>\(x_k\)</strong> and
+        policy <strong>\(\mu\)</strong>, the cost-to-go measures the cumulative
+        future penalty generated when the policy is followed from that state.
+      </p>
+      <h4 class="mathJax">
+        \[ V^{\mu}(x_k) = \mathbb{E}_{\mu}\!\left[ \sum_{i=0}^{\infty}\gamma^i
+        \ell(x_{k+i},u_{k+i}) \;\middle|\;x_k \right], \qquad 0 &lt; \gamma &lt;
+        1. \]
+      </h4>
+      <p>
+        Here <strong>\(\ell(x,u)\ge 0\)</strong> is a stage cost and
+        <strong>\(\gamma\)</strong> is a discount factor. The critic learns or
+        approximates <strong>\(V^{\mu}\)</strong>; the actor changes
+        <strong>\(\mu\)</strong> to reduce this value. Thus, the adaptation
+        target is not merely a plant coefficient or tracking-error gain, but a
+        solution of a dynamic-programming equation.
+      </p>
+      <p>
+        This distinction is important. A model-reference adaptive controller is
+        usually designed around a chosen error model and a Lyapunov proof. An
+        ADP controller is designed around an optimization objective and a
+        Bellman or HJB equation. Its weights may be updated online, but that
+        fact alone does not provide Lyapunov stability, robustness margins, safe
+        exploration, or parameter convergence.
+      </p>
+      <table class="table table-bordered table-striped">
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Classical adaptive control</th>
+            <th>Adaptive critic / ADP</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Main learned object</td>
+            <td>Plant parameters or controller parameters</td>
+            <td>Value, action-value, value gradient, and/or policy</td>
+          </tr>
+          <tr>
+            <td>Primary equation</td>
+            <td>Error dynamics and Lyapunov derivative</td>
+            <td>Bellman equation or HJB equation</td>
+          </tr>
+          <tr>
+            <td>Primary goal</td>
+            <td>Tracking/regulation with uncertainty</td>
+            <td>Minimize cumulative closed-loop cost</td>
+          </tr>
+          <tr>
+            <td>Typical excitation issue</td>
+            <td>Persistent excitation for parameter convergence</td>
+            <td>State-action coverage for value/policy learning</td>
+          </tr>
+          <tr>
+            <td>Typical proof burden</td>
+            <td>Boundedness, tracking convergence</td>
+            <td>
+              Bellman approximation, policy improvement, stability, safety
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. Discrete-Time Optimal-Control Foundation</h2>
+    <div class="down-content">
+      <p>Consider a deterministic nonlinear system</p>
+      <h4 class="mathJax">
+        \[ x_{k+1}=f(x_k,u_k), \qquad x_k\in\mathbb{R}^{n},\quad
+        u_k\in\mathcal{U}. \]
+      </h4>
+      <p>
+        For a stationary policy <strong>\(u_k=\mu(x_k)\)</strong>, the value
+        function satisfies the policy Bellman equation
+      </p>
+      <h4 class="mathJax">
+        \[ V^{\mu}(x) = \ell(x,\mu(x)) + \gamma
+        V^{\mu}\!\left(f(x,\mu(x))\right). \]
+      </h4>
+      <p>
+        The optimal value is the pointwise minimum over all admissible policies:
+      </p>
+      <h4 class="mathJax">\[ V^{\star}(x)=\inf_{\mu}V^{\mu}(x). \]</h4>
+      <p>
+        Bellman's principle of optimality yields the Bellman optimality equation
+      </p>
+      <h4 class="mathJax">
+        \[ V^{\star}(x) = \min_{u\in\mathcal{U}} \left\{ \ell(x,u)+\gamma
+        V^{\star}(f(x,u)) \right\}. \]
+      </h4>
+      <p>Define the Bellman optimality operator <strong>\(T\)</strong> by</p>
+      <h4 class="mathJax">
+        \[ (TV)(x) = \min_{u\in\mathcal{U}} \left\{\ell(x,u)+\gamma
+        V(f(x,u))\right\}. \]
+      </h4>
+      <p>
+        Under bounded costs and <strong>\(0&lt;\gamma&lt;1\)</strong>, this
+        operator is a contraction in the sup norm. For arbitrary bounded
+        functions <strong>\(V\)</strong> and <strong>\(W\)</strong>, choose an
+        action that minimizes the expression for one function and use the
+        elementary inequality between minima:
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} |(TV)(x)-(TW)(x)| &\le \gamma\max_{u\in\mathcal{U}}
+        |V(f(x,u))-W(f(x,u))| \\ &\le \gamma\|V-W\|_{\infty}. \end{aligned} \]
+      </h4>
+      <p>Taking the supremum over <strong>\(x\)</strong> gives</p>
+      <h4 class="mathJax">
+        \[ \|TV-TW\|_{\infty} \le \gamma\|V-W\|_{\infty}. \]
+      </h4>
+      <p>
+        Therefore, the Banach fixed-point theorem gives a unique fixed point
+        <strong>\(V^{\star}=TV^{\star}\)</strong>, and exact value iteration
+        <strong>\(V_{j+1}=TV_j\)</strong> converges geometrically. ADP begins
+        when exact storage or exact application of <strong>\(T\)</strong> is
+        impossible and a parameterized approximation replaces the unrestricted
+        function.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. Critic, Actor, and Optional Model</h2>
+    <div class="down-content">
+      <p>
+        The critic estimates a value-related quantity, while the actor generates
+        the control input. Some architectures also contain an identifier or
+        learned model. The most common mathematical choices are:
+      </p>
+      <ul>
+        <li>
+          <strong>State-value critic:</strong>
+          <strong>\(\widehat V(x;w_c)\)</strong> approximates
+          <strong>\(V^{\mu}(x)\)</strong>.
+        </li>
+        <li>
+          <strong>Action-value critic:</strong>
+          <strong>\(\widehat Q(x,u;w_c)\)</strong> approximates the cost of
+          taking <strong>\(u\)</strong> and then following the policy.
+        </li>
+        <li>
+          <strong>Derivative critic:</strong> approximates
+          <strong>\(\nabla_x V(x)\)</strong>, which is closely related to
+          dual-heuristic programming.
+        </li>
+        <li>
+          <strong>Actor:</strong>
+          <strong>\(\widehat\mu(x;w_a)\)</strong> approximates the minimizing
+          control law.
+        </li>
+      </ul>
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  R["Reference, objective, and constraints"] --> A["Actor: control u = policy(x)"]
+  A --> P["Plant or environment"]
+  P --> X["Measured transition: x, u, cost, x_next"]
+  X --> C["Critic: estimate long-horizon cost"]
+  C --> TD["Bellman or TD residual"]
+  TD --> C
+  C --> PI["Policy improvement signal"]
+  PI --> A
+  X --> ID["Optional identifier or learned model"]
+  ID --> C
+  ID --> PI
+        </pre>
+      </div>
+      <p>
+        Historically, adaptive-critic terminology includes heuristic dynamic
+        programming (value critic), dual heuristic programming (value-gradient
+        critic), and globalized dual heuristic programming (both value and
+        gradient information). Modern reinforcement-learning terminology more
+        often uses <em>critic</em>, <em>actor-critic</em>, <em>Q-learning</em>,
+        and <em>policy gradient</em>. The underlying control equations remain
+        Bellman or HJB equations.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Function Approximation and the Projected Bellman Equation</h2>
+    <div class="down-content">
+      <p>Let a linear-in-the-weights critic be</p>
+      <h4 class="mathJax">
+        \[ \widehat V(x;w_c)=w_c^{\mathsf T}\phi(x), \qquad
+        \phi(x)\in\mathbb{R}^{N_c}. \]
+      </h4>
+      <p>
+        The features may be monomials, radial basis functions, Fourier features,
+        or the penultimate-layer outputs of a neural network. A neural critic
+        can be written more generally as
+      </p>
+      <h4 class="mathJax">\[ \widehat V(x;w_c)=\mathcal{N}_c(x;w_c). \]</h4>
+      <p>For a fixed policy, the Bellman operator is</p>
+      <h4 class="mathJax">
+        \[ (T_{\mu}V)(x) =\ell(x,\mu(x)) +\gamma V(f(x,\mu(x))). \]
+      </h4>
+      <p>
+        Because the exact Bellman image need not lie in the approximation space,
+        the critic commonly solves a <strong>projected Bellman equation</strong>
+      </p>
+      <h4 class="mathJax">\[ \Phi w_c = \Pi T_{\mu}(\Phi w_c), \]</h4>
+      <p>
+        where <strong>\(\Pi\)</strong> is a projection induced by a sampling
+        distribution and inner product. For sampled transitions
+        <strong>\((x_k,u_k,c_k,x_{k+1})\)</strong>, define the
+        temporal-difference residual
+      </p>
+      <h4 class="mathJax">
+        \[ \delta_k =c_k+\gamma\widehat V(x_{k+1};w_c) -\widehat V(x_k;w_c). \]
+      </h4>
+      <p>
+        Classical semi-gradient TD(0) treats the bootstrap target as locally
+        constant:
+      </p>
+      <h4 class="mathJax">
+        \[ w_{c,k+1} =w_{c,k}+\alpha_c\delta_k\phi(x_k). \]
+      </h4>
+      <p>A residual-gradient update differentiates both terms:</p>
+      <h4 class="mathJax">
+        \[ w_{c,k+1} =w_{c,k} -\alpha_c\delta_k \left[
+        \gamma\nabla_{w_c}\widehat V(x_{k+1};w_c) -\nabla_{w_c}\widehat
+        V(x_k;w_c) \right]. \]
+      </h4>
+      <p>
+        The implementations in this lesson use a normalized residual-gradient
+        step because it is transparent for a one-parameter quadratic critic. In
+        larger problems, TD, least-squares TD, gradient-TD, replay buffers,
+        target networks, and regularized nonlinear optimization address
+        different bias, variance, conditioning, and off-policy stability issues.
+      </p>
+      <p>
+        For linear features under a stationary policy, the expected TD normal
+        equation has the form
+      </p>
+      <h4 class="mathJax">\[ A w_c=b, \]</h4>
+      <h4 class="mathJax">
+        \[ A=\mathbb{E}\!\left[ \phi(x_k)
+        \left(\phi(x_k)-\gamma\phi(x_{k+1})\right)^{\mathsf T} \right], \qquad
+        b=\mathbb{E}\!\left[\phi(x_k)c_k\right]. \]
+      </h4>
+      <p>
+        This equation reveals the analogue of excitation in adaptive control:
+        the data must make <strong>\(A\)</strong> sufficiently informative and
+        well-conditioned. Poor state visitation or redundant features can make
+        critic identification ill-conditioned even when the closed loop remains
+        bounded.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Policy Iteration and the Policy-Improvement Argument</h2>
+    <div class="down-content">
+      <p>Exact policy iteration alternates between:</p>
+      <ol>
+        <li>
+          <strong>Policy evaluation:</strong> solve
+          <strong>\(V^{\mu_j}=T_{\mu_j}V^{\mu_j}\)</strong>.
+        </li>
+        <li>
+          <strong>Policy improvement:</strong> choose
+          <strong>\(\mu_{j+1}\)</strong> greedily with respect to
+          <strong>\(V^{\mu_j}\)</strong>.
+        </li>
+      </ol>
+      <h4 class="mathJax">
+        \[ \mu_{j+1}(x) \in\arg\min_{u\in\mathcal{U}} \left\{ \ell(x,u)+\gamma
+        V^{\mu_j}(f(x,u)) \right\}. \]
+      </h4>
+      <p>By the greedy definition,</p>
+      <h4 class="mathJax">
+        \[ T_{\mu_{j+1}}V^{\mu_j} \le T_{\mu_j}V^{\mu_j} =V^{\mu_j}. \]
+      </h4>
+      <p>
+        Repeated application of the monotone operator
+        <strong>\(T_{\mu_{j+1}}\)</strong> then gives
+      </p>
+      <h4 class="mathJax">
+        \[ V^{\mu_{j+1}} =\lim_{m\to\infty}T_{\mu_{j+1}}^{m}V^{\mu_j} \le
+        V^{\mu_j}. \]
+      </h4>
+      <p>
+        Thus exact policy improvement cannot increase the cost. Approximate
+        policy iteration replaces exact evaluation and exact minimization by
+        approximations. If the critic error is large, the actor optimization is
+        inaccurate, or the policy leaves the region represented by the data,
+        monotonic improvement is no longer automatic.
+      </p>
+      <p>An action-value critic can remove explicit model dependence. Define</p>
+      <h4 class="mathJax">
+        \[ Q^{\mu}(x,u) =\ell(x,u)+\gamma V^{\mu}(f(x,u)). \]
+      </h4>
+      <p>
+        Then the greedy actor is simply
+        <strong>\(\mu^{+}(x)\in\arg\min_u Q^{\mu}(x,u)\)</strong>. This is the
+        route from model-assisted ADP to model-free Q-learning and actor-critic
+        methods.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. Continuous-Time Link: HJB and Value Gradients</h2>
+    <div class="down-content">
+      <p>For the input-affine continuous-time system</p>
+      <h4 class="mathJax">\[ \dot x=f(x)+g(x)u \]</h4>
+      <p>and infinite-horizon cost</p>
+      <h4 class="mathJax">
+        \[ J(x_0,u)=\int_{0}^{\infty} \left[x^{\mathsf T}Qx+u^{\mathsf
+        T}Ru\right]dt, \qquad Q\succeq 0,\quad R\succ 0, \]
+      </h4>
+      <p>the stationary HJB equation is</p>
+      <h4 class="mathJax">
+        \[ 0=\min_u\left\{ x^{\mathsf T}Qx+u^{\mathsf T}Ru +\nabla
+        V^{\star}(x)^{\mathsf T}[f(x)+g(x)u] \right\}. \]
+      </h4>
+      <p>
+        Differentiating the Hamiltonian with respect to <strong>\(u\)</strong>
+        gives
+      </p>
+      <h4 class="mathJax">\[ 2Ru+g(x)^{\mathsf T}\nabla V^{\star}(x)=0, \]</h4>
+      <h4 class="mathJax">
+        \[ u^{\star}(x) =-\frac{1}{2}R^{-1}g(x)^{\mathsf T}\nabla V^{\star}(x).
+        \]
+      </h4>
+      <p>
+        This formula explains why value-gradient critics are attractive in
+        nonlinear control: the optimal feedback is directly related to
+        <strong>\(\nabla V^{\star}\)</strong>. It also exposes a difficulty: an
+        inaccurate critic gradient can produce an unsafe actor even when the
+        value approximation itself appears numerically reasonable. Continuous-
+        time integral reinforcement learning and actor-critic methods avoid
+        direct differentiation of unknown drift dynamics by integrating Bellman
+        identities over finite intervals; a full treatment belongs in a neural
+        or learning-based control course.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Worked Scalar LQR: Exact Solution and Quadratic Critic</h2>
+    <div class="down-content">
+      <p>The multilingual laboratory uses the scalar plant</p>
+      <h4 class="mathJax">\[ x_{k+1}=a x_k+b u_k \]</h4>
+      <p>with discounted quadratic cost</p>
+      <h4 class="mathJax">
+        \[ J=\sum_{k=0}^{\infty}\gamma^k \left(qx_k^2+ru_k^2\right), \qquad
+        q&gt;0,\quad r&gt;0. \]
+      </h4>
+      <p>
+        Assume the value function is quadratic:
+        <strong>\(V(x)=p x^2\)</strong>. For a current coefficient
+        <strong>\(p\)</strong>, the one-step greedy problem is
+      </p>
+      <h4 class="mathJax">
+        \[ \min_u\left\{ qx^2+ru^2+\gamma p(ax+bu)^2 \right\}. \]
+      </h4>
+      <p>The first-order condition is</p>
+      <h4 class="mathJax">\[ 2ru+2\gamma p b(ax+bu)=0. \]</h4>
+      <p>
+        Therefore the greedy actor has the form
+        <strong>\(u=-k(p)x\)</strong>, where
+      </p>
+      <h4 class="mathJax">\[ k(p)=\frac{\gamma bpa}{r+\gamma b^2p}. \]</h4>
+      <p>
+        Substitution into the Bellman equation gives the scalar discounted
+        Riccati mapping
+      </p>
+      <h4 class="mathJax">
+        \[ \mathcal{F}(p) =q+\gamma a^2p -\frac{(\gamma abp)^2}{r+\gamma b^2p}.
+        \]
+      </h4>
+      <p>
+        The optimal coefficient satisfies
+        <strong>\(p^{\star}=\mathcal{F}(p^{\star})\)</strong>, and the optimal
+        gain is <strong>\(k^{\star}=k(p^{\star})\)</strong>.
+      </p>
+      <p>
+        The critic used in the code is
+        <strong>\(\widehat V(x;p_c)=p_cx^2\)</strong>. For the observed
+        transition,
+      </p>
+      <h4 class="mathJax">
+        \[ \delta_k =qx_k^2+ru_k^2 +\gamma p_c x_{k+1}^2-p_cx_k^2. \]
+      </h4>
+      <p>Its normalized residual-gradient update is</p>
+      <h4 class="mathJax">
+        \[ p_{c,k+1} =\operatorname{Proj}_{[p_{\min},p_{\max}]} \left[ p_{c,k}
+        -\alpha_c\delta_k \frac{\gamma x_{k+1}^2-x_k^2} {1+(\gamma
+        x_{k+1}^2-x_k^2)^2} \right]. \]
+      </h4>
+      <p>
+        The actor is moved gradually toward the greedy gain implied by the
+        critic:
+      </p>
+      <h4 class="mathJax">
+        \[ k_{a,k+1} =\operatorname{Proj}_{[k_{\min},k_{\max}]} \left[
+        k_{a,k}+\alpha_a(k(p_{c,k+1})-k_{a,k}) \right]. \]
+      </h4>
+      <p>
+        This is a <strong>model-assisted</strong> actor update because the
+        formula uses <strong>\(a\)</strong> and <strong>\(b\)</strong>. The
+        critic itself is updated from sampled transitions. To remove model
+        dependence, one can learn a quadratic action-value function
+      </p>
+      <h4 class="mathJax">
+        \[ \widehat Q(x,u) =\begin{bmatrix}x\\u\end{bmatrix}^{\mathsf T}
+        \begin{bmatrix}h_{xx}&amp;h_{xu}\\h_{xu}&amp;h_{uu}\end{bmatrix}
+        \begin{bmatrix}x\\u\end{bmatrix}, \]
+      </h4>
+      <p>
+        for which the greedy input is
+        <strong>\(u=-h_{uu}^{-1}h_{ux}x\)</strong>, provided
+        <strong>\(h_{uu}&gt;0\)</strong>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Admissibility, Exploration, and Stability Limitations</h2>
+    <div class="down-content">
+      <p>
+        ADP proofs commonly begin from an <strong>admissible policy</strong>: a
+        policy that stabilizes the plant in the region of interest and produces
+        finite cost. For the scalar linear policy <strong>\(u=-kx\)</strong>,
+        the closed-loop dynamics are
+      </p>
+      <h4 class="mathJax">\[ x_{k+1}=(a-bk)x_k. \]</h4>
+      <p>
+        A sufficient and necessary condition for asymptotic stability of this
+        scalar discrete-time closed loop is
+      </p>
+      <h4 class="mathJax">\[ |a-bk|&lt;1. \]</h4>
+      <p>
+        The code starts from such a gain. Exploration is added as a decaying
+        perturbation to the input so that the critic observes informative
+        transitions. This creates a fundamental conflict:
+      </p>
+      <ul>
+        <li>
+          Too little exploration can make critic parameters unidentifiable.
+        </li>
+        <li>
+          Too much exploration can violate constraints or destabilize the plant.
+        </li>
+        <li>
+          Rapid actor changes can invalidate the critic's policy-evaluation
+          target.
+        </li>
+        <li>
+          Function-approximation error can destroy exact policy improvement.
+        </li>
+      </ul>
+      <p>
+        Projection, normalization, gain-rate separation, state constraints,
+        backup controllers, and Lyapunov or barrier certificates are therefore
+        not optional details in safety-critical control. The simple script uses
+        projection and a slower actor tracking step, but it is not a general
+        safety certificate.
+      </p>
+      <h4 class="mathJax">\[ \alpha_a \ll \alpha_c \]</h4>
+      <p>
+        is a common two-time-scale design intuition: let the critic
+        approximately evaluate the current policy before the actor moves
+        substantially. The code uses equal nominal rates only because the scalar
+        critic converges quickly; larger systems generally require more careful
+        time-scale design.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Algorithm Used in the Multilingual Laboratory</h2>
+    <div class="down-content">
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  S["Choose plant, cost, discount, and admissible initial gain"] --> E["Reset state for a training episode"]
+  E --> U["Apply actor control plus bounded exploration"]
+  U --> T["Measure next state and stage cost"]
+  T --> D["Compute Bellman or TD residual"]
+  D --> C["Update and project critic parameter"]
+  C --> G["Compute greedy gain from current critic"]
+  G --> A["Move and project actor gain"]
+  A --> Q["More samples in this episode?"]
+  Q -->|yes| U
+  Q -->|no| N["More episodes?"]
+  N -->|yes| E
+  N -->|no| V["Compare learned policy with Riccati reference"]
+        </pre>
+      </div>
+      <p>
+        The numerical parameters are
+        <strong>\(a=1.05\)</strong>, <strong>\(b=0.5\)</strong>,
+        <strong>\(q=1\)</strong>, <strong>\(r=0.1\)</strong>, and
+        <strong>\(\gamma=0.98\)</strong>. The open-loop plant is unstable
+        because <strong>\(|a|&gt;1\)</strong>. The initial gain
+        <strong>\(k_0=0.8\)</strong> gives the stable pole
+        <strong>\(a-bk_0=0.65\)</strong>. With the fixed random seed, the
+        learned values are expected to be close to
+        <strong>\(p^{\star}\approx1.337912\)</strong> and
+        <strong>\(k^{\star}\approx1.609103\)</strong>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. Python Implementation — <code>Chapter28_Lesson1.py</code></h2>
+    <div class="down-content">
+      <p>
+        This implementation uses NumPy only for reproducible random sampling and
+        clipping. For larger ADP systems, relevant Python libraries include
+        NumPy/SciPy for numerical linear algebra, PyTorch or JAX for
+        differentiable neural critics, and Gymnasium-style environments for
+        standardized simulation interfaces.
+      </p>
+      <pre><code class="language-python">"""Chapter 28, Lesson 1: adaptive critic for a scalar discounted LQR.
+
+The critic estimates V(x) = p*x^2 from temporal-difference data. The actor
+uses the critic in the scalar greedy policy-improvement formula u = -k*x.
+This is a model-assisted pedagogical ADP example: the critic is data-driven,
+while the actor update uses the known input coefficient b.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+import numpy as np
+
+
+@dataclass(frozen=True)
+class Problem:
+    a: float = 1.05
+    b: float = 0.50
+    q: float = 1.00
+    r: float = 0.10
+    gamma: float = 0.98
+
+
+def discounted_riccati_reference(problem: Problem) -&gt; tuple[float, float]:
+    """Return the scalar discounted-Riccati value coefficient and feedback gain."""
+    p = problem.q
+    for _ in range(100_000):
+        denominator = problem.r + problem.gamma * problem.b**2 * p
+        p_next = (
+            problem.q
+            + problem.gamma * problem.a**2 * p
+            - (problem.gamma * problem.a * problem.b * p) ** 2 / denominator
+        )
+        if abs(p_next - p) &lt; 1.0e-14:
+            p = p_next
+            break
+        p = p_next
+
+    k = (
+        problem.gamma
+        * problem.b
+        * p
+        * problem.a
+        / (problem.r + problem.gamma * problem.b**2 * p)
+    )
+    return p, k
+
+
+def train_adaptive_critic(
+    problem: Problem,
+    episodes: int = 500,
+    steps_per_episode: int = 80,
+    seed: int = 7,
+) -&gt; tuple[float, float, list[tuple[int, float, float]]]:
+    """Train a quadratic critic and scalar actor with normalized TD updates."""
+    rng = np.random.default_rng(seed)
+
+    critic_p = 0.50
+    actor_k = 0.80  # admissible initial controller: |a - b*k| &lt; 1
+    critic_rate = 0.08
+    actor_rate = 0.08
+    history: list[tuple[int, float, float]] = []
+
+    for episode in range(episodes):
+        x = float(rng.uniform(-2.0, 2.0))
+        exploration_scale = 0.25 * math.exp(-episode / 180.0)
+
+        for _ in range(steps_per_episode):
+            exploration = exploration_scale * float(rng.normal())
+            u = -actor_k * x + exploration
+            x_next = problem.a * x + problem.b * u
+            stage_cost = problem.q * x * x + problem.r * u * u
+
+            # Bellman/TD residual for V_hat(x) = critic_p*x^2.
+            delta = (
+                stage_cost
+                + problem.gamma * critic_p * x_next * x_next
+                - critic_p * x * x
+            )
+            critic_gradient = problem.gamma * x_next * x_next - x * x
+
+            # Normalization bounds a large one-sample update.
+            critic_p -= (
+                critic_rate
+                * delta
+                * critic_gradient
+                / (1.0 + critic_gradient * critic_gradient)
+            )
+            critic_p = float(np.clip(critic_p, 1.0e-6, 50.0))
+
+            # Greedy policy improvement induced by the current quadratic critic.
+            target_k = (
+                problem.gamma
+                * problem.b
+                * critic_p
+                * problem.a
+                / (problem.r + problem.gamma * problem.b**2 * critic_p)
+            )
+            actor_k += actor_rate * (target_k - actor_k)
+            actor_k = float(np.clip(actor_k, 0.0, 3.0))
+            x = x_next
+
+        if episode % 50 == 0 or episode == episodes - 1:
+            history.append((episode, critic_p, actor_k))
+
+    return critic_p, actor_k, history
+
+
+def rollout_cost(
+    problem: Problem,
+    gain: float,
+    x0: float = 2.0,
+    horizon: int = 60,
+) -&gt; tuple[float, list[float]]:
+    """Evaluate a deterministic discounted closed-loop rollout."""
+    x = x0
+    total = 0.0
+    trajectory = [x]
+    discount = 1.0
+
+    for _ in range(horizon):
+        u = -gain * x
+        total += discount * (problem.q * x * x + problem.r * u * u)
+        x = problem.a * x + problem.b * u
+        trajectory.append(x)
+        discount *= problem.gamma
+
+    return total, trajectory
+
+
+def main() -&gt; None:
+    problem = Problem()
+    p_star, k_star = discounted_riccati_reference(problem)
+    learned_p, learned_k, history = train_adaptive_critic(problem)
+
+    initial_cost, _ = rollout_cost(problem, gain=0.80)
+    learned_cost, learned_trajectory = rollout_cost(problem, gain=learned_k)
+
+    print("episode, critic_p, actor_k")
+    for episode, critic_p, actor_k in history:
+        print(f"{episode:4d}, {critic_p:10.6f}, {actor_k:10.6f}")
+
+    print("\nReference discounted-Riccati solution")
+    print(f"p* = {p_star:.9f}")
+    print(f"k* = {k_star:.9f}")
+    print("\nLearned adaptive-critic solution")
+    print(f"p_hat = {learned_p:.9f}")
+    print(f"k_hat = {learned_k:.9f}")
+    print(f"closed-loop pole = {problem.a - problem.b * learned_k:.9f}")
+    print(f"initial-policy rollout cost = {initial_cost:.9f}")
+    print(f"learned-policy rollout cost = {learned_cost:.9f}")
+    print("first ten learned-policy states:")
+    print(" ".join(f"{x:.6f}" for x in learned_trajectory[:10]))
+
+
+if __name__ == "__main__":
+    main()
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. C++ Implementation — <code>Chapter28_Lesson1.cpp</code></h2>
+    <div class="down-content">
+      <p>
+        The C++17 implementation uses only the standard library. In larger
+        systems, Eigen provides matrix algebra, mlpack provides machine-learning
+        components, and LibTorch provides the C++ interface to PyTorch neural
+        networks.
+      </p>
+      <pre><code class="language-cpp">// Chapter 28, Lesson 1: adaptive critic for a scalar discounted LQR.
+// Compile: g++ -std=c++17 -O2 Chapter28_Lesson1.cpp -o Chapter28_Lesson1
+
+#include &lt;algorithm&gt;
+#include &lt;cmath&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;random&gt;
+#include &lt;stdexcept&gt;
+#include &lt;utility&gt;
+#include &lt;vector&gt;
+
+struct Problem {
+    double a = 1.05;
+    double b = 0.50;
+    double q = 1.00;
+    double r = 0.10;
+    double gamma = 0.98;
+};
+
+struct Snapshot {
+    int episode;
+    double criticP;
+    double actorK;
+};
+
+std::pair&lt;double, double&gt; discountedRiccatiReference(const Problem&amp; problem) {
+    double p = problem.q;
+    for (int iteration = 0; iteration &lt; 100000; ++iteration) {
+        const double denominator =
+            problem.r + problem.gamma * problem.b * problem.b * p;
+        const double cross = problem.gamma * problem.a * problem.b * p;
+        const double pNext = problem.q + problem.gamma * problem.a * problem.a * p
+                           - cross * cross / denominator;
+        if (std::abs(pNext - p) &lt; 1.0e-14) {
+            p = pNext;
+            break;
+        }
+        p = pNext;
+    }
+
+    const double k = problem.gamma * problem.b * p * problem.a
+                   / (problem.r + problem.gamma * problem.b * problem.b * p);
+    return {p, k};
+}
+
+std::tuple&lt;double, double, std::vector&lt;Snapshot&gt;&gt; trainAdaptiveCritic(
+    const Problem&amp; problem,
+    int episodes = 500,
+    int stepsPerEpisode = 80,
+    unsigned int seed = 7U) {
+
+    if (episodes &lt;= 0 || stepsPerEpisode &lt;= 0) {
+        throw std::invalid_argument("episodes and stepsPerEpisode must be positive");
+    }
+
+    std::mt19937 generator(seed);
+    std::uniform_real_distribution&lt;double&gt; initialState(-2.0, 2.0);
+    std::normal_distribution&lt;double&gt; standardNormal(0.0, 1.0);
+
+    double criticP = 0.50;
+    double actorK = 0.80;
+    const double criticRate = 0.08;
+    const double actorRate = 0.08;
+    std::vector&lt;Snapshot&gt; history;
+
+    for (int episode = 0; episode &lt; episodes; ++episode) {
+        double x = initialState(generator);
+        const double explorationScale = 0.25 * std::exp(-episode / 180.0);
+
+        for (int step = 0; step &lt; stepsPerEpisode; ++step) {
+            const double exploration = explorationScale * standardNormal(generator);
+            const double u = -actorK * x + exploration;
+            const double xNext = problem.a * x + problem.b * u;
+            const double stageCost = problem.q * x * x + problem.r * u * u;
+
+            const double delta = stageCost
+                               + problem.gamma * criticP * xNext * xNext
+                               - criticP * x * x;
+            const double criticGradient = problem.gamma * xNext * xNext - x * x;
+
+            criticP -= criticRate * delta * criticGradient
+                     / (1.0 + criticGradient * criticGradient);
+            criticP = std::clamp(criticP, 1.0e-6, 50.0);
+
+            const double targetK = problem.gamma * problem.b * criticP * problem.a
+                                 / (problem.r
+                                    + problem.gamma * problem.b * problem.b * criticP);
+            actorK += actorRate * (targetK - actorK);
+            actorK = std::clamp(actorK, 0.0, 3.0);
+            x = xNext;
+        }
+
+        if (episode % 50 == 0 || episode == episodes - 1) {
+            history.push_back({episode, criticP, actorK});
+        }
+    }
+
+    return {criticP, actorK, history};
+}
+
+std::pair&lt;double, std::vector&lt;double&gt;&gt; rolloutCost(
+    const Problem&amp; problem,
+    double gain,
+    double x0 = 2.0,
+    int horizon = 60) {
+
+    double x = x0;
+    double total = 0.0;
+    double discount = 1.0;
+    std::vector&lt;double&gt; trajectory{x};
+
+    for (int step = 0; step &lt; horizon; ++step) {
+        const double u = -gain * x;
+        total += discount * (problem.q * x * x + problem.r * u * u);
+        x = problem.a * x + problem.b * u;
+        trajectory.push_back(x);
+        discount *= problem.gamma;
+    }
+
+    return {total, trajectory};
+}
+
+int main() {
+    try {
+        const Problem problem;
+        const auto [pStar, kStar] = discountedRiccatiReference(problem);
+        const auto [learnedP, learnedK, history] = trainAdaptiveCritic(problem);
+        const auto [initialCost, ignored] = rolloutCost(problem, 0.80);
+        const auto [learnedCost, learnedTrajectory] = rolloutCost(problem, learnedK);
+
+        std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(9);
+        std::cout &lt;&lt; "episode, critic_p, actor_k\n";
+        for (const Snapshot&amp; snapshot : history) {
+            std::cout &lt;&lt; std::setw(4) &lt;&lt; snapshot.episode &lt;&lt; ", "
+                      &lt;&lt; snapshot.criticP &lt;&lt; ", " &lt;&lt; snapshot.actorK &lt;&lt; '\n';
+        }
+
+        std::cout &lt;&lt; "\nReference discounted-Riccati solution\n";
+        std::cout &lt;&lt; "p* = " &lt;&lt; pStar &lt;&lt; '\n';
+        std::cout &lt;&lt; "k* = " &lt;&lt; kStar &lt;&lt; '\n';
+        std::cout &lt;&lt; "\nLearned adaptive-critic solution\n";
+        std::cout &lt;&lt; "p_hat = " &lt;&lt; learnedP &lt;&lt; '\n';
+        std::cout &lt;&lt; "k_hat = " &lt;&lt; learnedK &lt;&lt; '\n';
+        std::cout &lt;&lt; "closed-loop pole = " &lt;&lt; problem.a - problem.b * learnedK &lt;&lt; '\n';
+        std::cout &lt;&lt; "initial-policy rollout cost = " &lt;&lt; initialCost &lt;&lt; '\n';
+        std::cout &lt;&lt; "learned-policy rollout cost = " &lt;&lt; learnedCost &lt;&lt; '\n';
+        std::cout &lt;&lt; "first ten learned-policy states:\n";
+        for (std::size_t index = 0;
+             index &lt; std::min&lt;std::size_t&gt;(10, learnedTrajectory.size());
+             ++index) {
+            std::cout &lt;&lt; learnedTrajectory[index]
+                      &lt;&lt; (index + 1 == 10 ? '\n' : ' ');
+        }
+        return 0;
+    } catch (const std::exception&amp; error) {
+        std::cerr &lt;&lt; "Error: " &lt;&lt; error.what() &lt;&lt; '\n';
+        return 1;
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. Java Implementation — <code>Chapter28_Lesson1.java</code></h2>
+    <div class="down-content">
+      <p>
+        The Java implementation also uses only the standard library. EJML is a
+        lightweight choice for dense and sparse matrix computations, while ND4J
+        and Deeplearning4j support tensor operations and neural critics.
+      </p>
+      <pre><code class="language-java">// Chapter 28, Lesson 1: adaptive critic for a scalar discounted LQR.
+// Compile: javac Chapter28_Lesson1.java
+// Run:     java Chapter28_Lesson1
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Random;
+
+public final class Chapter28_Lesson1 {
+    private Chapter28_Lesson1() {}
+
+    private static final class Problem {
+        final double a = 1.05;
+        final double b = 0.50;
+        final double q = 1.00;
+        final double r = 0.10;
+        final double gamma = 0.98;
+    }
+
+    private static final class Snapshot {
+        final int episode;
+        final double criticP;
+        final double actorK;
+
+        Snapshot(int episode, double criticP, double actorK) {
+            this.episode = episode;
+            this.criticP = criticP;
+            this.actorK = actorK;
+        }
+    }
+
+    private static final class TrainingResult {
+        final double criticP;
+        final double actorK;
+        final List&lt;Snapshot&gt; history;
+
+        TrainingResult(double criticP, double actorK, List&lt;Snapshot&gt; history) {
+            this.criticP = criticP;
+            this.actorK = actorK;
+            this.history = history;
+        }
+    }
+
+    private static final class RolloutResult {
+        final double cost;
+        final List&lt;Double&gt; trajectory;
+
+        RolloutResult(double cost, List&lt;Double&gt; trajectory) {
+            this.cost = cost;
+            this.trajectory = trajectory;
+        }
+    }
+
+    private static double clamp(double value, double lower, double upper) {
+        return Math.max(lower, Math.min(upper, value));
+    }
+
+    private static double[] discountedRiccatiReference(Problem problem) {
+        double p = problem.q;
+        for (int iteration = 0; iteration &lt; 100_000; iteration++) {
+            double denominator = problem.r
+                + problem.gamma * problem.b * problem.b * p;
+            double cross = problem.gamma * problem.a * problem.b * p;
+            double pNext = problem.q
+                + problem.gamma * problem.a * problem.a * p
+                - cross * cross / denominator;
+            if (Math.abs(pNext - p) &lt; 1.0e-14) {
+                p = pNext;
+                break;
+            }
+            p = pNext;
+        }
+
+        double k = problem.gamma * problem.b * p * problem.a
+            / (problem.r + problem.gamma * problem.b * problem.b * p);
+        return new double[] {p, k};
+    }
+
+    private static TrainingResult trainAdaptiveCritic(
+        Problem problem,
+        int episodes,
+        int stepsPerEpisode,
+        long seed) {
+
+        if (episodes &lt;= 0 || stepsPerEpisode &lt;= 0) {
+            throw new IllegalArgumentException(
+                "episodes and stepsPerEpisode must be positive");
+        }
+
+        Random random = new Random(seed);
+        double criticP = 0.50;
+        double actorK = 0.80;
+        double criticRate = 0.08;
+        double actorRate = 0.08;
+        List&lt;Snapshot&gt; history = new ArrayList&lt;&gt;();
+
+        for (int episode = 0; episode &lt; episodes; episode++) {
+            double x = -2.0 + 4.0 * random.nextDouble();
+            double explorationScale = 0.25 * Math.exp(-episode / 180.0);
+
+            for (int step = 0; step &lt; stepsPerEpisode; step++) {
+                double exploration = explorationScale * random.nextGaussian();
+                double u = -actorK * x + exploration;
+                double xNext = problem.a * x + problem.b * u;
+                double stageCost = problem.q * x * x + problem.r * u * u;
+
+                double delta = stageCost
+                    + problem.gamma * criticP * xNext * xNext
+                    - criticP * x * x;
+                double criticGradient = problem.gamma * xNext * xNext - x * x;
+
+                criticP -= criticRate * delta * criticGradient
+                    / (1.0 + criticGradient * criticGradient);
+                criticP = clamp(criticP, 1.0e-6, 50.0);
+
+                double targetK = problem.gamma * problem.b * criticP * problem.a
+                    / (problem.r
+                       + problem.gamma * problem.b * problem.b * criticP);
+                actorK += actorRate * (targetK - actorK);
+                actorK = clamp(actorK, 0.0, 3.0);
+                x = xNext;
+            }
+
+            if (episode % 50 == 0 || episode == episodes - 1) {
+                history.add(new Snapshot(episode, criticP, actorK));
+            }
+        }
+
+        return new TrainingResult(criticP, actorK, history);
+    }
+
+    private static RolloutResult rolloutCost(
+        Problem problem,
+        double gain,
+        double x0,
+        int horizon) {
+
+        double x = x0;
+        double total = 0.0;
+        double discount = 1.0;
+        List&lt;Double&gt; trajectory = new ArrayList&lt;&gt;();
+        trajectory.add(x);
+
+        for (int step = 0; step &lt; horizon; step++) {
+            double u = -gain * x;
+            total += discount * (problem.q * x * x + problem.r * u * u);
+            x = problem.a * x + problem.b * u;
+            trajectory.add(x);
+            discount *= problem.gamma;
+        }
+
+        return new RolloutResult(total, trajectory);
+    }
+
+    public static void main(String[] args) {
+        Locale.setDefault(Locale.US);
+        Problem problem = new Problem();
+        double[] reference = discountedRiccatiReference(problem);
+        TrainingResult learned = trainAdaptiveCritic(problem, 500, 80, 7L);
+        RolloutResult initialRollout = rolloutCost(problem, 0.80, 2.0, 60);
+        RolloutResult learnedRollout = rolloutCost(problem, learned.actorK, 2.0, 60);
+
+        System.out.println("episode, critic_p, actor_k");
+        for (Snapshot snapshot : learned.history) {
+            System.out.printf(
+                "%4d, %10.6f, %10.6f%n",
+                snapshot.episode,
+                snapshot.criticP,
+                snapshot.actorK);
+        }
+
+        System.out.println("\nReference discounted-Riccati solution");
+        System.out.printf("p* = %.9f%n", reference[0]);
+        System.out.printf("k* = %.9f%n", reference[1]);
+        System.out.println("\nLearned adaptive-critic solution");
+        System.out.printf("p_hat = %.9f%n", learned.criticP);
+        System.out.printf("k_hat = %.9f%n", learned.actorK);
+        System.out.printf(
+            "closed-loop pole = %.9f%n",
+            problem.a - problem.b * learned.actorK);
+        System.out.printf(
+            "initial-policy rollout cost = %.9f%n",
+            initialRollout.cost);
+        System.out.printf(
+            "learned-policy rollout cost = %.9f%n",
+            learnedRollout.cost);
+        System.out.println("first ten learned-policy states:");
+        for (int index = 0; index &lt; Math.min(10, learnedRollout.trajectory.size()); index++) {
+            System.out.printf(
+                "%.6f%s",
+                learnedRollout.trajectory.get(index),
+                index == 9 ? System.lineSeparator() : " ");
+        }
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. MATLAB Implementation — <code>Chapter28_Lesson1.m</code></h2>
+    <div class="down-content">
+      <p>
+        The MATLAB script implements the critic, actor, Riccati reference, and
+        rollout directly. Reinforcement Learning Toolbox supports actor and
+        critic representations, Deep Learning Toolbox supports neural
+        approximators, and Control System Toolbox provides linear-system
+        analysis used to check the learned closed-loop pole.
+      </p>
+      <pre><code class="language-matlab">% Chapter 28, Lesson 1: adaptive critic for a scalar discounted LQR.
+% The critic estimates V(x) = p*x^2 from TD data. The actor uses the
+% scalar greedy policy-improvement formula u = -k*x.
+
+clear; clc;
+rng(7, 'twister');
+
+% Plant and discounted cost.
+a = 1.05;
+b = 0.50;
+q = 1.00;
+r = 0.10;
+gamma = 0.98;
+
+% Reference discounted Riccati iteration.
+pStar = q;
+for iteration = 1:100000
+    denominator = r + gamma*b^2*pStar;
+    pNext = q + gamma*a^2*pStar - (gamma*a*b*pStar)^2/denominator;
+    if abs(pNext - pStar) &lt; 1.0e-14
+        pStar = pNext;
+        break;
+    end
+    pStar = pNext;
+end
+kStar = gamma*b*pStar*a/(r + gamma*b^2*pStar);
+
+% Adaptive-critic initialization.
+criticP = 0.50;
+actorK = 0.80;  % admissible: abs(a - b*actorK) &lt; 1
+criticRate = 0.08;
+actorRate = 0.08;
+episodes = 500;
+stepsPerEpisode = 80;
+history = zeros(11, 3);
+historyIndex = 1;
+
+for episode = 0:(episodes - 1)
+    x = -2.0 + 4.0*rand();
+    explorationScale = 0.25*exp(-episode/180.0);
+
+    for step = 1:stepsPerEpisode
+        exploration = explorationScale*randn();
+        u = -actorK*x + exploration;
+        xNext = a*x + b*u;
+        stageCost = q*x^2 + r*u^2;
+
+        delta = stageCost + gamma*criticP*xNext^2 - criticP*x^2;
+        criticGradient = gamma*xNext^2 - x^2;
+        criticP = criticP - criticRate*delta*criticGradient ...
+            /(1.0 + criticGradient^2);
+        criticP = min(max(criticP, 1.0e-6), 50.0);
+
+        targetK = gamma*b*criticP*a/(r + gamma*b^2*criticP);
+        actorK = actorK + actorRate*(targetK - actorK);
+        actorK = min(max(actorK, 0.0), 3.0);
+        x = xNext;
+    end
+
+    if mod(episode, 50) == 0 || episode == episodes - 1
+        history(historyIndex, :) = [episode, criticP, actorK];
+        historyIndex = historyIndex + 1;
+    end
+end
+history = history(1:(historyIndex - 1), :);
+
+% Deterministic rollout comparison.
+x0 = 2.0;
+horizon = 60;
+[initialCost, ~] = rolloutCost(a, b, q, r, gamma, 0.80, x0, horizon);
+[learnedCost, learnedTrajectory] = rolloutCost( ...
+    a, b, q, r, gamma, actorK, x0, horizon);
+
+fprintf('episode, critic_p, actor_k\n');
+for row = 1:size(history, 1)
+    fprintf('%4d, %10.6f, %10.6f\n', ...
+        history(row, 1), history(row, 2), history(row, 3));
+end
+
+fprintf('\nReference discounted-Riccati solution\n');
+fprintf('p* = %.9f\n', pStar);
+fprintf('k* = %.9f\n', kStar);
+fprintf('\nLearned adaptive-critic solution\n');
+fprintf('p_hat = %.9f\n', criticP);
+fprintf('k_hat = %.9f\n', actorK);
+fprintf('closed-loop pole = %.9f\n', a - b*actorK);
+fprintf('initial-policy rollout cost = %.9f\n', initialCost);
+fprintf('learned-policy rollout cost = %.9f\n', learnedCost);
+fprintf('first ten learned-policy states:\n');
+fprintf('%.6f ', learnedTrajectory(1:10));
+fprintf('\n');
+
+figure('Name', 'Chapter28 Lesson1 Adaptive Critic');
+plot(0:horizon, learnedTrajectory, 'LineWidth', 1.5);
+grid on;
+xlabel('Step');
+ylabel('State x_k');
+title('Learned-policy closed-loop state');
+
+function [total, trajectory] = rolloutCost(a, b, q, r, gamma, gain, x0, horizon)
+    x = x0;
+    total = 0.0;
+    discount = 1.0;
+    trajectory = zeros(horizon + 1, 1);
+    trajectory(1) = x;
+
+    for step = 1:horizon
+        u = -gain*x;
+        total = total + discount*(q*x^2 + r*u^2);
+        x = a*x + b*u;
+        trajectory(step + 1) = x;
+        discount = discount*gamma;
+    end
+end
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 14 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>
+      14. Simulink Deployment Model — <code>Chapter28_Lesson1_Simulink.m</code>
+    </h2>
+    <div class="down-content">
+      <p>
+        This script programmatically creates a discrete-time Simulink model of
+        the learned actor and plant. The online learning loop remains in the
+        MATLAB script so students can inspect every update. In a production
+        design, the actor, critic, replay/data buffer, projection logic, safety
+        supervisor, and plant interface would be separate subsystems with
+        explicit rates and saturation handling.
+      </p>
+      <pre><code class="language-matlab">% Chapter 28, Lesson 1: programmatically create a Simulink rollout model.
+% This model uses the learned gain generated by Chapter28_Lesson1.m.
+% It isolates the deployed actor and plant; online critic learning remains in
+% the MATLAB training script because variable-step algebraic learning loops
+% are clearer there for a first university treatment.
+
+clear; clc;
+modelName = 'Chapter28_Lesson1_ActorDeployment';
+
+% Learned gain from the deterministic seeded training experiment.
+a = 1.05;
+b = 0.50;
+kLearned = 1.60914;
+sampleTime = 1.0;
+stopTime = 20;
+
+if bdIsLoaded(modelName)
+    close_system(modelName, 0);
+end
+if exist([modelName '.slx'], 'file')
+    delete([modelName '.slx']);
+end
+
+new_system(modelName);
+open_system(modelName);
+set_param(modelName, 'Solver', 'FixedStepDiscrete');
+set_param(modelName, 'FixedStep', num2str(sampleTime));
+set_param(modelName, 'StopTime', num2str(stopTime));
+
+add_block('simulink/Sources/Constant', [modelName '/Zero'], ...
+    'Value', '0', 'Position', [40 45 80 75]);
+add_block('simulink/Math Operations/Gain', [modelName '/Actor_-K'], ...
+    'Gain', num2str(-kLearned), 'Position', [180 110 260 150]);
+add_block('simulink/Math Operations/Gain', [modelName '/Plant_B'], ...
+    'Gain', num2str(b), 'Position', [320 110 390 150]);
+add_block('simulink/Math Operations/Gain', [modelName '/Plant_A'], ...
+    'Gain', num2str(a), 'Position', [320 210 390 250]);
+add_block('simulink/Math Operations/Sum', [modelName '/State_Update'], ...
+    'Inputs', '++', 'Position', [450 145 480 215]);
+add_block('simulink/Discrete/Unit Delay', [modelName '/State_x'], ...
+    'InitialCondition', '2', 'SampleTime', num2str(sampleTime), ...
+    'Position', [540 160 610 200]);
+add_block('simulink/Sinks/Scope', [modelName '/State_Scope'], ...
+    'Position', [700 150 760 210]);
+add_block('simulink/Sinks/To Workspace', [modelName '/State_Log'], ...
+    'VariableName', 'xSim', 'SaveFormat', 'Structure With Time', ...
+    'Position', [690 245 790 275]);
+
+add_line(modelName, 'State_x/1', 'Actor_-K/1', 'autorouting', 'on');
+add_line(modelName, 'Actor_-K/1', 'Plant_B/1', 'autorouting', 'on');
+add_line(modelName, 'Plant_B/1', 'State_Update/1', 'autorouting', 'on');
+add_line(modelName, 'State_x/1', 'Plant_A/1', 'autorouting', 'on');
+add_line(modelName, 'Plant_A/1', 'State_Update/2', 'autorouting', 'on');
+add_line(modelName, 'State_Update/1', 'State_x/1', 'autorouting', 'on');
+add_line(modelName, 'State_x/1', 'State_Scope/1', 'autorouting', 'on');
+add_line(modelName, 'State_x/1', 'State_Log/1', 'autorouting', 'on');
+
+save_system(modelName);
+simulationOutput = sim(modelName);
+assignin('base', 'Chapter28_Lesson1_SimulationOutput', simulationOutput);
+
+fprintf('Created and simulated %s.slx\n', modelName);
+fprintf('Closed-loop pole: %.6f\n', a - b*kLearned);
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 15 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>
+      15. Wolfram Mathematica Implementation — <code>Chapter28_Lesson1.nb</code>
+    </h2>
+    <div class="down-content">
+      <p>
+        The Wolfram Language implementation uses associations, modules, and
+        symbolic-numeric iteration. For larger studies,
+        <code>FindMinimum</code>, <code>NDSolve</code>,
+        <code>LinearSolve</code>, and the neural-network functions
+        <code>NetChain</code> and <code>NetTrain</code> can support actor-
+        critic approximation and HJB-residual minimization.
+      </p>
+      <pre><code class="language-mathematica">Notebook[{
+  Cell["Chapter 28, Lesson 1: Adaptive Critics and Approximate Dynamic Programming", "Title"],
+  Cell["Quadratic critic and actor implementation for a scalar discounted LQR.", "Text"],
+  Cell[BoxData[
+    ToBoxes[
+      Defer[
+        ClearAll["Global`*"];
+        SeedRandom[7];
+        
+        problem = &lt;|"a" -&gt; 1.05, "b" -&gt; 0.50, "q" -&gt; 1.00,
+           "r" -&gt; 0.10, "gamma" -&gt; 0.98|&gt;;
+        
+        DiscountedRiccatiReference[pr_Association] := Module[
+          {p = pr["q"], pNext, denominator, k, iteration},
+          For[iteration = 1, iteration &lt;= 100000, iteration++,
+           denominator = pr["r"] + pr["gamma"] pr["b"]^2 p;
+           pNext = pr["q"] + pr["gamma"] pr["a"]^2 p -
+             (pr["gamma"] pr["a"] pr["b"] p)^2/denominator;
+           If[Abs[pNext - p] &lt; 10^-14, p = pNext; Break[]];
+           p = pNext;
+          ];
+          k = pr["gamma"] pr["b"] p pr["a"]/
+            (pr["r"] + pr["gamma"] pr["b"]^2 p);
+          {p, k}
+        ];
+        
+        TrainAdaptiveCritic[pr_Association, episodes_Integer : 500,
+           stepsPerEpisode_Integer : 80] := Module[
+          {criticP = 0.50, actorK = 0.80, criticRate = 0.08,
+           actorRate = 0.08, x, explorationScale, exploration, u, xNext,
+           stageCost, delta, criticGradient, targetK, history = {}, episode,
+           step},
+        
+          For[episode = 0, episode &lt; episodes, episode++,
+           x = RandomReal[{-2.0, 2.0}];
+           explorationScale = 0.25 Exp[-episode/180.0];
+        
+           For[step = 1, step &lt;= stepsPerEpisode, step++,
+            exploration = explorationScale RandomVariate[NormalDistribution[]];
+            u = -actorK x + exploration;
+            xNext = pr["a"] x + pr["b"] u;
+            stageCost = pr["q"] x^2 + pr["r"] u^2;
+        
+            delta = stageCost + pr["gamma"] criticP xNext^2 - criticP x^2;
+            criticGradient = pr["gamma"] xNext^2 - x^2;
+            criticP = criticP - criticRate delta criticGradient/
+               (1.0 + criticGradient^2);
+            criticP = Clip[criticP, {10^-6, 50.0}];
+        
+            targetK = pr["gamma"] pr["b"] criticP pr["a"]/
+              (pr["r"] + pr["gamma"] pr["b"]^2 criticP);
+            actorK = actorK + actorRate (targetK - actorK);
+            actorK = Clip[actorK, {0.0, 3.0}];
+            x = xNext;
+           ];
+        
+           If[Mod[episode, 50] == 0 || episode == episodes - 1,
+            AppendTo[history, {episode, criticP, actorK}]
+           ];
+          ];
+          &lt;|"CriticP" -&gt; criticP, "ActorK" -&gt; actorK, "History" -&gt; history|&gt;
+        ];
+        
+        RolloutCost[pr_Association, gain_?NumericQ, x0_ : 2.0,
+           horizon_Integer : 60] := Module[
+          {x = x0, total = 0.0, discount = 1.0, trajectory = {x0}, u,
+           step},
+          For[step = 1, step &lt;= horizon, step++,
+           u = -gain x;
+           total = total + discount (pr["q"] x^2 + pr["r"] u^2);
+           x = pr["a"] x + pr["b"] u;
+           AppendTo[trajectory, x];
+           discount = discount pr["gamma"];
+          ];
+          {total, trajectory}
+        ];
+        
+        {pStar, kStar} = DiscountedRiccatiReference[problem];
+        learned = TrainAdaptiveCritic[problem];
+        {initialCost, initialTrajectory} = RolloutCost[problem, 0.80];
+        {learnedCost, learnedTrajectory} = RolloutCost[problem, learned["ActorK"]];
+        
+        Print["episode, critic_p, actor_k"];
+        Scan[Print[NumberForm[#, {12, 6}]] &amp;, learned["History"]];
+        Print["Reference p* = ", NumberForm[pStar, {12, 9}]];
+        Print["Reference k* = ", NumberForm[kStar, {12, 9}]];
+        Print["Learned p_hat = ", NumberForm[learned["CriticP"], {12, 9}]];
+        Print["Learned k_hat = ", NumberForm[learned["ActorK"], {12, 9}]];
+        Print["Closed-loop pole = ",
+         NumberForm[problem["a"] - problem["b"] learned["ActorK"], {12, 9}]];
+        Print["Initial-policy rollout cost = ", NumberForm[initialCost, {12, 9}]];
+        Print["Learned-policy rollout cost = ", NumberForm[learnedCost, {12, 9}]];
+        
+        ListLinePlot[learnedTrajectory, PlotRange -&gt; All,
+         AxesLabel -&gt; {"step", "x_k"},
+         PlotLabel -&gt; "Learned-policy closed-loop state"]
+      ]
+    ]
+  ], "Input"]
+},
+WindowTitle -&gt; "Chapter28_Lesson1",
+StyleDefinitions -&gt; "Default.nb"]
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 16 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>16. Interpreting the Numerical Result</h2>
+    <div class="down-content">
+      <p>For the selected problem, discounted Riccati iteration produces</p>
+      <h4 class="mathJax">
+        \[ p^{\star}\approx1.337911639, \qquad k^{\star}\approx1.609103043. \]
+      </h4>
+      <p>
+        A representative seeded Python run produces a critic coefficient and
+        actor gain within approximately <strong>\(10^{-4}\)</strong> of these
+        reference values. The learned closed-loop pole is approximately
+        <strong>\(0.2454\)</strong>, so the deterministic state decays much
+        faster than under the initial pole <strong>\(0.65\)</strong>. The
+        initial gain is stabilizing but not optimal; the critic supplies the
+        long-horizon information needed to trade state decay against control
+        effort.
+      </p>
+      <p>
+        Agreement in this example does not establish a general convergence
+        theorem for nonlinear neural actor-critic control. It occurs because the
+        value class contains the exact scalar LQR value, the actor class
+        contains the exact linear policy, the plant derivative used in
+        improvement is correct, the initial policy is admissible, and
+        exploration visits a useful range of states.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 17 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>17. When a Neural Critic Is Necessary</h2>
+    <div class="down-content">
+      <p>
+        A quadratic basis is exact for LQR but generally inadequate for
+        nonlinear plants, constraints, hybrid effects, and nonquadratic
+        objectives. A neural critic replaces fixed features by learned nonlinear
+        features:
+      </p>
+      <h4 class="mathJax">
+        \[ \widehat V(x;w_c) =W_L\sigma_{L-1}\!\left(
+        W_{L-1}\sigma_{L-2}(\cdots\sigma_1(W_1x+b_1)\cdots)+b_{L-1} \right)+b_L.
+        \]
+      </h4>
+      <p>
+        Universal approximation results justify representational capacity on
+        compact sets, but they do not guarantee that online optimization finds
+        suitable weights, that the Bellman residual is small everywhere, or that
+        the induced actor is stable. Neural adaptive control therefore needs
+        more than a large network: data coverage, regularization, bounded
+        updates, robust supervision, and a stability argument remain central.
+      </p>
+      <p>
+        This lesson is intentionally a pointer. Deep-network architectures,
+        replay buffers, target critics, stochastic policy gradients, entropy
+        regularization, distributional critics, and offline reinforcement
+        learning belong in Neural Control, Intelligent Control, or
+        Learning-Based Control courses. The transferable foundation is the
+        Bellman/HJB structure developed here.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 18 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>18. Problems and Solutions</h2>
+    <div class="down-content">
+      <p>
+        <strong>Problem 1 — Bellman contraction.</strong> Let
+        <strong>\((TV)(x)=\min_u\{\ell(x,u)+\gamma V(f(x,u))\}\)</strong> with
+        <strong>\(0&lt;\gamma&lt;1\)</strong>. Prove that
+        <strong>\(T\)</strong> is a contraction under the sup norm.
+      </p>
+      <p><strong>Solution.</strong> For every state, use the inequality</p>
+      <h4 class="mathJax">\[ |\min_u a_u-\min_u b_u|\le\max_u|a_u-b_u|. \]</h4>
+      <p>Set</p>
+      <h4 class="mathJax">
+        \[ a_u=\ell(x,u)+\gamma V(f(x,u)), \qquad b_u=\ell(x,u)+\gamma
+        W(f(x,u)). \]
+      </h4>
+      <p>Then</p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} |(TV)(x)-(TW)(x)|
+        &\le\gamma\max_u|V(f(x,u))-W(f(x,u))|\\ &\le\gamma\|V-W\|_{\infty}.
+        \end{aligned} \]
+      </h4>
+      <p>
+        Taking the supremum gives
+        <strong>\(\|TV-TW\|_{\infty}\le\gamma\|V-W\|_{\infty}\)</strong>. Since
+        <strong>\(\gamma&lt;1\)</strong>, the operator is a contraction and has
+        a unique fixed point.
+      </p>
+
+      <p>
+        <strong>Problem 2 — Derive the scalar greedy actor.</strong> For
+        <strong>\(x^{+}=ax+bu\)</strong> and
+        <strong>\(\widehat V(x)=px^2\)</strong>, derive the minimizing control
+        for <strong>\(qx^2+ru^2+\gamma p(ax+bu)^2\)</strong>.
+      </p>
+      <p>
+        <strong>Solution.</strong> Differentiate with respect to the scalar
+        input:
+      </p>
+      <h4 class="mathJax">
+        \[ \frac{\partial}{\partial u} \left[qx^2+ru^2+\gamma p(ax+bu)^2\right]
+        =2ru+2\gamma pb(ax+bu). \]
+      </h4>
+      <p>
+        Set the derivative to zero and collect terms in <strong>\(u\)</strong>:
+      </p>
+      <h4 class="mathJax">\[ (r+\gamma pb^2)u=-\gamma pba x. \]</h4>
+      <h4 class="mathJax">
+        \[ u=-\frac{\gamma pba}{r+\gamma pb^2}x=-k(p)x. \]
+      </h4>
+      <p>
+        Since <strong>\(r&gt;0\)</strong> and <strong>\(p\ge0\)</strong>, the
+        second derivative <strong>\(2(r+\gamma pb^2)\)</strong> is positive, so
+        this stationary point is the unique minimizer.
+      </p>
+
+      <p>
+        <strong>Problem 3 — One critic/actor update.</strong> Use
+        <strong>\(a=1.05\)</strong>, <strong>\(b=0.5\)</strong>,
+        <strong>\(q=1\)</strong>, <strong>\(r=0.1\)</strong>,
+        <strong>\(\gamma=0.98\)</strong>, <strong>\(x=1\)</strong>,
+        <strong>\(p_c=0.5\)</strong>, <strong>\(k_a=0.8\)</strong>, no
+        exploration, and <strong>\(\alpha_c=\alpha_a=0.08\)</strong>. Compute
+        one update.
+      </p>
+      <p><strong>Solution.</strong> The input and next state are</p>
+      <h4 class="mathJax">\[ u=-0.8, \qquad x^{+}=1.05+0.5(-0.8)=0.65. \]</h4>
+      <p>The stage cost and TD residual are</p>
+      <h4 class="mathJax">\[ c=1^2+0.1(0.8)^2=1.064, \]</h4>
+      <h4 class="mathJax">
+        \[ \delta =1.064+0.98(0.5)(0.65)^2-0.5 =0.771025. \]
+      </h4>
+      <p>The critic residual gradient is</p>
+      <h4 class="mathJax">\[ g_c=0.98(0.65)^2-1=-0.58595. \]</h4>
+      <p>Hence</p>
+      <h4 class="mathJax">
+        \[ p_c^{+} =0.5-0.08(0.771025) \frac{-0.58595}{1+(-0.58595)^2}
+        \approx0.526905. \]
+      </h4>
+      <p>The greedy target and actor update are</p>
+      <h4 class="mathJax">
+        \[ k_{\mathrm{target}} =\frac{0.98(0.5)(0.526905)(1.05)}
+        {0.1+0.98(0.5)^2(0.526905)} \approx1.183337, \]
+      </h4>
+      <h4 class="mathJax">
+        \[ k_a^{+}=0.8+0.08(1.183337-0.8)\approx0.830667. \]
+      </h4>
+
+      <p>
+        <strong>Problem 4 — TD normal equations.</strong> For a fixed policy and
+        linear critic <strong>\(\widehat V(x)=w^{\mathsf T}\phi(x)\)</strong>,
+        derive the expected equation obtained by requiring the TD residual to be
+        orthogonal to <strong>\(\phi(x_k)\)</strong>.
+      </p>
+      <p><strong>Solution.</strong> The orthogonality condition is</p>
+      <h4 class="mathJax">\[ \mathbb{E}[\phi(x_k)\delta_k]=0. \]</h4>
+      <p>Substitute</p>
+      <h4 class="mathJax">
+        \[ \delta_k=c_k+\gamma w^{\mathsf T}\phi(x_{k+1}) -w^{\mathsf
+        T}\phi(x_k). \]
+      </h4>
+      <p>Rearrangement gives</p>
+      <h4 class="mathJax">
+        \[ \mathbb{E}\!\left[ \phi(x_k)(\phi(x_k)-\gamma\phi(x_{k+1}))^{\mathsf
+        T} \right]w =\mathbb{E}[\phi(x_k)c_k]. \]
+      </h4>
+      <p>
+        Thus <strong>\(Aw=b\)</strong>. Nonsingularity and conditioning of
+        <strong>\(A\)</strong> depend on the features and the transition
+        distribution generated by the behavior policy.
+      </p>
+
+      <p>
+        <strong
+          >Problem 5 — Why approximate policy improvement can fail.</strong
+        >
+        Suppose <strong>\(\widehat V=V^{\mu}+e\)</strong>. Explain why the
+        greedy policy based on <strong>\(\widehat V\)</strong> need not improve
+        the true value, even if <strong>\(\|e\|_{\infty}\)</strong> is small.
+      </p>
+      <p><strong>Solution.</strong> The actor compares actions through</p>
+      <h4 class="mathJax">
+        \[ \ell(x,u)+\gamma\widehat V(f(x,u)) =Q^{\mu}(x,u)+\gamma e(f(x,u)). \]
+      </h4>
+      <p>
+        If two candidate actions have nearly equal true action values, even a
+        small approximation error can reverse their ordering. The selected
+        policy can then move the state toward regions where the critic has
+        poorer data, magnifying subsequent error. A uniform error bound can
+        produce an approximate performance bound, but exact monotonic
+        improvement requires stronger conditions than a small average training
+        loss.
+      </p>
+
+      <p>
+        <strong>Problem 6 — Model-free quadratic Q critic.</strong> Let
+        <strong>\(Q(x,u)=h_{xx}x^2+2h_{xu}xu+h_{uu}u^2\)</strong> with
+        <strong>\(h_{uu}&gt;0\)</strong>. Derive the greedy control and explain
+        why the plant coefficients need not appear explicitly.
+      </p>
+      <p>
+        <strong>Solution.</strong> Differentiate with respect to the action:
+      </p>
+      <h4 class="mathJax">
+        \[ \frac{\partial Q}{\partial u}=2h_{xu}x+2h_{uu}u. \]
+      </h4>
+      <p>Setting the derivative to zero gives</p>
+      <h4 class="mathJax">\[ u^{+}=-h_{uu}^{-1}h_{ux}x. \]</h4>
+      <p>
+        The coefficients <strong>\(h_{xu}\)</strong> and
+        <strong>\(h_{uu}\)</strong> can be estimated from transition data using
+        a Q-Bellman residual. Once they are estimated, greedy improvement uses
+        only the critic coefficients; explicit values of
+        <strong>\(a\)</strong> and <strong>\(b\)</strong> are unnecessary.
+        Adequate state-action exploration is still required to identify the
+        quadratic terms.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 19 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>19. Summary</h2>
+    <div class="down-content">
+      <p>
+        Adaptive critics approximate value information rather than only plant or
+        controller parameters. Bellman and HJB equations define the target;
+        temporal-difference residuals provide data-driven learning signals;
+        policy iteration connects critic evaluation to actor improvement. Exact
+        dynamic programming has contraction and policy-improvement guarantees,
+        but approximation, limited data, nonlinear optimization, exploration,
+        and policy-induced distribution shift complicate those guarantees. The
+        scalar LQR laboratory showed a transparent actor-critic mechanism whose
+        learned quadratic value and feedback gain approach the discounted
+        Riccati solution. Neural networks extend representational power, but
+        stability, safety, and data coverage remain control-design obligations.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 20 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>20. References</h2>
+    <ol>
+      <li>
+        Barto, A.G., Sutton, R.S., &amp; Anderson, C.W. (1983). Neuronlike
+        adaptive elements that can solve difficult learning control problems.
+        <em>IEEE Transactions on Systems, Man, and Cybernetics</em>, SMC-13(5),
+        834–846. doi:10.1109/TSMC.1983.6313077.
+      </li>
+      <li>
+        Sutton, R.S. (1988). Learning to predict by the methods of temporal
+        differences. <em>Machine Learning</em>, 3, 9–44. doi:10.1007/BF00115009.
+      </li>
+      <li>
+        Watkins, C.J.C.H., &amp; Dayan, P. (1992). Q-learning.
+        <em>Machine Learning</em>, 8, 279–292. doi:10.1007/BF00992698.
+      </li>
+      <li>
+        Bradtke, S.J., &amp; Barto, A.G. (1996). Linear least-squares algorithms
+        for temporal difference learning. <em>Machine Learning</em>, 22, 33–57.
+        doi:10.1007/BF00114723.
+      </li>
+      <li>
+        Tsitsiklis, J.N., &amp; Van Roy, B. (1997). An analysis of
+        temporal-difference learning with function approximation.
+        <em>IEEE Transactions on Automatic Control</em>, 42(5), 674–690.
+        doi:10.1109/9.580874.
+      </li>
+      <li>
+        Doya, K. (2000). Reinforcement learning in continuous time and space.
+        <em>Neural Computation</em>, 12(1), 219–245.
+        doi:10.1162/089976600300015961.
+      </li>
+      <li>
+        Abu-Khalaf, M., &amp; Lewis, F.L. (2005). Nearly optimal control laws
+        for nonlinear systems with saturating actuators using a neural network
+        HJB approach. <em>Automatica</em>, 41(5), 779–791.
+        doi:10.1016/j.automatica.2004.11.034.
+      </li>
+      <li>
+        Vamvoudakis, K.G., &amp; Lewis, F.L. (2010). Online actor–critic
+        algorithm to solve the continuous-time infinite-horizon optimal control
+        problem. <em>Automatica</em>, 46(5), 878–888.
+        doi:10.1016/j.automatica.2010.02.018.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter27/Lesson5.html">
+          <small>(previous chapter)</small>
+          Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter28/Lesson2.html">
+          Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#">
+              <input
+                type="text"
+                name="search"
+                id="search"
+                placeholder="Search..."
+              />
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <br />
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: \( \theta^T\phi(x,u) \) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression \( \boldsymbol{\phi}^{\mathsf{T}}(t)\boldsymbol{\theta} \)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="active-lesson" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <br />
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>

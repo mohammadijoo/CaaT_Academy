@@ -1,0 +1,2641 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 13: Direct Self-Tuning Regulators - Lesson 3: Stability Analysis via Lyapunov Methods | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>Chapter 13: Direct Self-Tuning Regulators</h1>
+    <h3><strong>Lesson 3: Stability Analysis via Lyapunov Methods</strong></h3>
+    <p>
+      This lesson establishes a rigorous stability result for the direct
+      self-tuning regulator parameterized in Lesson 2. The controller gains are
+      adapted directly from tracking error; no online estimates of the plant
+      coefficients are formed. A composite Lyapunov function is used to derive
+      the update law, prove boundedness of all closed-loop signals, and prove
+      asymptotic tracking under explicit assumptions.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>1. Learning Objectives and the Stability Question</h2>
+    <div class="down-content">
+      <p>After completing this lesson, students should be able to:</p>
+      <ul>
+        <li>
+          derive the exact tracking-error model for a direct adaptive
+          controller;
+        </li>
+        <li>construct a composite state–parameter Lyapunov function;</li>
+        <li>
+          derive an adaptive law by cancellation of indefinite cross terms;
+        </li>
+        <li>
+          prove boundedness and asymptotic tracking using Barbalat's lemma;
+        </li>
+        <li>
+          distinguish tracking convergence from parameter convergence; and
+        </li>
+        <li>verify the theory numerically in five programming environments.</li>
+      </ul>
+      <p>
+        The objective is not merely to observe stable-looking plots. We seek a
+        proof valid for arbitrary initial plant states, model states, and
+        controller gains under the assumptions stated below.
+      </p>
+
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  R["Bounded command r"] --> RM["Stable reference model"]
+  RM --> XM["Desired state xm"]
+  R --> REG["Build regressor"]
+  X["Measured plant state x"] --> REG
+  REG --> C["Controller with adaptive gains"]
+  C --> U["Control input u"]
+  U --> P["Uncertain plant"]
+  P --> X
+  X --> E["Tracking error e = x - xm"]
+  XM --> E
+  E --> L["Lyapunov gain update"]
+  REG --> L
+  L --> C
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. Plant, Reference Model, and Matching Assumptions</h2>
+    <div class="down-content">
+      <p>Continue with the second-order canonical plant from Lesson 2:</p>
+      <h4 class="mathJax">
+        \[ \dot{x}_1=x_2,\qquad \dot{x}_2=-a_0x_1-a_1x_2+b u,\qquad b\neq0. \]
+      </h4>
+      <p>Equivalently,</p>
+      <h4 class="mathJax">
+        \[ \dot{\mathbf{x} }=A_p\mathbf{x}+Bb u,\qquad A_p= \begin{bmatrix}
+        0&1\\ -a_0&-a_1 \end{bmatrix},\qquad B=\begin{bmatrix}0\\1\end{bmatrix}.
+        \]
+      </h4>
+      <p>
+        The coefficients <strong>\(a_0\)</strong>, <strong>\(a_1\)</strong>, and
+        the magnitude of <strong>\(b\)</strong> are unknown. Only
+        <strong>\(\operatorname{sgn}(b)\)</strong> is assumed known. The
+        unknown-control-direction problem is postponed to Chapter 16.
+      </p>
+      <p>The desired closed-loop dynamics are specified by</p>
+      <h4 class="mathJax">\[ \dot{\mathbf{x} }_m=A_m\mathbf{x}_m+B_mr, \]</h4>
+      <h4 class="mathJax">
+        \[ A_m= \begin{bmatrix} 0&1\\ -\omega_n^2&-2\zeta\omega_n
+        \end{bmatrix},\qquad B_m= \begin{bmatrix} 0\\\omega_n^2 \end{bmatrix},
+        \]
+      </h4>
+      <p>
+        with <strong>\(\omega_n&gt;0\)</strong> and
+        <strong>\(\zeta&gt;0\)</strong>, so <strong>\(A_m\)</strong> is Hurwitz.
+      </p>
+      <p>The direct controller is</p>
+      <h4 class="mathJax">
+        \[ u=\hat{\boldsymbol{\theta} }^T\boldsymbol{\phi},\qquad
+        \hat{\boldsymbol{\theta} }= \begin{bmatrix} \hat{\theta}_1\\
+        \hat{\theta}_2\\ \hat{\theta}_r \end{bmatrix},\qquad \boldsymbol{\phi}=
+        \begin{bmatrix} x_1\\x_2\\r \end{bmatrix}. \]
+      </h4>
+      <p>
+        The matching assumption requires the existence of a constant ideal gain
+        vector <strong>\(\boldsymbol{\theta}^*\)</strong> satisfying
+      </p>
+      <h4 class="mathJax">
+        \[ A_p+Bb \begin{bmatrix} \theta_1^*&\theta_2^* \end{bmatrix}
+        =A_m,\qquad Bb\theta_r^*=B_m. \]
+      </h4>
+      <p>Coefficient matching gives</p>
+      <h4 class="mathJax">
+        \[ \theta_1^*=\frac{a_0-\omega_n^2}{b},\qquad
+        \theta_2^*=\frac{a_1-2\zeta\omega_n}{b},\qquad
+        \theta_r^*=\frac{\omega_n^2}{b}. \]
+      </h4>
+      <p>
+        These values are used only in the proof and offline validation. The
+        direct regulator neither computes them nor estimates the plant
+        coefficients.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. Exact Tracking-Error Dynamics</h2>
+    <div class="down-content">
+      <p>Define</p>
+      <h4 class="mathJax">
+        \[ \mathbf{e}=\mathbf{x}-\mathbf{x}_m,\qquad
+        \widetilde{\boldsymbol{\theta} } =\hat{\boldsymbol{\theta}
+        }-\boldsymbol{\theta}^*. \]
+      </h4>
+      <p>Add and subtract the ideal control:</p>
+      <h4 class="mathJax">
+        \[ u= \boldsymbol{\theta}^{*T}\boldsymbol{\phi} +
+        \widetilde{\boldsymbol{\theta} }^T\boldsymbol{\phi}. \]
+      </h4>
+      <p>Then</p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \dot{\mathbf{e} } &= A_p\mathbf{x}+Bb
+        u-A_m\mathbf{x}_m-B_mr\\ &= A_p\mathbf{x}
+        +Bb\boldsymbol{\theta}^{*T}\boldsymbol{\phi} -A_m\mathbf{x}_m-B_mr\\
+        &\quad +Bb\widetilde{\boldsymbol{\theta} }^T\boldsymbol{\phi}.
+        \end{aligned} \]
+      </h4>
+      <p>The matching identities reduce this to</p>
+      <h4 class="mathJax">
+        \[ \boxed{ \dot{\mathbf{e} } =A_m\mathbf{e}
+        +Bb\widetilde{\boldsymbol{\theta} }^T\boldsymbol{\phi} }. \]
+      </h4>
+      <p>
+        The first term is exponentially stable. The second is an indefinite
+        bilinear coupling between tracking error and gain error. The adaptive
+        law will be chosen to cancel this coupling in the Lyapunov derivative.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Lyapunov Equation and Composite Candidate</h2>
+    <div class="down-content">
+      <p>
+        Since <strong>\(A_m\)</strong> is Hurwitz, for every symmetric
+        <strong>\(Q\succ0\)</strong>, there exists a unique symmetric
+        <strong>\(P\succ0\)</strong> satisfying
+      </p>
+      <h4 class="mathJax">\[ A_m^TP+PA_m=-Q. \]</h4>
+      <p>
+        Let <strong>\(\Gamma=\Gamma^T\succ0\)</strong> be the adaptation-gain
+        matrix and choose
+      </p>
+      <h4 class="mathJax">
+        \[ \boxed{ V= \mathbf{e}^TP\mathbf{e} + |b|\,
+        \widetilde{\boldsymbol{\theta} }^T \Gamma^{-1}
+        \widetilde{\boldsymbol{\theta} } }. \]
+      </h4>
+      <p>
+        The factor <strong>\(|b|\)</strong> is essential because it permits
+        cancellation using the sign, rather than the unknown magnitude, of the
+        input gain. Positive definiteness gives
+      </p>
+      <h4 class="mathJax">
+        \[ \lambda_{\min}(P)\|\mathbf{e}\|^2 + |b|\lambda_{\min}(\Gamma^{-1})
+        \|\widetilde{\boldsymbol{\theta} }\|^2 \le V, \]
+      </h4>
+      <h4 class="mathJax">
+        \[ V\le \lambda_{\max}(P)\|\mathbf{e}\|^2 +
+        |b|\lambda_{\max}(\Gamma^{-1}) \|\widetilde{\boldsymbol{\theta} }\|^2.
+        \]
+      </h4>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Derivation of the Direct Adaptive Law</h2>
+    <div class="down-content">
+      <p>
+        Because <strong>\(\boldsymbol{\theta}^*\)</strong> is constant,
+        <strong
+          >\(\dot{\widetilde{\boldsymbol{\theta} } }
+          =\dot{\hat{\boldsymbol{\theta} } }\)</strong
+        >. Differentiating <strong>\(V\)</strong> gives
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \dot{V} &= \dot{\mathbf{e} }^TP\mathbf{e}
+        +\mathbf{e}^TP\dot{\mathbf{e} } +2|b|\widetilde{\boldsymbol{\theta} }^T
+        \Gamma^{-1}\dot{\hat{\boldsymbol{\theta} } }\\ &=
+        \mathbf{e}^T(A_m^TP+PA_m)\mathbf{e}\\ &\quad +2b\mathbf{e}^TPB
+        \widetilde{\boldsymbol{\theta} }^T\boldsymbol{\phi}
+        +2|b|\widetilde{\boldsymbol{\theta} }^T
+        \Gamma^{-1}\dot{\hat{\boldsymbol{\theta} } }. \end{aligned} \]
+      </h4>
+      <p>Using the Lyapunov equation,</p>
+      <h4 class="mathJax">
+        \[ \dot{V} = -\mathbf{e}^TQ\mathbf{e} +2b\mathbf{e}^TPB
+        \widetilde{\boldsymbol{\theta} }^T\boldsymbol{\phi}
+        +2|b|\widetilde{\boldsymbol{\theta} }^T
+        \Gamma^{-1}\dot{\hat{\boldsymbol{\theta} } }. \]
+      </h4>
+      <p>Choose</p>
+      <h4 class="mathJax">
+        \[ \boxed{ \dot{\hat{\boldsymbol{\theta} } } = -\Gamma\boldsymbol{\phi}
+        \mathbf{e}^TPB\operatorname{sgn}(b) }. \]
+      </h4>
+      <p>Then</p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} 2|b|\widetilde{\boldsymbol{\theta} }^T
+        \Gamma^{-1}\dot{\hat{\boldsymbol{\theta} } } &=
+        -2|b|\widetilde{\boldsymbol{\theta} }^T \boldsymbol{\phi}\mathbf{e}^TPB
+        \operatorname{sgn}(b)\\ &= -2b\mathbf{e}^TPB
+        \widetilde{\boldsymbol{\theta} }^T\boldsymbol{\phi}. \end{aligned} \]
+      </h4>
+      <p>Hence the cross terms cancel exactly:</p>
+      <h4 class="mathJax">
+        \[ \boxed{ \dot{V}=-\mathbf{e}^TQ\mathbf{e}\le0 }. \]
+      </h4>
+
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  A["Choose Hurwitz reference matrix Am"] --> B["Select positive definite Q"]
+  B --> C["Solve Am' P + P Am = -Q"]
+  C --> D["Construct state plus gain-error energy V"]
+  D --> E["Differentiate V"]
+  E --> F["Locate the mixed state-gain term"]
+  F --> G["Choose gain update for exact cancellation"]
+  G --> H["Obtain Vdot = -e' Q e"]
+  H --> I["Prove boundedness"]
+  I --> J["Apply Barbalat for asymptotic tracking"]
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. Global Boundedness and Asymptotic-Tracking Theorem</h2>
+    <div class="down-content">
+      <p><strong>Theorem.</strong></p>
+      <p>
+        Assume that <strong>\(A_m\)</strong> is Hurwitz, the matching gains
+        exist and are constant, <strong>\(\operatorname{sgn}(b)\)</strong> is
+        known, the command is bounded, and the closed-loop differential
+        equations have a unique solution. Then every closed-loop signal is
+        bounded and <strong>\(\mathbf{e}(t)\)</strong> converges to zero.
+      </p>
+
+      <p><strong>Step 1: Lyapunov boundedness.</strong></p>
+      <h4 class="mathJax">\[ 0\le V(t)\le V(0),\qquad t\ge0. \]</h4>
+      <p>
+        Therefore
+        <strong>\(\mathbf{e}\in L_\infty\)</strong> and
+        <strong>\(\widetilde{\boldsymbol{\theta} }\in L_\infty\)</strong>. Since
+        the ideal gains are constant,
+        <strong>\(\hat{\boldsymbol{\theta} }\in L_\infty\)</strong>.
+      </p>
+
+      <p><strong>Step 2: square integrability.</strong></p>
+      <h4 class="mathJax">
+        \[ V(t)-V(0) = -\int_0^t \mathbf{e}^T(\tau)Q\mathbf{e}(\tau)d\tau. \]
+      </h4>
+      <p>Consequently,</p>
+      <h4 class="mathJax">
+        \[ \lambda_{\min}(Q) \int_0^t\|\mathbf{e}(\tau)\|^2d\tau \le
+        V(0)-V(t)\le V(0), \]
+      </h4>
+      <p>so <strong>\(\mathbf{e}\in L_2\)</strong>.</p>
+
+      <p><strong>Step 3: bounded derivative.</strong></p>
+      <p>
+        A stable reference model with bounded input has bounded
+        <strong>\(\mathbf{x}_m\)</strong>. Since
+        <strong>\(\mathbf{x}=\mathbf{e}+\mathbf{x}_m\)</strong>, the plant state
+        is bounded. Thus the regressor is bounded. The adaptive law then gives
+        bounded <strong>\(\dot{\hat{\boldsymbol{\theta} } }\)</strong>, and the
+        error equation gives bounded <strong>\(\dot{\mathbf{e} }\)</strong>.
+      </p>
+
+      <p><strong>Step 4: Barbalat's lemma.</strong></p>
+      <p>
+        Bounded <strong>\(\dot{\mathbf{e} }\)</strong> makes
+        <strong>\(\mathbf{e}\)</strong> uniformly continuous. Together with
+        <strong>\(\mathbf{e}\in L_2\cap L_\infty\)</strong>, Barbalat's lemma
+        gives
+      </p>
+      <h4 class="mathJax">
+        \[ \lim_{t\rightarrow\infty}\mathbf{e}(t)=\mathbf{0}. \]
+      </h4>
+      <p>This proves global boundedness and asymptotic model following.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Tracking Convergence Versus Gain Convergence</h2>
+    <div class="down-content">
+      <p>
+        The derivative
+        <strong>\(\dot{V}=-\mathbf{e}^TQ\mathbf{e}\)</strong> is negative
+        definite in the tracking error but contains no negative-definite term in
+        the gain error. Therefore the basic proof establishes
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{e}(t)\rightarrow\mathbf{0},\qquad
+        \widetilde{\boldsymbol{\theta} }(t)\text{ is bounded}, \]
+      </h4>
+      <p>but not necessarily</p>
+      <h4 class="mathJax">
+        \[ \widetilde{\boldsymbol{\theta} }(t)\rightarrow\mathbf{0}. \]
+      </h4>
+      <p>
+        A standard sufficient condition for parameter convergence is persistent
+        excitation: there must exist <strong>\(T&gt;0\)</strong> and
+        <strong>\(\alpha&gt;0\)</strong> such that
+      </p>
+      <h4 class="mathJax">
+        \[ \int_t^{t+T} \boldsymbol{\phi}(\tau)\boldsymbol{\phi}^T(\tau)d\tau
+        \succeq\alpha I,\qquad t\ge0. \]
+      </h4>
+      <p>
+        A step command can produce excellent tracking without independently
+        exciting every controller direction. Therefore final adaptive gains may
+        differ from the ideal vector even when the tracking error is nearly
+        zero.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Design Parameters and Numerical Interpretation</h2>
+    <div class="down-content">
+      <p><strong>Choice of \(Q\).</strong></p>
+      <p>
+        The matrix <strong>\(Q\succ0\)</strong> determines
+        <strong>\(P\)</strong>. It shapes the Lyapunov metric and the scalar
+        adaptation signal <strong>\(\mathbf{e}^TPB\)</strong>.
+      </p>
+      <p><strong>Choice of \(\Gamma\).</strong></p>
+      <h4 class="mathJax">
+        \[ \Gamma=\operatorname{diag}(\gamma_1,\gamma_2,\gamma_r),
+        \qquad\gamma_i&gt;0. \]
+      </h4>
+      <p>
+        Larger adaptation gains produce faster gain motion, but they also
+        magnify noise, discretization error, and transient control effort.
+      </p>
+      <p><strong>Optional normalization.</strong></p>
+      <h4 class="mathJax">
+        \[ \dot{\hat{\boldsymbol{\theta} } } = -\Gamma \frac{\boldsymbol{\phi} }
+        {1+\boldsymbol{\phi}^T\boldsymbol{\phi} }
+        \mathbf{e}^TPB\operatorname{sgn}(b). \]
+      </h4>
+      <p>
+        Any normalization, projection, leakage, or dead-zone modification
+        changes the derivative calculation and must be analyzed rather than
+        inserted without proof.
+      </p>
+      <p><strong>Continuous versus numerical time.</strong></p>
+      <p>
+        The theorem is continuous-time. A finite-step solver may produce tiny
+        sampled increases in <strong>\(V\)</strong>. Such increases should
+        decrease as the integration step is reduced. A formal sampled-data
+        result requires the discrete-time analysis of Chapter 14.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Worked Numerical Example</h2>
+    <div class="down-content">
+      <p>Use</p>
+      <h4 class="mathJax">
+        \[ \dot{x}_1=x_2,\qquad \dot{x}_2=-1.6x_1-1.1x_2+1.4u, \]
+      </h4>
+      <p>with</p>
+      <h4 class="mathJax">\[ \omega_n=2,\qquad\zeta=0.8,\qquad Q=I_2. \]</h4>
+      <p>Then</p>
+      <h4 class="mathJax">
+        \[ A_m= \begin{bmatrix} 0&1\\-4&-3.2 \end{bmatrix}. \]
+      </h4>
+      <p>
+        Write
+        <strong
+          >\(P=\begin{bmatrix}p_{11}&p_{12}\\p_{12}&p_{22}\end{bmatrix}\)</strong
+        >. Expanding <strong>\(A_m^TP+PA_m=-I\)</strong> gives
+      </p>
+      <h4 class="mathJax">
+        \[ -8p_{12}=-1,\qquad p_{11}-3.2p_{12}-4p_{22}=0,\qquad
+        2p_{12}-6.4p_{22}=-1. \]
+      </h4>
+      <p>Therefore,</p>
+      <h4 class="mathJax">
+        \[ P= \begin{bmatrix} 1.18125&0.125\\ 0.125&0.1953125
+        \end{bmatrix}\succ0. \]
+      </h4>
+      <p>The validation-only ideal gains are</p>
+      <h4 class="mathJax">
+        \[ \boldsymbol{\theta}^* = \begin{bmatrix} -1.7142857\\ -1.5\\ 2.8571429
+        \end{bmatrix}. \]
+      </h4>
+      <p>Choose</p>
+      <h4 class="mathJax">\[ \Gamma=\operatorname{diag}(10,10,5), \]</h4>
+      <p>and use the bounded multisine command</p>
+      <h4 class="mathJax">
+        \[ r(t)=0.8\sin(0.5t)+0.5\sin(1.3t)+0.3\sin(2.1t). \]
+      </h4>
+      <p>
+        Every implementation below integrates the same seven coupled states and
+        exports numerical results for independent verification.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. Python Implementation</h2>
+    <div class="down-content">
+      <p>
+        Libraries: <code>NumPy</code> and <code>Matplotlib</code>. RK4 is
+        implemented from scratch.
+      </p>
+      <h4>Chapter13_Lesson3.py</h4>
+      <pre><code class="language-python"># Chapter13_Lesson3.py
+"""
+Direct self-tuning regulator stability demonstration.
+
+Plant:
+    x1_dot = x2
+    x2_dot = -a0*x1 - a1*x2 + b*u
+
+Reference model:
+    xm1_dot = xm2
+    xm2_dot = -wn^2*xm1 - 2*zeta*wn*xm2 + wn^2*r
+
+Direct adaptive controller:
+    u = theta_hat.T @ [x1, x2, r]
+
+Lyapunov update:
+    theta_hat_dot = -Gamma @ phi * (e.T @ P @ B) * sign(b)
+
+The true ideal controller gains are used only to evaluate the Lyapunov
+function and are never supplied to the controller.
+"""
+
+from __future__ import annotations
+
+import csv
+from dataclasses import dataclass
+from typing import Callable
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+@dataclass(frozen=True)
+class Parameters:
+    a0: float = 1.6
+    a1: float = 1.1
+    b: float = 1.4
+    wn: float = 2.0
+    zeta: float = 0.8
+    dt: float = 0.001
+    tf: float = 40.0
+
+
+P = np.array([[1.18125, 0.125], [0.125, 0.1953125]], dtype=float)
+B = np.array([0.0, 1.0], dtype=float)
+Q = np.eye(2)
+GAMMA = np.diag([10.0, 10.0, 5.0])
+
+
+def reference(t: float) -&gt; float:
+    """Bounded multisine command; it provides richer excitation than a step."""
+    return (
+        0.8 * np.sin(0.5 * t)
+        + 0.5 * np.sin(1.3 * t)
+        + 0.3 * np.sin(2.1 * t)
+    )
+
+
+def ideal_gains(p: Parameters) -&gt; np.ndarray:
+    return np.array(
+        [
+            (p.a0 - p.wn**2) / p.b,
+            (p.a1 - 2.0 * p.zeta * p.wn) / p.b,
+            p.wn**2 / p.b,
+        ],
+        dtype=float,
+    )
+
+
+def dynamics(t: float, z: np.ndarray, p: Parameters) -&gt; np.ndarray:
+    x = z[0:2]
+    xm = z[2:4]
+    theta_hat = z[4:7]
+
+    r = reference(t)
+    phi = np.array([x[0], x[1], r], dtype=float)
+    u = float(theta_hat @ phi)
+
+    x_dot = np.array(
+        [x[1], -p.a0 * x[0] - p.a1 * x[1] + p.b * u], dtype=float
+    )
+    xm_dot = np.array(
+        [xm[1], -(p.wn**2) * xm[0] - 2.0 * p.zeta * p.wn * xm[1]
+         + (p.wn**2) * r],
+        dtype=float,
+    )
+
+    e = x - xm
+    scalar_error = float(e @ P @ B)
+    theta_hat_dot = -GAMMA @ phi * scalar_error * np.sign(p.b)
+
+    return np.concatenate((x_dot, xm_dot, theta_hat_dot))
+
+
+def rk4_step(
+    rhs: Callable[[float, np.ndarray, Parameters], np.ndarray],
+    t: float,
+    z: np.ndarray,
+    dt: float,
+    p: Parameters,
+) -&gt; np.ndarray:
+    k1 = rhs(t, z, p)
+    k2 = rhs(t + 0.5 * dt, z + 0.5 * dt * k1, p)
+    k3 = rhs(t + 0.5 * dt, z + 0.5 * dt * k2, p)
+    k4 = rhs(t + dt, z + dt * k3, p)
+    return z + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
+
+def main() -&gt; None:
+    p = Parameters()
+    n = int(round(p.tf / p.dt)) + 1
+    t = np.linspace(0.0, p.tf, n)
+
+    z = np.zeros((n, 7), dtype=float)
+    z[0, 0:2] = np.array([0.4, -0.2])
+
+    theta_star = ideal_gains(p)
+    lyapunov = np.zeros(n)
+    vdot_theory = np.zeros(n)
+    control = np.zeros(n)
+    command = np.zeros(n)
+
+    gamma_inv = np.linalg.inv(GAMMA)
+
+    for k in range(n):
+        x = z[k, 0:2]
+        xm = z[k, 2:4]
+        theta_hat = z[k, 4:7]
+        e = x - xm
+        theta_tilde = theta_hat - theta_star
+        command[k] = reference(t[k])
+        phi = np.array([x[0], x[1], command[k]])
+        control[k] = float(theta_hat @ phi)
+
+        lyapunov[k] = float(
+            e @ P @ e + abs(p.b) * theta_tilde @ gamma_inv @ theta_tilde
+        )
+        vdot_theory[k] = -float(e @ Q @ e)
+
+        if k + 1 &lt; n:
+            z[k + 1] = rk4_step(dynamics, t[k], z[k], p.dt, p)
+
+    e = z[:, 0:2] - z[:, 2:4]
+    rms_last = float(np.sqrt(np.mean(e[int(0.75 * n):, 0] ** 2)))
+    max_v_increase = float(np.max(np.diff(lyapunov)))
+
+    print("Ideal gains (validation only):", theta_star)
+    print("Final adaptive gains:", z[-1, 4:7])
+    print("RMS position tracking error over final quarter:", rms_last)
+    print("Maximum sampled increase in V:", max_v_increase)
+
+    with open("Chapter13_Lesson3_results.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "t", "r", "x1", "x2", "xm1", "xm2", "e1", "e2",
+                "theta1_hat", "theta2_hat", "theta_r_hat", "u", "V",
+                "Vdot_theory",
+            ]
+        )
+        for k in range(n):
+            writer.writerow(
+                [
+                    t[k], command[k], z[k, 0], z[k, 1], z[k, 2], z[k, 3],
+                    e[k, 0], e[k, 1], z[k, 4], z[k, 5], z[k, 6],
+                    control[k], lyapunov[k], vdot_theory[k],
+                ]
+            )
+
+    plt.figure()
+    plt.plot(t, z[:, 0], label="plant x1")
+    plt.plot(t, z[:, 2], "--", label="model xm1")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Position-like state")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.figure()
+    plt.plot(t, e[:, 0], label="e1")
+    plt.plot(t, e[:, 1], label="e2")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Tracking error")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.figure()
+    plt.plot(t, z[:, 4], label="theta1_hat")
+    plt.plot(t, z[:, 5], label="theta2_hat")
+    plt.plot(t, z[:, 6], label="theta_r_hat")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Adaptive gain")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.figure()
+    plt.plot(t, lyapunov, label="V")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Lyapunov function")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. C++ Implementation</h2>
+    <div class="down-content">
+      <p>
+        The C++17 implementation uses only the standard library and exports CSV
+        data.
+      </p>
+      <h4>Chapter13_Lesson3.cpp</h4>
+      <pre><code class="language-cpp">// Chapter13_Lesson3.cpp
+// C++17 implementation of the Lyapunov-stable direct STR.
+// Compile: g++ -std=c++17 -O2 Chapter13_Lesson3.cpp -o Chapter13_Lesson3
+
+#include &lt;array&gt;
+#include &lt;cmath&gt;
+#include &lt;fstream&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;stdexcept&gt;
+
+using State = std::array&lt;double, 7&gt;;
+
+constexpr double A0 = 1.6;
+constexpr double A1 = 1.1;
+constexpr double BGAIN = 1.4;
+constexpr double WN = 2.0;
+constexpr double ZETA = 0.8;
+constexpr double DT = 0.001;
+constexpr double TF = 40.0;
+
+constexpr double P11 = 1.18125;
+constexpr double P12 = 0.125;
+constexpr double P22 = 0.1953125;
+constexpr std::array&lt;double, 3&gt; GAMMA{10.0, 10.0, 5.0};
+
+double reference(double t) {
+    return 0.8 * std::sin(0.5 * t)
+         + 0.5 * std::sin(1.3 * t)
+         + 0.3 * std::sin(2.1 * t);
+}
+
+State addScaled(const State&amp; a, const State&amp; b, double scale) {
+    State result{};
+    for (std::size_t i = 0; i &lt; result.size(); ++i) {
+        result[i] = a[i] + scale * b[i];
+    }
+    return result;
+}
+
+State dynamics(double t, const State&amp; z) {
+    const double x1 = z[0];
+    const double x2 = z[1];
+    const double xm1 = z[2];
+    const double xm2 = z[3];
+    const double r = reference(t);
+
+    const std::array&lt;double, 3&gt; phi{x1, x2, r};
+    const double u = z[4] * phi[0] + z[5] * phi[1] + z[6] * phi[2];
+
+    const double e1 = x1 - xm1;
+    const double e2 = x2 - xm2;
+    const double scalarError = P12 * e1 + P22 * e2;
+    const double signB = (BGAIN &gt;= 0.0) ? 1.0 : -1.0;
+
+    State dz{};
+    dz[0] = x2;
+    dz[1] = -A0 * x1 - A1 * x2 + BGAIN * u;
+    dz[2] = xm2;
+    dz[3] = -WN * WN * xm1 - 2.0 * ZETA * WN * xm2 + WN * WN * r;
+    dz[4] = -GAMMA[0] * phi[0] * scalarError * signB;
+    dz[5] = -GAMMA[1] * phi[1] * scalarError * signB;
+    dz[6] = -GAMMA[2] * phi[2] * scalarError * signB;
+    return dz;
+}
+
+State rk4Step(double t, const State&amp; z) {
+    const State k1 = dynamics(t, z);
+    const State k2 = dynamics(t + 0.5 * DT, addScaled(z, k1, 0.5 * DT));
+    const State k3 = dynamics(t + 0.5 * DT, addScaled(z, k2, 0.5 * DT));
+    const State k4 = dynamics(t + DT, addScaled(z, k3, DT));
+
+    State next{};
+    for (std::size_t i = 0; i &lt; next.size(); ++i) {
+        next[i] = z[i] + DT * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]) / 6.0;
+    }
+    return next;
+}
+
+int main() {
+    const std::array&lt;double, 3&gt; thetaStar{
+        (A0 - WN * WN) / BGAIN,
+        (A1 - 2.0 * ZETA * WN) / BGAIN,
+        WN * WN / BGAIN
+    };
+
+    State z{0.4, -0.2, 0.0, 0.0, 0.0, 0.0, 0.0};
+    std::ofstream csv("Chapter13_Lesson3_results_cpp.csv");
+    if (!csv) {
+        throw std::runtime_error("Could not create CSV output.");
+    }
+    csv &lt;&lt; std::setprecision(15);
+    csv &lt;&lt; "t,r,x1,x2,xm1,xm2,e1,e2,theta1_hat,theta2_hat,theta_r_hat,u,V\n";
+
+    const long steps = static_cast&lt;long&gt;(std::llround(TF / DT));
+    double squaredErrorTail = 0.0;
+    long tailCount = 0;
+
+    for (long k = 0; k &lt;= steps; ++k) {
+        const double t = k * DT;
+        const double r = reference(t);
+        const double e1 = z[0] - z[2];
+        const double e2 = z[1] - z[3];
+        const double u = z[4] * z[0] + z[5] * z[1] + z[6] * r;
+
+        const double d1 = z[4] - thetaStar[0];
+        const double d2 = z[5] - thetaStar[1];
+        const double d3 = z[6] - thetaStar[2];
+        const double stateTerm = P11 * e1 * e1 + 2.0 * P12 * e1 * e2 + P22 * e2 * e2;
+        const double parameterTerm = std::abs(BGAIN) *
+            (d1 * d1 / GAMMA[0] + d2 * d2 / GAMMA[1] + d3 * d3 / GAMMA[2]);
+        const double V = stateTerm + parameterTerm;
+
+        csv &lt;&lt; t &lt;&lt; ',' &lt;&lt; r &lt;&lt; ',' &lt;&lt; z[0] &lt;&lt; ',' &lt;&lt; z[1] &lt;&lt; ','
+            &lt;&lt; z[2] &lt;&lt; ',' &lt;&lt; z[3] &lt;&lt; ',' &lt;&lt; e1 &lt;&lt; ',' &lt;&lt; e2 &lt;&lt; ','
+            &lt;&lt; z[4] &lt;&lt; ',' &lt;&lt; z[5] &lt;&lt; ',' &lt;&lt; z[6] &lt;&lt; ',' &lt;&lt; u &lt;&lt; ',' &lt;&lt; V &lt;&lt; '\n';
+
+        if (k &gt;= (3 * steps) / 4) {
+            squaredErrorTail += e1 * e1;
+            ++tailCount;
+        }
+        if (k &lt; steps) {
+            z = rk4Step(t, z);
+        }
+    }
+
+    std::cout &lt;&lt; std::setprecision(8);
+    std::cout &lt;&lt; "Ideal gains (validation only): "
+              &lt;&lt; thetaStar[0] &lt;&lt; ", " &lt;&lt; thetaStar[1] &lt;&lt; ", " &lt;&lt; thetaStar[2] &lt;&lt; '\n';
+    std::cout &lt;&lt; "Final adaptive gains: "
+              &lt;&lt; z[4] &lt;&lt; ", " &lt;&lt; z[5] &lt;&lt; ", " &lt;&lt; z[6] &lt;&lt; '\n';
+    std::cout &lt;&lt; "Tail RMS position error: "
+              &lt;&lt; std::sqrt(squaredErrorTail / static_cast&lt;double&gt;(tailCount)) &lt;&lt; '\n';
+    return 0;
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. Java Implementation</h2>
+    <div class="down-content">
+      <p>
+        The Java 17 implementation uses primitive arrays, a from-scratch RK4
+        integrator, and standard file I/O.
+      </p>
+      <h4>Chapter13_Lesson3.java</h4>
+      <pre><code class="language-java">// Chapter13_Lesson3.java
+// Java 17 implementation of the Lyapunov-stable direct STR.
+// Compile: javac Chapter13_Lesson3.java
+// Run:     java Chapter13_Lesson3
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Locale;
+
+public final class Chapter13_Lesson3 {
+    private static final double A0 = 1.6;
+    private static final double A1 = 1.1;
+    private static final double B_GAIN = 1.4;
+    private static final double WN = 2.0;
+    private static final double ZETA = 0.8;
+    private static final double DT = 0.001;
+    private static final double TF = 40.0;
+
+    private static final double P11 = 1.18125;
+    private static final double P12 = 0.125;
+    private static final double P22 = 0.1953125;
+    private static final double[] GAMMA = {10.0, 10.0, 5.0};
+
+    private Chapter13_Lesson3() {}
+
+    private static double reference(double t) {
+        return 0.8 * Math.sin(0.5 * t)
+             + 0.5 * Math.sin(1.3 * t)
+             + 0.3 * Math.sin(2.1 * t);
+    }
+
+    private static double[] dynamics(double t, double[] z) {
+        double x1 = z[0];
+        double x2 = z[1];
+        double xm1 = z[2];
+        double xm2 = z[3];
+        double r = reference(t);
+
+        double[] phi = {x1, x2, r};
+        double u = z[4] * phi[0] + z[5] * phi[1] + z[6] * phi[2];
+
+        double e1 = x1 - xm1;
+        double e2 = x2 - xm2;
+        double scalarError = P12 * e1 + P22 * e2;
+        double signB = Math.copySign(1.0, B_GAIN);
+
+        double[] dz = new double[7];
+        dz[0] = x2;
+        dz[1] = -A0 * x1 - A1 * x2 + B_GAIN * u;
+        dz[2] = xm2;
+        dz[3] = -WN * WN * xm1 - 2.0 * ZETA * WN * xm2 + WN * WN * r;
+        dz[4] = -GAMMA[0] * phi[0] * scalarError * signB;
+        dz[5] = -GAMMA[1] * phi[1] * scalarError * signB;
+        dz[6] = -GAMMA[2] * phi[2] * scalarError * signB;
+        return dz;
+    }
+
+    private static double[] addScaled(double[] a, double[] b, double scale) {
+        double[] result = new double[a.length];
+        for (int i = 0; i &lt; a.length; i++) {
+            result[i] = a[i] + scale * b[i];
+        }
+        return result;
+    }
+
+    private static double[] rk4Step(double t, double[] z) {
+        double[] k1 = dynamics(t, z);
+        double[] k2 = dynamics(t + 0.5 * DT, addScaled(z, k1, 0.5 * DT));
+        double[] k3 = dynamics(t + 0.5 * DT, addScaled(z, k2, 0.5 * DT));
+        double[] k4 = dynamics(t + DT, addScaled(z, k3, DT));
+
+        double[] next = new double[z.length];
+        for (int i = 0; i &lt; z.length; i++) {
+            next[i] = z[i] + DT * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]) / 6.0;
+        }
+        return next;
+    }
+
+    public static void main(String[] args) throws IOException {
+        Locale.setDefault(Locale.US);
+
+        double[] thetaStar = {
+            (A0 - WN * WN) / B_GAIN,
+            (A1 - 2.0 * ZETA * WN) / B_GAIN,
+            WN * WN / B_GAIN
+        };
+        double[] z = {0.4, -0.2, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+        long steps = Math.round(TF / DT);
+        double squaredErrorTail = 0.0;
+        long tailCount = 0;
+
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                Path.of("Chapter13_Lesson3_results_java.csv"))) {
+            writer.write("t,r,x1,x2,xm1,xm2,e1,e2,theta1_hat,theta2_hat,theta_r_hat,u,V");
+            writer.newLine();
+
+            for (long k = 0; k &lt;= steps; k++) {
+                double t = k * DT;
+                double r = reference(t);
+                double e1 = z[0] - z[2];
+                double e2 = z[1] - z[3];
+                double u = z[4] * z[0] + z[5] * z[1] + z[6] * r;
+
+                double d1 = z[4] - thetaStar[0];
+                double d2 = z[5] - thetaStar[1];
+                double d3 = z[6] - thetaStar[2];
+                double stateTerm = P11 * e1 * e1 + 2.0 * P12 * e1 * e2 + P22 * e2 * e2;
+                double parameterTerm = Math.abs(B_GAIN) *
+                    (d1 * d1 / GAMMA[0] + d2 * d2 / GAMMA[1] + d3 * d3 / GAMMA[2]);
+                double v = stateTerm + parameterTerm;
+
+                writer.write(String.format(
+                    Locale.US,
+                    "%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,"
+                    + "%.12f,%.12f,%.12f,%.12f,%.12f",
+                    t, r, z[0], z[1], z[2], z[3], e1, e2,
+                    z[4], z[5], z[6], u, v
+                ));
+                writer.newLine();
+
+                if (k &gt;= (3 * steps) / 4) {
+                    squaredErrorTail += e1 * e1;
+                    tailCount++;
+                }
+                if (k &lt; steps) {
+                    z = rk4Step(t, z);
+                }
+            }
+        }
+
+        System.out.printf(
+            Locale.US,
+            "Ideal gains (validation only): %.8f, %.8f, %.8f%n",
+            thetaStar[0], thetaStar[1], thetaStar[2]
+        );
+        System.out.printf(
+            Locale.US,
+            "Final adaptive gains: %.8f, %.8f, %.8f%n",
+            z[4], z[5], z[6]
+        );
+        System.out.printf(
+            Locale.US,
+            "Tail RMS position error: %.8e%n",
+            Math.sqrt(squaredErrorTail / tailCount)
+        );
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. MATLAB and Simulink Implementations</h2>
+    <div class="down-content">
+      <p>
+        The MATLAB file uses <code>ode45</code>. The Simulink builder creates a
+        seven-state continuous model with a vector Integrator and MATLAB
+        Function block.
+      </p>
+      <h4>Chapter13_Lesson3.m</h4>
+      <pre><code class="language-matlab">% Chapter13_Lesson3.m
+% Lyapunov-stable direct self-tuning regulator.
+% Requires base MATLAB only. The simulation uses ode45.
+
+clear; clc; close all;
+
+p.a0 = 1.6;
+p.a1 = 1.1;
+p.b = 1.4;
+p.wn = 2.0;
+p.zeta = 0.8;
+p.P = [1.18125, 0.125; 0.125, 0.1953125];
+p.B = [0; 1];
+p.Q = eye(2);
+p.Gamma = diag([10, 10, 5]);
+
+thetaStar = [(p.a0 - p.wn^2)/p.b;
+             (p.a1 - 2*p.zeta*p.wn)/p.b;
+             p.wn^2/p.b];
+
+z0 = [0.4; -0.2; 0; 0; 0; 0; 0];
+tspan = linspace(0, 40, 40001);
+opts = odeset('RelTol', 1e-8, 'AbsTol', 1e-10);
+
+[t, z] = ode45(@(t,z) closedLoop(t, z, p), tspan, z0, opts);
+
+x = z(:,1:2);
+xm = z(:,3:4);
+thetaHat = z(:,5:7);
+e = x - xm;
+r = arrayfun(@referenceSignal, t);
+u = thetaHat(:,1).*x(:,1) + thetaHat(:,2).*x(:,2) + thetaHat(:,3).*r;
+
+V = zeros(size(t));
+VdotTheory = zeros(size(t));
+GammaInv = inv(p.Gamma);
+for k = 1:numel(t)
+    thetaTilde = thetaHat(k,:).' - thetaStar;
+    V(k) = e(k,:)*p.P*e(k,:).' ...
+         + abs(p.b)*thetaTilde.'*GammaInv*thetaTilde;
+    VdotTheory(k) = -e(k,:)*p.Q*e(k,:).';
+end
+
+tail = round(0.75*numel(t)):numel(t);
+fprintf('Ideal gains (validation only): %.8f %.8f %.8f\n', thetaStar);
+fprintf('Final adaptive gains: %.8f %.8f %.8f\n', thetaHat(end,:));
+fprintf('Tail RMS position error: %.8e\n', rms(e(tail,1)));
+fprintf('Maximum sampled increase in V: %.8e\n', max(diff(V)));
+
+results = table(t, r, x(:,1), x(:,2), xm(:,1), xm(:,2), ...
+    e(:,1), e(:,2), thetaHat(:,1), thetaHat(:,2), thetaHat(:,3), ...
+    u, V, VdotTheory, ...
+    'VariableNames', {'t','r','x1','x2','xm1','xm2','e1','e2', ...
+    'theta1_hat','theta2_hat','theta_r_hat','u','V','Vdot_theory'});
+writetable(results, 'Chapter13_Lesson3_results_matlab.csv');
+
+figure;
+plot(t, x(:,1), t, xm(:,1), '--', 'LineWidth', 1.1);
+grid on; xlabel('Time (s)'); ylabel('Position-like state');
+legend('Plant x_1','Model x_{m1}','Location','best');
+title('Direct STR tracking');
+
+figure;
+plot(t, e, 'LineWidth', 1.1);
+grid on; xlabel('Time (s)'); ylabel('Tracking error');
+legend('e_1','e_2','Location','best');
+
+figure;
+plot(t, thetaHat, 'LineWidth', 1.1);
+grid on; xlabel('Time (s)'); ylabel('Adaptive gain');
+legend('\theta_1','\theta_2','\theta_r','Location','best');
+
+figure;
+plot(t, V, 'LineWidth', 1.1);
+grid on; xlabel('Time (s)'); ylabel('V');
+title('Composite Lyapunov function');
+
+function dz = closedLoop(t, z, p)
+    x = z(1:2);
+    xm = z(3:4);
+    thetaHat = z(5:7);
+
+    r = referenceSignal(t);
+    phi = [x(1); x(2); r];
+    u = thetaHat.'*phi;
+
+    xdot = [x(2);
+            -p.a0*x(1) - p.a1*x(2) + p.b*u];
+    xmdot = [xm(2);
+             -p.wn^2*xm(1) - 2*p.zeta*p.wn*xm(2) + p.wn^2*r];
+
+    e = x - xm;
+    scalarError = e.'*p.P*p.B;
+    thetaHatDot = -p.Gamma*phi*scalarError*sign(p.b);
+
+    dz = [xdot; xmdot; thetaHatDot];
+end
+
+function r = referenceSignal(t)
+    r = 0.8*sin(0.5*t) + 0.5*sin(1.3*t) + 0.3*sin(2.1*t);
+end
+</code></pre>
+
+      <h4>Chapter13_Lesson3_Simulink.m</h4>
+      <pre><code class="language-matlab">% Chapter13_Lesson3_Simulink.m
+% Programmatically builds a continuous-time Simulink model for the
+% seven-state adaptive system and runs a 40-second simulation.
+%
+% Requirements: Simulink.
+%
+% State vector:
+% z = [x1; x2; xm1; xm2; theta1_hat; theta2_hat; theta_r_hat]
+
+clear; clc;
+
+model = 'Chapter13_Lesson3_Simulink_Model';
+if bdIsLoaded(model)
+    close_system(model, 0);
+end
+if isfile([model '.slx'])
+    delete([model '.slx']);
+end
+
+new_system(model);
+open_system(model);
+
+add_block('simulink/Sources/Clock', [model '/Clock'], ...
+    'Position', [40 85 70 105]);
+
+add_block('simulink/Continuous/Integrator', [model '/StateIntegrator'], ...
+    'InitialCondition', '[0.4; -0.2; 0; 0; 0; 0; 0]', ...
+    'Position', [380 75 425 115]);
+
+add_block('simulink/User-Defined Functions/MATLAB Function', ...
+    [model '/AdaptiveDerivatives'], ...
+    'Position', [155 55 315 135]);
+
+add_block('simulink/Sinks/To Workspace', [model '/StateLog'], ...
+    'VariableName', 'zLog', 'SaveFormat', 'Structure With Time', ...
+    'Position', [500 65 595 95]);
+
+add_block('simulink/Sinks/Scope', [model '/StateScope'], ...
+    'Position', [500 120 535 150]);
+
+add_line(model, 'Clock/1', 'AdaptiveDerivatives/1', 'autorouting', 'on');
+add_line(model, 'StateIntegrator/1', 'AdaptiveDerivatives/2', 'autorouting', 'on');
+add_line(model, 'AdaptiveDerivatives/1', 'StateIntegrator/1', 'autorouting', 'on');
+add_line(model, 'StateIntegrator/1', 'StateLog/1', 'autorouting', 'on');
+add_line(model, 'StateIntegrator/1', 'StateScope/1', 'autorouting', 'on');
+
+rt = sfroot;
+chart = rt.find('-isa', 'Stateflow.EMChart', ...
+                'Path', [model '/AdaptiveDerivatives']);
+
+chart.Script = sprintf([ ...
+'function dz = fcn(t,z)\n' ...
+'%%#codegen\n' ...
+'a0 = 1.6; a1 = 1.1; b = 1.4;\n' ...
+'wn = 2.0; zeta = 0.8;\n' ...
+'P = [1.18125 0.125; 0.125 0.1953125];\n' ...
+'B = [0;1]; Gamma = diag([10 10 5]);\n' ...
+'x = z(1:2); xm = z(3:4); thetaHat = z(5:7);\n' ...
+'r = 0.8*sin(0.5*t) + 0.5*sin(1.3*t) + 0.3*sin(2.1*t);\n' ...
+'phi = [x(1);x(2);r];\n' ...
+'u = thetaHat.''*phi;\n' ...
+'xdot = [x(2); -a0*x(1)-a1*x(2)+b*u];\n' ...
+'xmdot = [xm(2); -wn^2*xm(1)-2*zeta*wn*xm(2)+wn^2*r];\n' ...
+'e = x-xm;\n' ...
+'s = e.''*P*B;\n' ...
+'thetaHatDot = -Gamma*phi*s*sign(b);\n' ...
+'dz = [xdot;xmdot;thetaHatDot];\n' ...
+'end\n']);
+
+set_param(model, ...
+    'StopTime', '40', ...
+    'SolverType', 'Fixed-step', ...
+    'Solver', 'ode4', ...
+    'FixedStep', '0.001', ...
+    'SaveTime', 'on', ...
+    'TimeSaveName', 'tout');
+
+save_system(model);
+simOut = sim(model);
+
+z = simOut.get('zLog');
+tout = z.time;
+states = z.signals.values;
+
+figure;
+plot(tout, states(:,1), tout, states(:,3), '--', 'LineWidth', 1.1);
+grid on;
+xlabel('Time (s)');
+ylabel('Position-like state');
+legend('Plant x_1','Model x_{m1}','Location','best');
+title('Simulink direct STR tracking');
+
+disp(['Created and simulated ' model '.slx']);
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 14 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>14. Wolfram Mathematica Implementation</h2>
+    <div class="down-content">
+      <p>
+        The textual notebook uses <code>NDSolveValue</code> and reconstructs the
+        composite Lyapunov function.
+      </p>
+      <h4>Chapter13_Lesson3.nb</h4>
+      <pre><code class="language-mathematica">Notebook[{
+Cell["Chapter 13, Lesson 3: Stability Analysis via Lyapunov Methods", "Title"],
+Cell["Chapter13_Lesson3.nb", "Subtitle"],
+Cell["The controller adapts gains directly. The ideal gains appear only in the validation calculation of V.", "Text"],
+Cell[BoxData[ToBoxes[
+ClearAll["Global`*"];
+a0 = 1.6; a1 = 1.1; b = 1.4; wn = 2.0; zeta = 0.8;
+P = { {1.18125, 0.125}, {0.125, 0.1953125} };
+B0 = {0, 1};
+Gamma = DiagonalMatrix[{10, 10, 5}];
+thetaStar = {(a0 - wn^2)/b, (a1 - 2 zeta wn)/b, wn^2/b};
+r[t_] := 0.8 Sin[0.5 t] + 0.5 Sin[1.3 t] + 0.3 Sin[2.1 t];
+]], "Input"],
+Cell[BoxData[ToBoxes[
+sol = NDSolveValue[{
+ x1'[t] == x2[t],
+ x2'[t] == -a0 x1[t] - a1 x2[t] +
+   b (th1[t] x1[t] + th2[t] x2[t] + thr[t] r[t]),
+ xm1'[t] == xm2[t],
+ xm2'[t] == -wn^2 xm1[t] - 2 zeta wn xm2[t] + wn^2 r[t],
+ th1'[t] == -10 x1[t] ({x1[t] - xm1[t], x2[t] - xm2[t]}.P.B0) Sign[b],
+ th2'[t] == -10 x2[t] ({x1[t] - xm1[t], x2[t] - xm2[t]}.P.B0) Sign[b],
+ thr'[t] == -5 r[t] ({x1[t] - xm1[t], x2[t] - xm2[t]}.P.B0) Sign[b],
+ x1[0] == 0.4, x2[0] == -0.2, xm1[0] == 0, xm2[0] == 0,
+ th1[0] == 0, th2[0] == 0, thr[0] == 0
+ },
+ {x1, x2, xm1, xm2, th1, th2, thr}, {t, 0, 40},
+ Method -&gt; {"EquationSimplification" -&gt; "Residual"}];
+]], "Input"],
+Cell[BoxData[ToBoxes[
+Plot[Evaluate[{sol[[1]][t], sol[[3]][t]}], {t, 0, 40},
+ PlotLegends -&gt; {"Plant x1", "Model xm1"}, AxesLabel -&gt; {"t", "state"}]
+]], "Input"],
+Cell[BoxData[ToBoxes[
+Plot[Evaluate[{sol[[1]][t] - sol[[3]][t],
+ sol[[2]][t] - sol[[4]][t]}], {t, 0, 40},
+ PlotLegends -&gt; {"e1", "e2"}, AxesLabel -&gt; {"t", "error"}]
+]], "Input"],
+Cell[BoxData[ToBoxes[
+Plot[Evaluate[{sol[[5]][t], sol[[6]][t], sol[[7]][t]}], {t, 0, 40},
+ PlotLegends -&gt; {"theta1Hat", "theta2Hat", "thetaRHat"},
+ AxesLabel -&gt; {"t", "adaptive gain"}]
+]], "Input"],
+Cell[BoxData[ToBoxes[
+v[t_] := With[
+ {e = {sol[[1]][t] - sol[[3]][t], sol[[2]][t] - sol[[4]][t]},
+  tt = {sol[[5]][t], sol[[6]][t], sol[[7]][t]} - thetaStar},
+ e.P.e + Abs[b] tt.Inverse[Gamma].tt];
+Plot[v[t], {t, 0, 40}, AxesLabel -&gt; {"t", "V"}]
+]], "Input"],
+Cell[BoxData[ToBoxes[
+{"Ideal gains", thetaStar,
+ "Final adaptive gains", {sol[[5]][40], sol[[6]][40], sol[[7]][40]} }
+]], "Input"]
+},
+WindowSize -&gt; {1200, 800},
+StyleDefinitions -&gt; "Default.nb"
+]
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 15 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>15. Problems and Solutions</h2>
+    <div class="down-content">
+      <p>
+        <strong>Problem 1 (Lyapunov equation).</strong> For
+        <strong>\(A_m=\begin{bmatrix}0&1\\-4&-3.2\end{bmatrix}\)</strong> and
+        <strong>\(Q=I\)</strong>, derive <strong>\(P\)</strong> and verify
+        positive definiteness.
+      </p>
+      <p><strong>Solution.</strong></p>
+      <h4 class="mathJax">
+        \[ A_m^TP+PA_m= \begin{bmatrix} -8p_{12}&p_{11}-3.2p_{12}-4p_{22}\\
+        p_{11}-3.2p_{12}-4p_{22}&2p_{12}-6.4p_{22} \end{bmatrix}. \]
+      </h4>
+      <p>
+        Equating this to <strong>\(-I\)</strong> gives
+        <strong>\(p_{12}=0.125\)</strong>,
+        <strong>\(p_{22}=0.1953125\)</strong>, and
+        <strong>\(p_{11}=1.18125\)</strong>. Moreover,
+      </p>
+      <h4 class="mathJax">
+        \[ p_{11}&gt;0,\qquad \det(P)=0.215087890625&gt;0, \]
+      </h4>
+      <p>so <strong>\(P\succ0\)</strong> by Sylvester's criterion.</p>
+
+      <hr />
+
+      <p>
+        <strong>Problem 2 (cross-term cancellation).</strong> Derive an adaptive
+        law that makes <strong>\(\dot{V}=-\mathbf{e}^TQ\mathbf{e}\)</strong>.
+      </p>
+      <p><strong>Solution.</strong></p>
+      <p>The indefinite term is</p>
+      <h4 class="mathJax">
+        \[ 2b\mathbf{e}^TPB \widetilde{\boldsymbol{\theta} }^T\boldsymbol{\phi}.
+        \]
+      </h4>
+      <p>Choose</p>
+      <h4 class="mathJax">
+        \[ \dot{\hat{\boldsymbol{\theta} } } = -\Gamma\boldsymbol{\phi}
+        \mathbf{e}^TPB\operatorname{sgn}(b). \]
+      </h4>
+      <p>
+        Because <strong>\(|b|\operatorname{sgn}(b)=b\)</strong>, the
+        parameter-energy derivative is the exact negative of the mixed term.
+      </p>
+
+      <hr />
+
+      <p>
+        <strong>Problem 3 (gain convergence).</strong> Why does asymptotic
+        tracking not automatically imply convergence to the ideal gain vector?
+      </p>
+      <p><strong>Solution.</strong></p>
+      <p>
+        The derivative contains no negative-definite gain-error term. When
+        tracking error becomes small, adaptation stops even if the gain vector
+        is nonideal. Multiple gain vectors can be indistinguishable along a
+        nonexciting trajectory. Persistent excitation supplies the missing
+        identifiability.
+      </p>
+
+      <hr />
+
+      <p>
+        <strong>Problem 4 (unknown input-gain sign).</strong> Explain why the
+        proof fails if <strong>\(\operatorname{sgn}(b)\)</strong> is unknown.
+      </p>
+      <p><strong>Solution.</strong></p>
+      <p>
+        The cancellation requires the correct sign. With the wrong sign, the
+        parameter-energy term reinforces the mixed term, so
+        <strong>\(\dot{V}\)</strong> need not be nonpositive. This is a
+        structural uncertainty, not a tuning problem.
+      </p>
+
+      <hr />
+
+      <p>
+        <strong>Problem 5 (Barbalat prerequisites).</strong> Show why
+        <strong>\(\dot{\mathbf{e} }\)</strong> is bounded.
+      </p>
+      <p><strong>Solution.</strong></p>
+      <p>
+        Nonincrease of <strong>\(V\)</strong> bounds
+        <strong>\(\mathbf{e}\)</strong> and
+        <strong>\(\hat{\boldsymbol{\theta} }\)</strong>. Stability of the
+        reference model and bounded <strong>\(r\)</strong> bound
+        <strong>\(\mathbf{x}_m\)</strong>. Therefore
+        <strong>\(\mathbf{x}=\mathbf{e}+\mathbf{x}_m\)</strong> and
+        <strong>\(\boldsymbol{\phi}\)</strong> are bounded. Every term in
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\mathbf{e} } =A_m\mathbf{e} +Bb\widetilde{\boldsymbol{\theta}
+        }^T\boldsymbol{\phi} \]
+      </h4>
+      <p>
+        is bounded, hence
+        <strong>\(\dot{\mathbf{e} }\in L_\infty\)</strong>. This establishes
+        uniform continuity for Barbalat's lemma.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 16 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>16. Summary</h2>
+    <div class="down-content">
+      <p>
+        Matching reduces the direct STR tracking dynamics to a stable
+        reference-model term plus a bilinear gain-error term. The composite
+        Lyapunov function
+      </p>
+      <h4 class="mathJax">
+        \[ V= \mathbf{e}^TP\mathbf{e} + |b|\widetilde{\boldsymbol{\theta} }^T
+        \Gamma^{-1}\widetilde{\boldsymbol{\theta} } \]
+      </h4>
+      <p>leads to</p>
+      <h4 class="mathJax">
+        \[ \dot{\hat{\boldsymbol{\theta} } } = -\Gamma\boldsymbol{\phi}
+        \mathbf{e}^TPB\operatorname{sgn}(b), \qquad
+        \dot{V}=-\mathbf{e}^TQ\mathbf{e}\le0. \]
+      </h4>
+      <p>
+        The result proves boundedness and asymptotic tracking. Parameter
+        convergence is distinct and generally requires persistent excitation.
+        Lesson 4 compares this direct architecture with indirect STRs.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 17 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>17. References</h2>
+    <ol>
+      <li>
+        Parks, P.C. (1966). Liapunov redesign of model reference adaptive
+        control systems. <em>IEEE Transactions on Automatic Control</em>, 11(3),
+        362–367.
+      </li>
+      <li>
+        Monopoli, R.V. (1974). Model reference adaptive control with an
+        augmented error signal. <em>IEEE Transactions on Automatic Control</em>,
+        19(5), 474–484.
+      </li>
+      <li>
+        Narendra, K.S., &amp; Valavani, L.S. (1978). Stable adaptive controller
+        design—direct control. <em>IEEE Transactions on Automatic Control</em>,
+        23(4), 570–583.
+      </li>
+      <li>
+        Narendra, K.S., Lin, Y.-H., &amp; Valavani, L.S. (1980). Stable adaptive
+        controller design, Part II: Proof of stability.
+        <em>IEEE Transactions on Automatic Control</em>, 25(3), 440–448.
+      </li>
+      <li>
+        Narendra, K.S., &amp; Valavani, L.S. (1980). A comparison of Lyapunov
+        and hyperstability approaches to adaptive control of continuous systems.
+        <em>IEEE Transactions on Automatic Control</em>, 25(2), 243–247.
+      </li>
+      <li>
+        Morse, A.S. (1980). Global stability of parameter-adaptive control
+        systems. <em>IEEE Transactions on Automatic Control</em>, 25(3),
+        433–439.
+      </li>
+      <li>
+        Anderson, B.D.O. (1977). Exponential stability of linear equations
+        arising in adaptive identification.
+        <em>IEEE Transactions on Automatic Control</em>, 22(1), 83–88.
+      </li>
+      <li>
+        Morgan, A.P., &amp; Narendra, K.S. (1977). On the stability of
+        nonautonomous differential equations with a skew-symmetric time-varying
+        term. <em>SIAM Journal on Control and Optimization</em>, 15(1), 163–176.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter13/Lesson2.html">
+          Lesson 2: Parameterization of Controller Gains and Reference Models
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter13/Lesson4.html">
+          Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#">
+              <input
+                type="text"
+                name="search"
+                id="search"
+                placeholder="Search..."
+              />
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <br />
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: \( \theta^T\phi(x,u) \) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression \( \boldsymbol{\phi}^{\mathsf{T}}(t)\boldsymbol{\theta} \)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="active-lesson" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <br />
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>

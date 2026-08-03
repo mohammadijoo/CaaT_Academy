@@ -1,0 +1,3429 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual) - Lesson 3: Anti-Windup Ideas in the Presence of Adaptation | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>
+      Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)
+    </h1>
+    <h3>
+      <strong>Lesson 3: Anti-Windup Ideas in the Presence of Adaptation</strong>
+    </h3>
+    <p>
+      This lesson studies anti-windup as a consistency mechanism between an
+      adaptive controller's requested input and the input that a constrained
+      actuator can actually apply. We distinguish controller-state windup from
+      adaptive-parameter drift, derive a mismatch-model construction that
+      removes the saturation discrepancy from a modified error system, establish
+      a Lyapunov result for the idealized adaptive core, and then add practical
+      back-calculation, projection, leakage, and adaptation gating.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>1. Why Anti-Windup Is Different in an Adaptive Loop</h2>
+    <div class="down-content">
+      <p>
+        In a fixed-gain PI or PID controller, actuator saturation can cause an
+        integral state to continue accumulating even though the commanded input
+        cannot be delivered. In an adaptive controller there is a second memory:
+        the parameter estimate. A persistent tracking error created by
+        saturation can therefore drive both the integral state and the adaptive
+        parameters in directions that do not represent the plant uncertainty.
+      </p>
+      <p>
+        Let <strong>\(v(t)\)</strong> denote the unconstrained controller
+        command and let <strong>\(u(t)\)</strong> denote the input actually
+        applied by the actuator:
+      </p>
+      <h4 class="mathJax">
+        \[ u(t)=\operatorname{sat}_{\bar u}(v(t)),\qquad \Delta_u(t)=u(t)-v(t).
+        \]
+      </h4>
+      <p>
+        The mismatch <strong>\(\Delta_u\)</strong> is measurable whenever both
+        the command and the actuator output are available. It is zero in the
+        linear operating region. At the upper limit,
+        <strong>\(v&gt;\bar u\)</strong> implies
+        <strong>\(\Delta_u&lt;0\)</strong>; at the lower limit,
+        <strong>\(v&lt;-\bar u\)</strong> implies
+        <strong>\(\Delta_u&gt;0\)</strong>.
+      </p>
+      <p>
+        The central design principle is therefore:
+        <em
+          >do not allow an adaptive law to interpret actuator deficiency as
+          parametric plant error</em
+        >. Anti-windup feeds the known discrepancy
+        <strong>\(\Delta_u\)</strong> into controller states, error models, or
+        update laws so that their internal dynamics remain compatible with the
+        constrained plant.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. Saturation-Aware Adaptive Architecture</h2>
+    <div class="down-content">
+      <p>
+        A useful architecture separates four signals: the nominal command
+        <strong>\(v\)</strong>, the applied input <strong>\(u\)</strong>, the
+        mismatch <strong>\(\Delta_u=u-v\)</strong>, and a modified error
+        <strong>\(\varepsilon\)</strong> used for adaptation.
+      </p>
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  R["Reference r"] --> RM["Reference model"]
+  RM --> E["Tracking error e"]
+  X["Plant state or output"] --> E
+  E --> AC["Adaptive controller \nand integral state"]
+  R --> AC
+  X --> AC
+  AC --> V["Requested input v"]
+  V --> SAT["Actuator saturation"]
+  SAT --> U["Applied input u"]
+  U --> P["Uncertain plant"]
+  P --> X
+  U --> D["Mismatch: delta_u = u - v"]
+  V --> D
+  D --> BC["Back-calculation \nand mismatch model"]
+  BC --> AC
+  BC --> ME["Modified error epsilon"]
+  E --> ME
+  ME --> AL["Adaptive update law"]
+  AL --> AC
+        </pre>
+      </div>
+      <p>
+        The architecture does not make an infeasible reference feasible. Its
+        purpose is to prevent hidden controller states and parameter estimates
+        from growing merely because the actuator is unable to realize the
+        nominal command.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. Nominal MRAC Error Dynamics Under Input Saturation</h2>
+    <div class="down-content">
+      <p>
+        Consider a SISO-input linear plant with state
+        <strong>\(x\in\mathbb{R}^n\)</strong>:
+      </p>
+      <h4 class="mathJax">
+        \[ \dot x=A x+b u,\qquad u=\operatorname{sat}_{\bar u}(v). \]
+      </h4>
+      <p>Let the stable reference model and the nominal adaptive command be</p>
+      <h4 class="mathJax">
+        \[ \dot x_m=A_m x_m+b_m r,\qquad v=\hat\theta^{T}\phi, \]
+      </h4>
+      <p>
+        where <strong>\(\phi\in\mathbb{R}^p\)</strong> is a regressor assembled
+        from available states and reference signals. Assume an ideal parameter
+        vector <strong>\(\theta^\ast\)</strong> exists such that the matching
+        conditions hold. With
+        <strong>\(\tilde\theta=\hat\theta-\theta^\ast\)</strong> and
+        <strong>\(e=x-x_m\)</strong>, the error system becomes
+      </p>
+      <h4 class="mathJax">
+        \[ \dot e=A_m e+b\tilde\theta^{T}\phi+b\Delta_u. \]
+      </h4>
+      <p>Choose <strong>\(P=P^T&gt;0\)</strong> from</p>
+      <h4 class="mathJax">\[ A_m^T P+P A_m=-Q,\qquad Q=Q^T&gt;0. \]</h4>
+      <p>The ordinary gradient update law is</p>
+      <h4 class="mathJax">
+        \[ \dot{\hat\theta}=-\Gamma\phi e^T P b,\qquad \Gamma=\Gamma^T&gt;0. \]
+      </h4>
+      <p>For the standard Lyapunov function</p>
+      <h4 class="mathJax">
+        \[ V=e^T P e+\tilde\theta^T\Gamma^{-1}\tilde\theta, \]
+      </h4>
+      <p>differentiation and cancellation of the parameter cross term give</p>
+      <h4 class="mathJax">\[ \dot V=-e^TQe+2e^TPb\Delta_u. \]</h4>
+      <p>
+        The final term has no fixed sign. Thus, the unconstrained MRAC proof no
+        longer establishes monotonic decrease of <strong>\(V\)</strong>. More
+        importantly, a nonzero error caused solely by actuator saturation can
+        continue driving <strong>\(\hat\theta\)</strong>. This is adaptive
+        windup or parameter drift.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Two Anti-Windup Channels</h2>
+    <div class="down-content">
+      <h3>4.1 Controller-State Back-Calculation</h3>
+      <p>Suppose an integral state contributes positively to the command:</p>
+      <h4 class="mathJax">\[ v=v_a+k_I\eta,\qquad k_I&gt;0, \]</h4>
+      <p>
+        where <strong>\(v_a\)</strong> is the nonintegral adaptive command. A
+        back-calculation law is
+      </p>
+      <h4 class="mathJax">
+        \[ \dot\eta=e_c+k_{aw}\Delta_u,\qquad k_{aw}&gt;0, \]
+      </h4>
+      <p>
+        with servo error <strong>\(e_c=r-y\)</strong>. If the upper actuator
+        limit is active, then <strong>\(\Delta_u&lt;0\)</strong>; consequently,
+        the correction term decreases <strong>\(\eta\)</strong> and discharges
+        the integral contribution. The characteristic unwinding time is
+        approximately <strong>\(T_{aw}=1/(k_I k_{aw})\)</strong> when other
+        signals vary slowly.
+      </p>
+      <p>
+        A bounded implementation may combine back-calculation with tangent-cone
+        projection:
+      </p>
+      <h4 class="mathJax">
+        \[ \dot\eta= \Pi_{[-\bar\eta,\bar\eta]}
+        \left(\eta,e_c+k_{aw}\Delta_u\right). \]
+      </h4>
+      <p>
+        Conditional integration is an alternative: suspend integration only when
+        the actuator is saturated and the current error would push the command
+        farther into saturation.
+      </p>
+
+      <h3>4.2 Adaptive-Error Conditioning</h3>
+      <p>
+        Back-calculation protects an integral state, but it does not by itself
+        restore the MRAC Lyapunov cancellation. For the adaptive parameters, a
+        mismatch model can separate the part of the tracking error caused by
+        actuator deficiency from the part caused by parameter error.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Mismatch-Model Anti-Windup and Modified Error</h2>
+    <div class="down-content">
+      <p>Define an auxiliary state driven by the known actuator discrepancy:</p>
+      <h4 class="mathJax">
+        \[ \dot x_{aw}=A_m x_{aw}+b\Delta_u,\qquad x_{aw}(0)=0. \]
+      </h4>
+      <p>The modified error is</p>
+      <h4 class="mathJax">\[ \varepsilon=e-x_{aw}. \]</h4>
+      <p>
+        Subtracting the auxiliary dynamics from the physical tracking-error
+        dynamics gives
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \dot\varepsilon &amp;=\dot e-\dot x_{aw}\\ &amp;=A_m
+        e+b\tilde\theta^T\phi+b\Delta_u -A_m x_{aw}-b\Delta_u\\
+        &amp;=A_m\varepsilon+b\tilde\theta^T\phi. \end{aligned} \]
+      </h4>
+      <p>
+        The saturation mismatch has disappeared from the modified-error
+        dynamics. Adaptation can therefore use
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\hat\theta} =-\Gamma\phi\varepsilon^TPb. \]
+      </h4>
+      <p>
+        Conceptually, <strong>\(x_{aw}\)</strong> is the response that the
+        reference-model dynamics would produce from the missing actuator
+        authority. Subtracting it prevents the adaptive law from learning the
+        actuator limit as if it were an unknown plant coefficient.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. Lyapunov Analysis of the Idealized Adaptive Core</h2>
+    <div class="down-content">
+      <p>Assume:</p>
+      <ol>
+        <li><strong>\(A_m\)</strong> is Hurwitz.</li>
+        <li>The matching parameter <strong>\(\theta^\ast\)</strong> exists.</li>
+        <li>
+          The sign and direction needed in <strong>\(b\)</strong> are known.
+        </li>
+        <li>The regressor <strong>\(\phi\)</strong> is bounded.</li>
+        <li>
+          The mismatch model uses the same stable matrix and input direction as
+          the error model.
+        </li>
+      </ol>
+      <p>Consider</p>
+      <h4 class="mathJax">
+        \[ V=\varepsilon^TP\varepsilon+ \tilde\theta^T\Gamma^{-1}\tilde\theta.
+        \]
+      </h4>
+      <p>
+        Since
+        <strong>\(\dot{\tilde\theta}=\dot{\hat\theta}\)</strong>, substitution
+        yields
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \dot V &amp;=\varepsilon^T(A_m^TP+PA_m)\varepsilon
+        +2\varepsilon^TPb\tilde\theta^T\phi
+        +2\tilde\theta^T\Gamma^{-1}\dot{\hat\theta}\\
+        &amp;=-\varepsilon^TQ\varepsilon +2\varepsilon^TPb\tilde\theta^T\phi
+        -2\tilde\theta^T\phi\varepsilon^TPb\\
+        &amp;=-\varepsilon^TQ\varepsilon\le0. \end{aligned} \]
+      </h4>
+      <p>
+        Therefore <strong>\(\varepsilon\)</strong> and
+        <strong>\(\tilde\theta\)</strong> are bounded and
+        <strong>\(\varepsilon\in L_2\)</strong>. If
+        <strong>\(\dot\varepsilon\)</strong> is bounded, Barbalat's lemma gives
+        <strong>\(\varepsilon(t)\to0\)</strong>.
+      </p>
+      <p>
+        This conclusion concerns the modified error. The physical tracking error
+        satisfies
+      </p>
+      <h4 class="mathJax">\[ e=\varepsilon+x_{aw}. \]</h4>
+      <p>
+        Consequently, asymptotic tracking requires the actuator mismatch to
+        vanish sufficiently so that <strong>\(x_{aw}(t)\to0\)</strong>. If the
+        reference remains infeasible and saturation persists, anti-windup cannot
+        force <strong>\(e\to0\)</strong>; it can only preserve bounded,
+        interpretable internal behavior.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Practical Robustification: Projection, Leakage, and Gating</h2>
+    <div class="down-content">
+      <p>
+        The ideal mismatch model may be imperfect because the true plant input
+        gain is uncertain, the actuator has unmodeled rate limits, or the
+        measured actuator output is noisy. Three modifications are commonly
+        combined:
+      </p>
+      <h3>7.1 Projection</h3>
+      <h4 class="mathJax">
+        \[ \dot{\hat\theta} =\operatorname{Proj}_{\Omega}
+        \left(\hat\theta,y_\theta\right), \qquad
+        y_\theta=-\Gamma\phi\varepsilon^TPb. \]
+      </h4>
+      <p>
+        For a convex admissible set <strong>\(\Omega\)</strong> containing
+        <strong>\(\theta^\ast\)</strong>, the projection operator is chosen to
+        satisfy
+      </p>
+      <h4 class="mathJax">
+        \[ \tilde\theta^T\Gamma^{-1} \left[
+        \operatorname{Proj}_{\Omega}(\hat\theta,y_\theta)-y_\theta \right]\le0.
+        \]
+      </h4>
+      <p>
+        Thus projection does not spoil the Lyapunov inequality at the boundary.
+      </p>
+
+      <h3>7.2 Leakage</h3>
+      <h4 class="mathJax">
+        \[ y_\theta= -\Gamma\phi\varepsilon^TPb-\sigma\hat\theta, \qquad
+        \sigma&gt;0. \]
+      </h4>
+      <p>
+        Leakage discourages parameter drift under small persistent disturbances.
+        It generally replaces exact asymptotic parameter properties with uniform
+        ultimate boundedness.
+      </p>
+
+      <h3>7.3 Saturation-Dependent Adaptation Gate</h3>
+      <h4 class="mathJax">
+        \[ g(\Delta_u)= \frac{1}{1+\left(|\Delta_u|/\delta_g\right)^2}, \qquad
+        0&lt;g\le1, \]
+      </h4>
+      <h4 class="mathJax">
+        \[ y_\theta= -\Gamma\phi\varepsilon^TPb\,g(\Delta_u) -\sigma\hat\theta.
+        \]
+      </h4>
+      <p>
+        The gate leaves adaptation almost unchanged near the unsaturated region
+        and slows learning when the discrepancy is large. Because
+        <strong>\(g\neq1\)</strong> changes the exact cancellation used in
+        Section 6, its stability claim must be established as a robust or
+        ultimate-boundedness result rather than copied from the ideal proof.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Scalar Design Example and Feasibility Test</h2>
+    <div class="down-content">
+      <p>Consider</p>
+      <h4 class="mathJax">
+        \[ \dot x=-a x+b u,\qquad \dot x_m=-a_mx_m+b_mr, \]
+      </h4>
+      <h4 class="mathJax">
+        \[ v=\hat\theta_xx+\hat\theta_rr+k_I\eta,\qquad |u|\le\bar u. \]
+      </h4>
+      <p>
+        Ignoring the integral augmentation in the matching calculation, the
+        ideal gains are
+      </p>
+      <h4 class="mathJax">
+        \[ \theta_x^\ast=\frac{a-a_m}{b},\qquad \theta_r^\ast=\frac{b_m}{b}. \]
+      </h4>
+      <p>
+        For a stable plant with constant saturated input, the largest
+        steady-state magnitude is
+      </p>
+      <h4 class="mathJax">\[ |x_{ss}|\le\frac{|b|}{a}\bar u. \]</h4>
+      <p>
+        In the numerical lab,
+        <strong>\(a=1.2\)</strong>, <strong>\(b=0.8\)</strong>, and
+        <strong>\(\bar u=1.2\)</strong>, so the equilibrium magnitude cannot
+        exceed <strong>\(0.8\)</strong>. References such as
+        <strong>\(r=2.0\)</strong> and <strong>\(r=-1.8\)</strong> are
+        intentionally infeasible. They are followed by feasible intervals to
+        test whether the controller recovers without large stored integral or
+        parameter error.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Implementation Workflow and Design Checks</h2>
+    <div class="down-content">
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  A["Compute command v"] --> B["Apply actuator limits to obtain u"]
+  B --> C["Compute delta_u = u - v"]
+  C --> D["Update mismatch model x_aw"]
+  D --> E["Form epsilon = e - x_aw"]
+  E --> F["Apply adaptation gate and leakage"]
+  F --> G["Project parameter rate at bounds"]
+  C --> H["Back-calculate integral state"]
+  H --> I["Project integral state at bounds"]
+  G --> J["Integrate adaptive parameters"]
+  I --> K["Advance plant and reference model"]
+  J --> K
+  K --> L["Log command, input, mismatch, errors, and limits"]
+        </pre>
+      </div>
+      <p>
+        A defensible implementation logs at least:
+        <strong>\(v\)</strong>, <strong>\(u\)</strong>,
+        <strong>\(\Delta_u\)</strong>, physical and modified errors, parameter
+        estimates, integrator states, projection activity, and the fraction of
+        time spent saturated. Anti-windup should be assessed by recovery after
+        saturation, not only by tracking error while the reference is
+        impossible.
+      </p>
+      <p>
+        The examples use forward Euler integration to expose every update
+        explicitly. Production software should use the sampling and numerical
+        safeguards developed in later implementation chapters.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. Python Implementation</h2>
+    <div class="down-content">
+      <p>
+        Required libraries are <code>numpy</code> and <code>matplotlib</code>.
+        The script generates two CSV files and one comparison plot.
+      </p>
+      <h3>Chapter19_Lesson3.py</h3>
+      <pre><code class="language-python"># Chapter19_Lesson3.py
+# Adaptive anti-windup demonstration for a saturated first-order plant.
+# Dependencies: numpy, matplotlib
+#
+# The script compares:
+#   1) a naive adaptive controller whose integrator and parameters continue
+#      changing during saturation;
+#   2) a saturation-aware controller with back-calculation, a mismatch model,
+#      adaptation gating, leakage, and projection.
+#
+# Plant:           x_dot  = -a*x + b*u
+# Reference model: xm_dot = -am*xm + bm*r
+# Command:         v      = theta_x*x + theta_r*r + ki*eta
+# Applied input:   u      = sat(v, umax)
+# Mismatch:        delta  = u - v
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import csv
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+@dataclass(frozen=True)
+class Config:
+    dt: float = 0.002
+    horizon: float = 20.0
+    a: float = 1.2
+    b: float = 0.8
+    am: float = 1.5
+    bm: float = 1.5
+    umax: float = 1.2
+    gamma_x: float = 1.8
+    gamma_r: float = 1.0
+    ki: float = 0.35
+    kaw: float = 4.0
+    lambda_aw: float = 1.5
+    sigma: float = 0.01
+    gate_width: float = 0.15
+    eta_limit: float = 4.0
+    theta_x_min: float = -5.0
+    theta_x_max: float = 2.0
+    theta_r_min: float = -1.0
+    theta_r_max: float = 5.0
+
+
+def reference(t: float) -&gt; float:
+    """Reference schedule containing infeasible and feasible intervals."""
+    if t &lt; 0.5:
+        return 0.0
+    if t &lt; 6.0:
+        return 2.0       # infeasible: the actuator cannot sustain this state
+    if t &lt; 12.0:
+        return 0.5       # feasible
+    if t &lt; 16.0:
+        return -1.8      # infeasible in the negative direction
+    return 0.3           # feasible recovery interval
+
+
+def saturate(value: float, limit: float) -&gt; float:
+    return max(-limit, min(limit, value))
+
+
+def projected_rate(
+    theta: np.ndarray,
+    raw_rate: np.ndarray,
+    lower: np.ndarray,
+    upper: np.ndarray,
+) -&gt; np.ndarray:
+    """Tangent-cone projection for a box-constrained parameter vector."""
+    rate = raw_rate.copy()
+    for i in range(theta.size):
+        if theta[i] &lt;= lower[i] and rate[i] &lt; 0.0:
+            rate[i] = 0.0
+        elif theta[i] &gt;= upper[i] and rate[i] &gt; 0.0:
+            rate[i] = 0.0
+    return rate
+
+
+def simulate(saturation_aware: bool, cfg: Config) -&gt; dict[str, np.ndarray]:
+    steps = int(round(cfg.horizon / cfg.dt)) + 1
+    time = np.linspace(0.0, cfg.horizon, steps)
+
+    data = {
+        "time": time,
+        "reference": np.zeros(steps),
+        "x": np.zeros(steps),
+        "xm": np.zeros(steps),
+        "tracking_error": np.zeros(steps),
+        "modified_error": np.zeros(steps),
+        "command": np.zeros(steps),
+        "input": np.zeros(steps),
+        "mismatch": np.zeros(steps),
+        "integrator": np.zeros(steps),
+        "theta_x": np.zeros(steps),
+        "theta_r": np.zeros(steps),
+        "gate": np.ones(steps),
+    }
+
+    x = 0.0
+    xm = 0.0
+    eta = 0.0
+    x_aw = 0.0
+    theta = np.array([0.0, 0.5], dtype=float)
+
+    gamma = np.array([cfg.gamma_x, cfg.gamma_r], dtype=float)
+    lower = np.array([cfg.theta_x_min, cfg.theta_r_min], dtype=float)
+    upper = np.array([cfg.theta_x_max, cfg.theta_r_max], dtype=float)
+
+    for k, t in enumerate(time):
+        r = reference(float(t))
+        e = x - xm
+        servo_error = r - x
+        phi = np.array([x, r], dtype=float)
+
+        v = float(theta @ phi + cfg.ki * eta)
+        u = saturate(v, cfg.umax)
+        delta = u - v
+
+        if saturation_aware:
+            # The mismatch model estimates the state component generated by
+            # applying u instead of the unconstrained command v.
+            epsilon = e - x_aw
+
+            # Smoothly reduce learning when the actuator discrepancy is large.
+            gate = 1.0 / (1.0 + (abs(delta) / cfg.gate_width) ** 2)
+
+            raw_theta_rate = -gamma * phi * epsilon * gate - cfg.sigma * theta
+            theta_rate = projected_rate(theta, raw_theta_rate, lower, upper)
+
+            # Back-calculation discharges the integral state when v and u differ.
+            eta_rate = servo_error + cfg.kaw * delta
+            if eta &gt;= cfg.eta_limit and eta_rate &gt; 0.0:
+                eta_rate = 0.0
+            elif eta &lt;= -cfg.eta_limit and eta_rate &lt; 0.0:
+                eta_rate = 0.0
+
+            x_aw_rate = -cfg.lambda_aw * x_aw + cfg.b * delta
+        else:
+            epsilon = e
+            gate = 1.0
+            theta_rate = -gamma * phi * e
+            eta_rate = servo_error
+            x_aw_rate = 0.0
+
+        x_rate = -cfg.a * x + cfg.b * u
+        xm_rate = -cfg.am * xm + cfg.bm * r
+
+        data["reference"][k] = r
+        data["x"][k] = x
+        data["xm"][k] = xm
+        data["tracking_error"][k] = e
+        data["modified_error"][k] = epsilon
+        data["command"][k] = v
+        data["input"][k] = u
+        data["mismatch"][k] = delta
+        data["integrator"][k] = eta
+        data["theta_x"][k] = theta[0]
+        data["theta_r"][k] = theta[1]
+        data["gate"][k] = gate
+
+        x += cfg.dt * x_rate
+        xm += cfg.dt * xm_rate
+        eta += cfg.dt * eta_rate
+        x_aw += cfg.dt * x_aw_rate
+        theta += cfg.dt * theta_rate
+
+    return data
+
+
+def metrics(data: dict[str, np.ndarray]) -&gt; dict[str, float]:
+    time = data["time"]
+    dt = time[1] - time[0]
+    return {
+        "IAE": float(np.sum(np.abs(data["tracking_error"])) * dt),
+        "max_abs_command": float(np.max(np.abs(data["command"]))),
+        "max_abs_integrator": float(np.max(np.abs(data["integrator"]))),
+        "max_abs_parameter": float(
+            np.max(np.abs(np.column_stack((data["theta_x"], data["theta_r"]))))
+        ),
+        "saturation_fraction": float(np.mean(np.abs(data["mismatch"]) &gt; 1.0e-9)),
+        "final_abs_tracking_error": float(abs(data["tracking_error"][-1])),
+    }
+
+
+def write_csv(path: Path, data: dict[str, np.ndarray]) -&gt; None:
+    columns = list(data.keys())
+    with path.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(columns)
+        for values in zip(*(data[column] for column in columns)):
+            writer.writerow([f"{float(value):.10g}" for value in values])
+
+
+def make_plot(
+    baseline: dict[str, np.ndarray],
+    aware: dict[str, np.ndarray],
+    output_path: Path,
+) -&gt; None:
+    t = baseline["time"]
+    fig, axes = plt.subplots(4, 1, figsize=(10, 12), sharex=True)
+
+    axes[0].plot(t, baseline["reference"], "--", label="reference")
+    axes[0].plot(t, baseline["x"], label="naive x")
+    axes[0].plot(t, aware["x"], label="anti-windup x")
+    axes[0].set_ylabel("state")
+    axes[0].grid(True)
+    axes[0].legend()
+
+    axes[1].plot(t, baseline["command"], label="naive command v")
+    axes[1].plot(t, aware["command"], label="anti-windup command v")
+    axes[1].plot(t, aware["input"], "--", label="applied input u")
+    axes[1].set_ylabel("control")
+    axes[1].grid(True)
+    axes[1].legend()
+
+    axes[2].plot(t, baseline["theta_x"], label="naive theta_x")
+    axes[2].plot(t, baseline["theta_r"], label="naive theta_r")
+    axes[2].plot(t, aware["theta_x"], "--", label="AW theta_x")
+    axes[2].plot(t, aware["theta_r"], "--", label="AW theta_r")
+    axes[2].set_ylabel("parameters")
+    axes[2].grid(True)
+    axes[2].legend()
+
+    axes[3].plot(t, baseline["integrator"], label="naive eta")
+    axes[3].plot(t, aware["integrator"], label="AW eta")
+    axes[3].plot(t, aware["gate"], "--", label="adaptation gate")
+    axes[3].set_xlabel("time [s]")
+    axes[3].set_ylabel("internal states")
+    axes[3].grid(True)
+    axes[3].legend()
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=180)
+    plt.close(fig)
+
+
+def main() -&gt; None:
+    cfg = Config()
+    output_dir = Path(__file__).resolve().parent
+
+    baseline = simulate(False, cfg)
+    aware = simulate(True, cfg)
+
+    write_csv(output_dir / "Chapter19_Lesson3_naive.csv", baseline)
+    write_csv(output_dir / "Chapter19_Lesson3_anti_windup.csv", aware)
+    make_plot(baseline, aware, output_dir / "Chapter19_Lesson3_comparison.png")
+
+    print("Naive adaptive controller")
+    for key, value in metrics(baseline).items():
+        print(f"  {key:28s}: {value:.6f}")
+
+    print("\nSaturation-aware adaptive controller")
+    for key, value in metrics(aware).items():
+        print(f"  {key:28s}: {value:.6f}")
+
+    print("\nGenerated CSV files and Chapter19_Lesson3_comparison.png")
+
+
+if __name__ == "__main__":
+    main()
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. C++17 Implementation</h2>
+    <div class="down-content">
+      <p>
+        This version uses only the C++ standard library and writes comparable
+        CSV outputs.
+      </p>
+      <h3>Chapter19_Lesson3.cpp</h3>
+      <pre><code class="language-cpp">// Chapter19_Lesson3.cpp
+// Saturated adaptive control with and without anti-windup compensation.
+// Build: g++ -std=c++17 -O2 Chapter19_Lesson3.cpp -o Chapter19_Lesson3
+// Run:   ./Chapter19_Lesson3
+
+#include &lt;algorithm&gt;
+#include &lt;array&gt;
+#include &lt;cmath&gt;
+#include &lt;fstream&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;stdexcept&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+
+struct Config {
+    double dt = 0.002;
+    double horizon = 20.0;
+    double a = 1.2;
+    double b = 0.8;
+    double am = 1.5;
+    double bm = 1.5;
+    double umax = 1.2;
+    double gamma_x = 1.8;
+    double gamma_r = 1.0;
+    double ki = 0.35;
+    double kaw = 4.0;
+    double lambda_aw = 1.5;
+    double sigma = 0.01;
+    double gate_width = 0.15;
+    double eta_limit = 4.0;
+    double theta_x_min = -5.0;
+    double theta_x_max = 2.0;
+    double theta_r_min = -1.0;
+    double theta_r_max = 5.0;
+};
+
+struct Row {
+    double time;
+    double reference;
+    double x;
+    double xm;
+    double tracking_error;
+    double modified_error;
+    double command;
+    double input;
+    double mismatch;
+    double integrator;
+    double theta_x;
+    double theta_r;
+    double gate;
+};
+
+struct Metrics {
+    double iae = 0.0;
+    double max_abs_command = 0.0;
+    double max_abs_integrator = 0.0;
+    double max_abs_parameter = 0.0;
+    double saturation_fraction = 0.0;
+    double final_abs_tracking_error = 0.0;
+};
+
+double reference(double t) {
+    if (t &lt; 0.5) {
+        return 0.0;
+    }
+    if (t &lt; 6.0) {
+        return 2.0;
+    }
+    if (t &lt; 12.0) {
+        return 0.5;
+    }
+    if (t &lt; 16.0) {
+        return -1.8;
+    }
+    return 0.3;
+}
+
+double saturate(double value, double limit) {
+    return std::max(-limit, std::min(limit, value));
+}
+
+double projectedRate(
+    double theta,
+    double raw_rate,
+    double lower,
+    double upper
+) {
+    if (theta &lt;= lower &amp;&amp; raw_rate &lt; 0.0) {
+        return 0.0;
+    }
+    if (theta &gt;= upper &amp;&amp; raw_rate &gt; 0.0) {
+        return 0.0;
+    }
+    return raw_rate;
+}
+
+std::vector&lt;Row&gt; simulate(bool saturation_aware, const Config&amp; cfg) {
+    const std::size_t steps =
+        static_cast&lt;std::size_t&gt;(std::llround(cfg.horizon / cfg.dt)) + 1U;
+    std::vector&lt;Row&gt; rows;
+    rows.reserve(steps);
+
+    double x = 0.0;
+    double xm = 0.0;
+    double eta = 0.0;
+    double x_aw = 0.0;
+    double theta_x = 0.0;
+    double theta_r = 0.5;
+
+    for (std::size_t k = 0; k &lt; steps; ++k) {
+        const double t = static_cast&lt;double&gt;(k) * cfg.dt;
+        const double r = reference(t);
+        const double e = x - xm;
+        const double servo_error = r - x;
+
+        const double v = theta_x * x + theta_r * r + cfg.ki * eta;
+        const double u = saturate(v, cfg.umax);
+        const double delta = u - v;
+
+        double epsilon = e;
+        double gate = 1.0;
+        double theta_x_rate = -cfg.gamma_x * x * e;
+        double theta_r_rate = -cfg.gamma_r * r * e;
+        double eta_rate = servo_error;
+        double x_aw_rate = 0.0;
+
+        if (saturation_aware) {
+            epsilon = e - x_aw;
+            gate = 1.0 /
+                (1.0 + std::pow(std::abs(delta) / cfg.gate_width, 2.0));
+
+            const double raw_theta_x_rate =
+                -cfg.gamma_x * x * epsilon * gate - cfg.sigma * theta_x;
+            const double raw_theta_r_rate =
+                -cfg.gamma_r * r * epsilon * gate - cfg.sigma * theta_r;
+
+            theta_x_rate = projectedRate(
+                theta_x,
+                raw_theta_x_rate,
+                cfg.theta_x_min,
+                cfg.theta_x_max
+            );
+            theta_r_rate = projectedRate(
+                theta_r,
+                raw_theta_r_rate,
+                cfg.theta_r_min,
+                cfg.theta_r_max
+            );
+
+            eta_rate = servo_error + cfg.kaw * delta;
+            if (eta &gt;= cfg.eta_limit &amp;&amp; eta_rate &gt; 0.0) {
+                eta_rate = 0.0;
+            } else if (eta &lt;= -cfg.eta_limit &amp;&amp; eta_rate &lt; 0.0) {
+                eta_rate = 0.0;
+            }
+
+            x_aw_rate = -cfg.lambda_aw * x_aw + cfg.b * delta;
+        }
+
+        rows.push_back(Row{
+            t,
+            r,
+            x,
+            xm,
+            e,
+            epsilon,
+            v,
+            u,
+            delta,
+            eta,
+            theta_x,
+            theta_r,
+            gate
+        });
+
+        const double x_rate = -cfg.a * x + cfg.b * u;
+        const double xm_rate = -cfg.am * xm + cfg.bm * r;
+
+        x += cfg.dt * x_rate;
+        xm += cfg.dt * xm_rate;
+        eta += cfg.dt * eta_rate;
+        x_aw += cfg.dt * x_aw_rate;
+        theta_x += cfg.dt * theta_x_rate;
+        theta_r += cfg.dt * theta_r_rate;
+
+        if (!std::isfinite(x) || !std::isfinite(theta_x) ||
+            !std::isfinite(theta_r) || !std::isfinite(eta)) {
+            throw std::runtime_error("Non-finite simulation state detected.");
+        }
+    }
+
+    return rows;
+}
+
+Metrics computeMetrics(const std::vector&lt;Row&gt;&amp; rows, const Config&amp; cfg) {
+    Metrics result;
+    std::size_t saturated_samples = 0U;
+
+    for (const Row&amp; row : rows) {
+        result.iae += std::abs(row.tracking_error) * cfg.dt;
+        result.max_abs_command =
+            std::max(result.max_abs_command, std::abs(row.command));
+        result.max_abs_integrator =
+            std::max(result.max_abs_integrator, std::abs(row.integrator));
+        result.max_abs_parameter = std::max(
+            result.max_abs_parameter,
+            std::max(std::abs(row.theta_x), std::abs(row.theta_r))
+        );
+        if (std::abs(row.mismatch) &gt; 1.0e-9) {
+            ++saturated_samples;
+        }
+    }
+
+    result.saturation_fraction =
+        static_cast&lt;double&gt;(saturated_samples) /
+        static_cast&lt;double&gt;(rows.size());
+    result.final_abs_tracking_error =
+        std::abs(rows.back().tracking_error);
+    return result;
+}
+
+void writeCsv(const std::string&amp; filename, const std::vector&lt;Row&gt;&amp; rows) {
+    std::ofstream output(filename);
+    if (!output) {
+        throw std::runtime_error("Cannot open output file: " + filename);
+    }
+
+    output &lt;&lt; "time,reference,x,xm,tracking_error,modified_error,"
+              "command,input,mismatch,integrator,theta_x,theta_r,gate\n";
+    output &lt;&lt; std::setprecision(10);
+
+    for (const Row&amp; row : rows) {
+        output
+            &lt;&lt; row.time &lt;&lt; ','
+            &lt;&lt; row.reference &lt;&lt; ','
+            &lt;&lt; row.x &lt;&lt; ','
+            &lt;&lt; row.xm &lt;&lt; ','
+            &lt;&lt; row.tracking_error &lt;&lt; ','
+            &lt;&lt; row.modified_error &lt;&lt; ','
+            &lt;&lt; row.command &lt;&lt; ','
+            &lt;&lt; row.input &lt;&lt; ','
+            &lt;&lt; row.mismatch &lt;&lt; ','
+            &lt;&lt; row.integrator &lt;&lt; ','
+            &lt;&lt; row.theta_x &lt;&lt; ','
+            &lt;&lt; row.theta_r &lt;&lt; ','
+            &lt;&lt; row.gate &lt;&lt; '\n';
+    }
+}
+
+void printMetrics(const std::string&amp; title, const Metrics&amp; metrics) {
+    std::cout &lt;&lt; title &lt;&lt; '\n'
+              &lt;&lt; "  IAE                         : " &lt;&lt; metrics.iae &lt;&lt; '\n'
+              &lt;&lt; "  max_abs_command             : "
+              &lt;&lt; metrics.max_abs_command &lt;&lt; '\n'
+              &lt;&lt; "  max_abs_integrator          : "
+              &lt;&lt; metrics.max_abs_integrator &lt;&lt; '\n'
+              &lt;&lt; "  max_abs_parameter           : "
+              &lt;&lt; metrics.max_abs_parameter &lt;&lt; '\n'
+              &lt;&lt; "  saturation_fraction         : "
+              &lt;&lt; metrics.saturation_fraction &lt;&lt; '\n'
+              &lt;&lt; "  final_abs_tracking_error    : "
+              &lt;&lt; metrics.final_abs_tracking_error &lt;&lt; "\n\n";
+}
+
+int main() {
+    try {
+        const Config cfg;
+        const std::vector&lt;Row&gt; baseline = simulate(false, cfg);
+        const std::vector&lt;Row&gt; aware = simulate(true, cfg);
+
+        writeCsv("Chapter19_Lesson3_naive_cpp.csv", baseline);
+        writeCsv("Chapter19_Lesson3_anti_windup_cpp.csv", aware);
+
+        std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(6);
+        printMetrics(
+            "Naive adaptive controller",
+            computeMetrics(baseline, cfg)
+        );
+        printMetrics(
+            "Saturation-aware adaptive controller",
+            computeMetrics(aware, cfg)
+        );
+
+        std::cout &lt;&lt; "Generated two CSV files.\n";
+        return 0;
+    } catch (const std::exception&amp; error) {
+        std::cerr &lt;&lt; "Error: " &lt;&lt; error.what() &lt;&lt; '\n';
+        return 1;
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. Java Implementation</h2>
+    <div class="down-content">
+      <p>
+        The Java implementation uses no third-party dependency and is suitable
+        for Java 11 or newer.
+      </p>
+      <h3>Chapter19_Lesson3.java</h3>
+      <pre><code class="language-java">// Chapter19_Lesson3.java
+// Saturated adaptive control with and without anti-windup compensation.
+// Build: javac Chapter19_Lesson3.java
+// Run:   java Chapter19_Lesson3
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+public final class Chapter19_Lesson3 {
+    private Chapter19_Lesson3() {
+    }
+
+    private static final class Config {
+        final double dt = 0.002;
+        final double horizon = 20.0;
+        final double a = 1.2;
+        final double b = 0.8;
+        final double am = 1.5;
+        final double bm = 1.5;
+        final double umax = 1.2;
+        final double gammaX = 1.8;
+        final double gammaR = 1.0;
+        final double ki = 0.35;
+        final double kaw = 4.0;
+        final double lambdaAw = 1.5;
+        final double sigma = 0.01;
+        final double gateWidth = 0.15;
+        final double etaLimit = 4.0;
+        final double thetaXMin = -5.0;
+        final double thetaXMax = 2.0;
+        final double thetaRMin = -1.0;
+        final double thetaRMax = 5.0;
+    }
+
+    private static final class Row {
+        final double time;
+        final double reference;
+        final double x;
+        final double xm;
+        final double trackingError;
+        final double modifiedError;
+        final double command;
+        final double input;
+        final double mismatch;
+        final double integrator;
+        final double thetaX;
+        final double thetaR;
+        final double gate;
+
+        Row(
+            double time,
+            double reference,
+            double x,
+            double xm,
+            double trackingError,
+            double modifiedError,
+            double command,
+            double input,
+            double mismatch,
+            double integrator,
+            double thetaX,
+            double thetaR,
+            double gate
+        ) {
+            this.time = time;
+            this.reference = reference;
+            this.x = x;
+            this.xm = xm;
+            this.trackingError = trackingError;
+            this.modifiedError = modifiedError;
+            this.command = command;
+            this.input = input;
+            this.mismatch = mismatch;
+            this.integrator = integrator;
+            this.thetaX = thetaX;
+            this.thetaR = thetaR;
+            this.gate = gate;
+        }
+    }
+
+    private static final class Metrics {
+        double iae;
+        double maxAbsCommand;
+        double maxAbsIntegrator;
+        double maxAbsParameter;
+        double saturationFraction;
+        double finalAbsTrackingError;
+    }
+
+    private static double reference(double t) {
+        if (t &lt; 0.5) {
+            return 0.0;
+        }
+        if (t &lt; 6.0) {
+            return 2.0;
+        }
+        if (t &lt; 12.0) {
+            return 0.5;
+        }
+        if (t &lt; 16.0) {
+            return -1.8;
+        }
+        return 0.3;
+    }
+
+    private static double saturate(double value, double limit) {
+        return Math.max(-limit, Math.min(limit, value));
+    }
+
+    private static double projectedRate(
+        double theta,
+        double rawRate,
+        double lower,
+        double upper
+    ) {
+        if (theta &lt;= lower &amp;&amp; rawRate &lt; 0.0) {
+            return 0.0;
+        }
+        if (theta &gt;= upper &amp;&amp; rawRate &gt; 0.0) {
+            return 0.0;
+        }
+        return rawRate;
+    }
+
+    private static List&lt;Row&gt; simulate(
+        boolean saturationAware,
+        Config cfg
+    ) {
+        int steps = (int) Math.round(cfg.horizon / cfg.dt) + 1;
+        List&lt;Row&gt; rows = new ArrayList&lt;&gt;(steps);
+
+        double x = 0.0;
+        double xm = 0.0;
+        double eta = 0.0;
+        double xAw = 0.0;
+        double thetaX = 0.0;
+        double thetaR = 0.5;
+
+        for (int k = 0; k &lt; steps; k++) {
+            double t = k * cfg.dt;
+            double r = reference(t);
+            double e = x - xm;
+            double servoError = r - x;
+
+            double v = thetaX * x + thetaR * r + cfg.ki * eta;
+            double u = saturate(v, cfg.umax);
+            double delta = u - v;
+
+            double epsilon = e;
+            double gate = 1.0;
+            double thetaXRate = -cfg.gammaX * x * e;
+            double thetaRRate = -cfg.gammaR * r * e;
+            double etaRate = servoError;
+            double xAwRate = 0.0;
+
+            if (saturationAware) {
+                epsilon = e - xAw;
+                gate = 1.0 /
+                    (1.0 + Math.pow(Math.abs(delta) / cfg.gateWidth, 2.0));
+
+                double rawThetaXRate =
+                    -cfg.gammaX * x * epsilon * gate
+                    - cfg.sigma * thetaX;
+                double rawThetaRRate =
+                    -cfg.gammaR * r * epsilon * gate
+                    - cfg.sigma * thetaR;
+
+                thetaXRate = projectedRate(
+                    thetaX,
+                    rawThetaXRate,
+                    cfg.thetaXMin,
+                    cfg.thetaXMax
+                );
+                thetaRRate = projectedRate(
+                    thetaR,
+                    rawThetaRRate,
+                    cfg.thetaRMin,
+                    cfg.thetaRMax
+                );
+
+                etaRate = servoError + cfg.kaw * delta;
+                if (eta &gt;= cfg.etaLimit &amp;&amp; etaRate &gt; 0.0) {
+                    etaRate = 0.0;
+                } else if (eta &lt;= -cfg.etaLimit &amp;&amp; etaRate &lt; 0.0) {
+                    etaRate = 0.0;
+                }
+
+                xAwRate = -cfg.lambdaAw * xAw + cfg.b * delta;
+            }
+
+            rows.add(new Row(
+                t,
+                r,
+                x,
+                xm,
+                e,
+                epsilon,
+                v,
+                u,
+                delta,
+                eta,
+                thetaX,
+                thetaR,
+                gate
+            ));
+
+            double xRate = -cfg.a * x + cfg.b * u;
+            double xmRate = -cfg.am * xm + cfg.bm * r;
+
+            x += cfg.dt * xRate;
+            xm += cfg.dt * xmRate;
+            eta += cfg.dt * etaRate;
+            xAw += cfg.dt * xAwRate;
+            thetaX += cfg.dt * thetaXRate;
+            thetaR += cfg.dt * thetaRRate;
+
+            if (
+                !Double.isFinite(x)
+                || !Double.isFinite(thetaX)
+                || !Double.isFinite(thetaR)
+                || !Double.isFinite(eta)
+            ) {
+                throw new IllegalStateException(
+                    "Non-finite simulation state detected."
+                );
+            }
+        }
+
+        return rows;
+    }
+
+    private static Metrics computeMetrics(
+        List&lt;Row&gt; rows,
+        Config cfg
+    ) {
+        Metrics metrics = new Metrics();
+        int saturatedSamples = 0;
+
+        for (Row row : rows) {
+            metrics.iae += Math.abs(row.trackingError) * cfg.dt;
+            metrics.maxAbsCommand = Math.max(
+                metrics.maxAbsCommand,
+                Math.abs(row.command)
+            );
+            metrics.maxAbsIntegrator = Math.max(
+                metrics.maxAbsIntegrator,
+                Math.abs(row.integrator)
+            );
+            metrics.maxAbsParameter = Math.max(
+                metrics.maxAbsParameter,
+                Math.max(Math.abs(row.thetaX), Math.abs(row.thetaR))
+            );
+            if (Math.abs(row.mismatch) &gt; 1.0e-9) {
+                saturatedSamples++;
+            }
+        }
+
+        metrics.saturationFraction =
+            (double) saturatedSamples / rows.size();
+        metrics.finalAbsTrackingError =
+            Math.abs(rows.get(rows.size() - 1).trackingError);
+        return metrics;
+    }
+
+    private static void writeCsv(
+        Path path,
+        List&lt;Row&gt; rows
+    ) throws IOException {
+        try (
+            BufferedWriter writer = Files.newBufferedWriter(
+                path,
+                StandardCharsets.UTF_8
+            )
+        ) {
+            writer.write(
+                "time,reference,x,xm,tracking_error,modified_error,"
+                + "command,input,mismatch,integrator,theta_x,theta_r,gate"
+            );
+            writer.newLine();
+
+            for (Row row : rows) {
+                writer.write(String.format(
+                    Locale.ROOT,
+                    "%.10g,%.10g,%.10g,%.10g,%.10g,%.10g,"
+                    + "%.10g,%.10g,%.10g,%.10g,%.10g,%.10g,%.10g%n",
+                    row.time,
+                    row.reference,
+                    row.x,
+                    row.xm,
+                    row.trackingError,
+                    row.modifiedError,
+                    row.command,
+                    row.input,
+                    row.mismatch,
+                    row.integrator,
+                    row.thetaX,
+                    row.thetaR,
+                    row.gate
+                ));
+            }
+        }
+    }
+
+    private static void printMetrics(
+        String title,
+        Metrics metrics
+    ) {
+        System.out.println(title);
+        System.out.printf(
+            Locale.ROOT,
+            "  IAE                         : %.6f%n",
+            metrics.iae
+        );
+        System.out.printf(
+            Locale.ROOT,
+            "  max_abs_command             : %.6f%n",
+            metrics.maxAbsCommand
+        );
+        System.out.printf(
+            Locale.ROOT,
+            "  max_abs_integrator          : %.6f%n",
+            metrics.maxAbsIntegrator
+        );
+        System.out.printf(
+            Locale.ROOT,
+            "  max_abs_parameter           : %.6f%n",
+            metrics.maxAbsParameter
+        );
+        System.out.printf(
+            Locale.ROOT,
+            "  saturation_fraction         : %.6f%n",
+            metrics.saturationFraction
+        );
+        System.out.printf(
+            Locale.ROOT,
+            "  final_abs_tracking_error    : %.6f%n%n",
+            metrics.finalAbsTrackingError
+        );
+    }
+
+    public static void main(String[] args) {
+        Locale.setDefault(Locale.ROOT);
+        Config cfg = new Config();
+
+        List&lt;Row&gt; baseline = simulate(false, cfg);
+        List&lt;Row&gt; aware = simulate(true, cfg);
+
+        try {
+            writeCsv(
+                Path.of("Chapter19_Lesson3_naive_java.csv"),
+                baseline
+            );
+            writeCsv(
+                Path.of("Chapter19_Lesson3_anti_windup_java.csv"),
+                aware
+            );
+        } catch (IOException error) {
+            System.err.println("CSV error: " + error.getMessage());
+            System.exit(1);
+        }
+
+        printMetrics(
+            "Naive adaptive controller",
+            computeMetrics(baseline, cfg)
+        );
+        printMetrics(
+            "Saturation-aware adaptive controller",
+            computeMetrics(aware, cfg)
+        );
+        System.out.println("Generated two CSV files.");
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. MATLAB and Simulink-Oriented Implementation</h2>
+    <div class="down-content">
+      <p>
+        The MATLAB script reproduces the same simulation, CSV files, metrics,
+        and plots. In Simulink, map each differential equation to an Integrator
+        block, use a Saturation block for <strong>\(u\)</strong>, a Sum block
+        for <strong>\(\Delta_u=u-v\)</strong>, and separate enabled or projected
+        subsystems for the integral and parameter updates.
+      </p>
+      <h3>Chapter19_Lesson3.m</h3>
+      <pre><code class="language-matlab">% Chapter19_Lesson3.m
+% Adaptive anti-windup demonstration for a saturated first-order plant.
+%
+% This script compares a naive adaptive controller with a saturation-aware
+% controller using:
+%   - integral back-calculation,
+%   - a mismatch model,
+%   - a modified tracking error,
+%   - adaptation gating,
+%   - sigma leakage,
+%   - parameter projection.
+%
+% Run:
+%   Chapter19_Lesson3
+
+clear; clc; close all;
+
+cfg.dt = 0.002;
+cfg.horizon = 20.0;
+cfg.a = 1.2;
+cfg.b = 0.8;
+cfg.am = 1.5;
+cfg.bm = 1.5;
+cfg.umax = 1.2;
+cfg.gamma = [1.8; 1.0];
+cfg.ki = 0.35;
+cfg.kaw = 4.0;
+cfg.lambda_aw = 1.5;
+cfg.sigma = 0.01;
+cfg.gate_width = 0.15;
+cfg.eta_limit = 4.0;
+cfg.theta_lower = [-5.0; -1.0];
+cfg.theta_upper = [2.0; 5.0];
+
+naive = simulate_case(false, cfg);
+aware = simulate_case(true, cfg);
+
+writetable(struct2table(naive), ...
+    'Chapter19_Lesson3_naive_matlab.csv');
+writetable(struct2table(aware), ...
+    'Chapter19_Lesson3_anti_windup_matlab.csv');
+
+disp('Naive adaptive controller');
+print_metrics(compute_metrics(naive, cfg));
+
+disp('Saturation-aware adaptive controller');
+print_metrics(compute_metrics(aware, cfg));
+
+figure('Name', 'Chapter 19 Lesson 3: Adaptive Anti-Windup', ...
+       'Color', 'w', 'Position', [100, 100, 1000, 850]);
+
+subplot(4, 1, 1);
+plot(naive.time, naive.reference, '--', 'LineWidth', 1.2);
+hold on;
+plot(naive.time, naive.x, 'LineWidth', 1.2);
+plot(aware.time, aware.x, 'LineWidth', 1.2);
+grid on;
+ylabel('state');
+legend('reference', 'naive x', 'anti-windup x', ...
+       'Location', 'best');
+
+subplot(4, 1, 2);
+plot(naive.time, naive.command, 'LineWidth', 1.1);
+hold on;
+plot(aware.time, aware.command, 'LineWidth', 1.1);
+plot(aware.time, aware.input, '--', 'LineWidth', 1.1);
+grid on;
+ylabel('control');
+legend('naive command v', 'AW command v', 'applied input u', ...
+       'Location', 'best');
+
+subplot(4, 1, 3);
+plot(naive.time, naive.theta_x, 'LineWidth', 1.1);
+hold on;
+plot(naive.time, naive.theta_r, 'LineWidth', 1.1);
+plot(aware.time, aware.theta_x, '--', 'LineWidth', 1.1);
+plot(aware.time, aware.theta_r, '--', 'LineWidth', 1.1);
+grid on;
+ylabel('parameters');
+legend('naive theta_x', 'naive theta_r', ...
+       'AW theta_x', 'AW theta_r', 'Location', 'best');
+
+subplot(4, 1, 4);
+plot(naive.time, naive.integrator, 'LineWidth', 1.1);
+hold on;
+plot(aware.time, aware.integrator, 'LineWidth', 1.1);
+plot(aware.time, aware.gate, '--', 'LineWidth', 1.1);
+grid on;
+xlabel('time [s]');
+ylabel('internal states');
+legend('naive eta', 'AW eta', 'adaptation gate', ...
+       'Location', 'best');
+
+exportgraphics(gcf, 'Chapter19_Lesson3_comparison_matlab.png', ...
+               'Resolution', 180);
+
+disp('Generated CSV files and Chapter19_Lesson3_comparison_matlab.png');
+
+
+function data = simulate_case(saturation_aware, cfg)
+    steps = round(cfg.horizon / cfg.dt) + 1;
+    time = (0:(steps - 1))' * cfg.dt;
+
+    data.time = time;
+    data.reference = zeros(steps, 1);
+    data.x = zeros(steps, 1);
+    data.xm = zeros(steps, 1);
+    data.tracking_error = zeros(steps, 1);
+    data.modified_error = zeros(steps, 1);
+    data.command = zeros(steps, 1);
+    data.input = zeros(steps, 1);
+    data.mismatch = zeros(steps, 1);
+    data.integrator = zeros(steps, 1);
+    data.theta_x = zeros(steps, 1);
+    data.theta_r = zeros(steps, 1);
+    data.gate = ones(steps, 1);
+
+    x = 0.0;
+    xm = 0.0;
+    eta = 0.0;
+    x_aw = 0.0;
+    theta = [0.0; 0.5];
+
+    for k = 1:steps
+        t = time(k);
+        r = reference_signal(t);
+        e = x - xm;
+        servo_error = r - x;
+        phi = [x; r];
+
+        v = theta' * phi + cfg.ki * eta;
+        u = saturate(v, cfg.umax);
+        delta = u - v;
+
+        if saturation_aware
+            epsilon = e - x_aw;
+            gate = 1.0 / ...
+                (1.0 + (abs(delta) / cfg.gate_width)^2);
+
+            raw_theta_rate = ...
+                -cfg.gamma .* phi * epsilon * gate ...
+                -cfg.sigma * theta;
+            theta_rate = projected_rate( ...
+                theta, ...
+                raw_theta_rate, ...
+                cfg.theta_lower, ...
+                cfg.theta_upper);
+
+            eta_rate = servo_error + cfg.kaw * delta;
+            if eta &gt;= cfg.eta_limit &amp;&amp; eta_rate &gt; 0.0
+                eta_rate = 0.0;
+            elseif eta &lt;= -cfg.eta_limit &amp;&amp; eta_rate &lt; 0.0
+                eta_rate = 0.0;
+            end
+
+            x_aw_rate = -cfg.lambda_aw * x_aw + cfg.b * delta;
+        else
+            epsilon = e;
+            gate = 1.0;
+            theta_rate = -cfg.gamma .* phi * e;
+            eta_rate = servo_error;
+            x_aw_rate = 0.0;
+        end
+
+        x_rate = -cfg.a * x + cfg.b * u;
+        xm_rate = -cfg.am * xm + cfg.bm * r;
+
+        data.reference(k) = r;
+        data.x(k) = x;
+        data.xm(k) = xm;
+        data.tracking_error(k) = e;
+        data.modified_error(k) = epsilon;
+        data.command(k) = v;
+        data.input(k) = u;
+        data.mismatch(k) = delta;
+        data.integrator(k) = eta;
+        data.theta_x(k) = theta(1);
+        data.theta_r(k) = theta(2);
+        data.gate(k) = gate;
+
+        x = x + cfg.dt * x_rate;
+        xm = xm + cfg.dt * xm_rate;
+        eta = eta + cfg.dt * eta_rate;
+        x_aw = x_aw + cfg.dt * x_aw_rate;
+        theta = theta + cfg.dt * theta_rate;
+
+        if any(~isfinite([x, xm, eta, x_aw, theta']))
+            error('Non-finite simulation state detected.');
+        end
+    end
+end
+
+
+function r = reference_signal(t)
+    if t &lt; 0.5
+        r = 0.0;
+    elseif t &lt; 6.0
+        r = 2.0;
+    elseif t &lt; 12.0
+        r = 0.5;
+    elseif t &lt; 16.0
+        r = -1.8;
+    else
+        r = 0.3;
+    end
+end
+
+
+function value = saturate(value, limit)
+    value = max(-limit, min(limit, value));
+end
+
+
+function rate = projected_rate(theta, raw_rate, lower, upper)
+    rate = raw_rate;
+    for i = 1:length(theta)
+        if theta(i) &lt;= lower(i) &amp;&amp; rate(i) &lt; 0.0
+            rate(i) = 0.0;
+        elseif theta(i) &gt;= upper(i) &amp;&amp; rate(i) &gt; 0.0
+            rate(i) = 0.0;
+        end
+    end
+end
+
+
+function metrics = compute_metrics(data, cfg)
+    metrics.IAE = sum(abs(data.tracking_error)) * cfg.dt;
+    metrics.max_abs_command = max(abs(data.command));
+    metrics.max_abs_integrator = max(abs(data.integrator));
+    metrics.max_abs_parameter = max(abs( ...
+        [data.theta_x; data.theta_r]));
+    metrics.saturation_fraction = mean(abs(data.mismatch) &gt; 1.0e-9);
+    metrics.final_abs_tracking_error = ...
+        abs(data.tracking_error(end));
+end
+
+
+function print_metrics(metrics)
+    fprintf('  IAE                         : %.6f\n', ...
+        metrics.IAE);
+    fprintf('  max_abs_command             : %.6f\n', ...
+        metrics.max_abs_command);
+    fprintf('  max_abs_integrator          : %.6f\n', ...
+        metrics.max_abs_integrator);
+    fprintf('  max_abs_parameter           : %.6f\n', ...
+        metrics.max_abs_parameter);
+    fprintf('  saturation_fraction         : %.6f\n', ...
+        metrics.saturation_fraction);
+    fprintf('  final_abs_tracking_error    : %.6f\n\n', ...
+        metrics.final_abs_tracking_error);
+end
+</code></pre>
+
+      <h3>Simulink Block Mapping</h3>
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>Equation or signal</th>
+            <th>Suggested block realization</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>\(u=\operatorname{sat}_{\bar u}(v)\)</td>
+            <td>Saturation block with upper and lower actuator limits</td>
+          </tr>
+          <tr>
+            <td>\(\Delta_u=u-v\)</td>
+            <td>Sum block configured as <code>+-</code></td>
+          </tr>
+          <tr>
+            <td>\(\dot x_{aw}=A_mx_{aw}+b\Delta_u\)</td>
+            <td>Gain, Sum, and Integrator blocks</td>
+          </tr>
+          <tr>
+            <td>\(\varepsilon=e-x_{aw}\)</td>
+            <td>Sum block before the adaptive-law subsystem</td>
+          </tr>
+          <tr>
+            <td>Projection and gate</td>
+            <td>MATLAB Function block or enabled subsystem</td>
+          </tr>
+          <tr>
+            <td>Logging</td>
+            <td>To Workspace blocks for \(v,u,\Delta_u,\eta,\hat\theta\)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Section 14 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>14. Wolfram Mathematica Implementation</h2>
+    <div class="down-content">
+      <p>
+        The notebook source uses built-in Wolfram Language functions only. It
+        exports CSV data and a multi-panel comparison graphic.
+      </p>
+      <h3>Chapter19_Lesson3.nb</h3>
+      <pre><code class="language-mathematica">Notebook[{
+  Cell["Chapter 19, Lesson 3: Anti-Windup Ideas in the Presence of Adaptation", "Title"],
+  Cell["Evaluate the input cell to compare naive and saturation-aware adaptive control.", "Text"],
+  Cell["ClearAll[\"Global`*\"];
+
+cfg = &lt;|
+   \"dt\" -&gt; 0.002,
+   \"horizon\" -&gt; 20.0,
+   \"a\" -&gt; 1.2,
+   \"b\" -&gt; 0.8,
+   \"am\" -&gt; 1.5,
+   \"bm\" -&gt; 1.5,
+   \"umax\" -&gt; 1.2,
+   \"gamma\" -&gt; {1.8, 1.0},
+   \"ki\" -&gt; 0.35,
+   \"kaw\" -&gt; 4.0,
+   \"lambdaAw\" -&gt; 1.5,
+   \"sigma\" -&gt; 0.01,
+   \"gateWidth\" -&gt; 0.15,
+   \"etaLimit\" -&gt; 4.0,
+   \"thetaLower\" -&gt; {-5.0, -1.0},
+   \"thetaUpper\" -&gt; {2.0, 5.0}
+|&gt;;
+
+headers = {
+   \"time\", \"reference\", \"x\", \"xm\", \"tracking_error\",
+   \"modified_error\", \"command\", \"input\", \"mismatch\",
+   \"integrator\", \"theta_x\", \"theta_r\", \"gate\"
+};
+
+reference[t_] := Piecewise[{
+    {0.0, t &lt; 0.5},
+    {2.0, t &lt; 6.0},
+    {0.5, t &lt; 12.0},
+    {-1.8, t &lt; 16.0}
+    }, 0.3];
+
+saturate[value_] := Clip[value, {-cfg[\"umax\"], cfg[\"umax\"]}];
+
+projectedRate[theta_, rawRate_, lower_, upper_] :=
+  MapThread[
+   Which[
+     #1 &lt;= #3 &amp;&amp; #2 &lt; 0.0, 0.0,
+     #1 &gt;= #4 &amp;&amp; #2 &gt; 0.0, 0.0,
+     True, #2
+     ] &amp;,
+   {theta, rawRate, lower, upper}
+   ];
+
+simulate[saturationAware_] := Module[
+  {
+   steps, rows, x = 0.0, xm = 0.0, eta = 0.0,
+   xAw = 0.0, theta = {0.0, 0.5}, t, r, e,
+   servoError, phi, v, u, delta, epsilon, gate,
+   thetaRate, rawThetaRate, etaRate, xAwRate,
+   xRate, xmRate, k
+   },
+
+  steps = Round[cfg[\"horizon\"]/cfg[\"dt\"]] + 1;
+  rows = ConstantArray[0.0, {steps, Length[headers]}];
+
+  Do[
+   t = (k - 1) cfg[\"dt\"];
+   r = reference[t];
+   e = x - xm;
+   servoError = r - x;
+   phi = {x, r};
+
+   v = theta.phi + cfg[\"ki\"] eta;
+   u = saturate[v];
+   delta = u - v;
+
+   If[TrueQ[saturationAware],
+    epsilon = e - xAw;
+    gate = 1.0/(1.0 + (Abs[delta]/cfg[\"gateWidth\"])^2);
+
+    rawThetaRate =
+      -cfg[\"gamma\"] phi epsilon gate - cfg[\"sigma\"] theta;
+    thetaRate = projectedRate[
+      theta,
+      rawThetaRate,
+      cfg[\"thetaLower\"],
+      cfg[\"thetaUpper\"]
+      ];
+
+    etaRate = servoError + cfg[\"kaw\"] delta;
+    If[eta &gt;= cfg[\"etaLimit\"] &amp;&amp; etaRate &gt; 0.0, etaRate = 0.0];
+    If[eta &lt;= -cfg[\"etaLimit\"] &amp;&amp; etaRate &lt; 0.0, etaRate = 0.0];
+
+    xAwRate = -cfg[\"lambdaAw\"] xAw + cfg[\"b\"] delta;,
+    epsilon = e;
+    gate = 1.0;
+    thetaRate = -cfg[\"gamma\"] phi e;
+    etaRate = servoError;
+    xAwRate = 0.0;
+    ];
+
+   xRate = -cfg[\"a\"] x + cfg[\"b\"] u;
+   xmRate = -cfg[\"am\"] xm + cfg[\"bm\"] r;
+
+   rows[[k]] = {
+     t, r, x, xm, e, epsilon, v, u, delta,
+     eta, theta[[1]], theta[[2]], gate
+     };
+
+   x = x + cfg[\"dt\"] xRate;
+   xm = xm + cfg[\"dt\"] xmRate;
+   eta = eta + cfg[\"dt\"] etaRate;
+   xAw = xAw + cfg[\"dt\"] xAwRate;
+   theta = theta + cfg[\"dt\"] thetaRate;
+   ,
+   {k, steps}
+   ];
+
+  AssociationThread[headers, Transpose[rows]]
+  ];
+
+metrics[data_] := &lt;|
+   \"IAE\" -&gt;
+    Total[Abs[data[\"tracking_error\"]]] cfg[\"dt\"],
+   \"max_abs_command\" -&gt;
+    Max[Abs[data[\"command\"]]],
+   \"max_abs_integrator\" -&gt;
+    Max[Abs[data[\"integrator\"]]],
+   \"max_abs_parameter\" -&gt;
+    Max[Abs@Join[data[\"theta_x\"], data[\"theta_r\"]]],
+   \"saturation_fraction\" -&gt;
+    Mean[(Boole[Abs[#] &gt; 10^-9] &amp;) /@ data[\"mismatch\"]],
+   \"final_abs_tracking_error\" -&gt;
+    Abs[Last[data[\"tracking_error\"]]]
+   |&gt;;
+
+exportCsv[path_, data_] :=
+ Export[
+  path,
+  Prepend[Transpose[Lookup[data, headers]], headers],
+  \"CSV\"
+  ];
+
+baseDirectory = Quiet@Check[NotebookDirectory[], Directory[]];
+naive = simulate[False];
+aware = simulate[True];
+
+exportCsv[
+ FileNameJoin[{baseDirectory, \"Chapter19_Lesson3_naive_mathematica.csv\"}],
+ naive
+ ];
+exportCsv[
+ FileNameJoin[{
+   baseDirectory,
+   \"Chapter19_Lesson3_anti_windup_mathematica.csv\"
+   }],
+ aware
+ ];
+
+Print[\"Naive adaptive controller\"];
+Print[Dataset[metrics[naive]]];
+Print[\"Saturation-aware adaptive controller\"];
+Print[Dataset[metrics[aware]]];
+
+statePlot = ListLinePlot[
+   {
+    Transpose[{naive[\"time\"], naive[\"reference\"]}],
+    Transpose[{naive[\"time\"], naive[\"x\"]}],
+    Transpose[{aware[\"time\"], aware[\"x\"]}]
+    },
+   PlotLegends -&gt; {\"reference\", \"naive x\", \"anti-windup x\"},
+   Frame -&gt; True,
+   FrameLabel -&gt; {\"time [s]\", \"state\"},
+   PlotRange -&gt; All,
+   ImageSize -&gt; Large
+   ];
+
+controlPlot = ListLinePlot[
+   {
+    Transpose[{naive[\"time\"], naive[\"command\"]}],
+    Transpose[{aware[\"time\"], aware[\"command\"]}],
+    Transpose[{aware[\"time\"], aware[\"input\"]}]
+    },
+   PlotLegends -&gt; {
+     \"naive command v\", \"AW command v\", \"applied input u\"
+     },
+   Frame -&gt; True,
+   FrameLabel -&gt; {\"time [s]\", \"control\"},
+   PlotRange -&gt; All,
+   ImageSize -&gt; Large
+   ];
+
+parameterPlot = ListLinePlot[
+   {
+    Transpose[{naive[\"time\"], naive[\"theta_x\"]}],
+    Transpose[{naive[\"time\"], naive[\"theta_r\"]}],
+    Transpose[{aware[\"time\"], aware[\"theta_x\"]}],
+    Transpose[{aware[\"time\"], aware[\"theta_r\"]}]
+    },
+   PlotLegends -&gt; {
+     \"naive theta_x\", \"naive theta_r\",
+     \"AW theta_x\", \"AW theta_r\"
+     },
+   Frame -&gt; True,
+   FrameLabel -&gt; {\"time [s]\", \"adaptive parameters\"},
+   PlotRange -&gt; All,
+   ImageSize -&gt; Large
+   ];
+
+internalPlot = ListLinePlot[
+   {
+    Transpose[{naive[\"time\"], naive[\"integrator\"]}],
+    Transpose[{aware[\"time\"], aware[\"integrator\"]}],
+    Transpose[{aware[\"time\"], aware[\"gate\"]}]
+    },
+   PlotLegends -&gt; {\"naive eta\", \"AW eta\", \"adaptation gate\"},
+   Frame -&gt; True,
+   FrameLabel -&gt; {\"time [s]\", \"internal states\"},
+   PlotRange -&gt; All,
+   ImageSize -&gt; Large
+   ];
+
+comparison = GraphicsGrid[
+   { {statePlot}, {controlPlot}, {parameterPlot}, {internalPlot} },
+   Spacings -&gt; {0.5, 0.8}
+   ];
+
+Export[
+ FileNameJoin[{
+   baseDirectory,
+   \"Chapter19_Lesson3_comparison_mathematica.png\"
+   }],
+ comparison,
+ ImageResolution -&gt; 180
+ ];
+
+comparison", "Input"]
+},
+WindowTitle -&gt; "Chapter19_Lesson3",
+Saveable -&gt; True
+]
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 15 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>15. Interpretation of the Numerical Experiment</h2>
+    <div class="down-content">
+      <p>
+        The naive controller often obtains a smaller accumulated tracking error
+        during an infeasible command by driving its requested input far beyond
+        the actuator limit. That apparent improvement is misleading: the plant
+        receives the same saturated input while the hidden command, integral
+        state, and parameter estimates continue to grow.
+      </p>
+      <p>
+        With the supplied parameters, the verified Python, C++, and Java runs
+        produce approximately:
+      </p>
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Naive adaptation</th>
+            <th>Saturation-aware adaptation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Maximum absolute requested command</td>
+            <td>41.79</td>
+            <td>4.18</td>
+          </tr>
+          <tr>
+            <td>Maximum absolute adaptive parameter</td>
+            <td>19.14</td>
+            <td>2.37</td>
+          </tr>
+          <tr>
+            <td>Maximum absolute integral state</td>
+            <td>7.28</td>
+            <td>4.01</td>
+          </tr>
+          <tr>
+            <td>Fraction of samples with nonzero mismatch</td>
+            <td>0.948</td>
+            <td>0.583</td>
+          </tr>
+          <tr>
+            <td>Final absolute tracking error</td>
+            <td>0.384</td>
+            <td>0.157</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The central result is not that saturation disappears. Rather, the
+        saturation-aware loop stores substantially less fictitious control
+        authority and returns to the feasible operating region with smaller
+        internal distortion.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 16 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>16. Problems and Solutions</h2>
+    <div class="down-content">
+      <p>
+        <strong>Problem 1 (Failure of the Nominal Lyapunov Proof):</strong>
+        Starting from
+        <strong>\(\dot e=A_me+b\tilde\theta^T\phi+b\Delta_u\)</strong> and the
+        ordinary gradient law, derive <strong>\(\dot V\)</strong> and explain
+        why saturation can cause parameter drift.
+      </p>
+      <p>
+        <strong>Solution:</strong> With
+        <strong>\(V=e^TPe+\tilde\theta^T\Gamma^{-1}\tilde\theta\)</strong>,
+      </p>
+      <h4 class="mathJax">\[ \dot V=-e^TQe+2e^TPb\Delta_u. \]</h4>
+      <p>
+        The adaptive-law cross term cancels the parametric term, but no update
+        term cancels the actuator discrepancy. Because
+        <strong>\(e^TPb\Delta_u\)</strong> may be positive, the Lyapunov
+        function need not decrease. A persistent saturation-generated error also
+        remains inside <strong>\(\dot{\hat\theta}\)</strong>, so the estimate
+        may move even when the plant parameters are constant.
+      </p>
+
+      <p>
+        <strong>Problem 2 (Modified-Error Cancellation):</strong>
+        Let
+        <strong>\(\dot x_{aw}=A_mx_{aw}+b\Delta_u\)</strong> and
+        <strong>\(\varepsilon=e-x_{aw}\)</strong>. Derive the modified-error
+        dynamics and prove boundedness of the ideal adaptive core.
+      </p>
+      <p>
+        <strong>Solution:</strong>
+      </p>
+      <h4 class="mathJax">
+        \[ \dot\varepsilon =A_m(e-x_{aw})+b\tilde\theta^T\phi
+        =A_m\varepsilon+b\tilde\theta^T\phi. \]
+      </h4>
+      <p>
+        Using
+        <strong>\(\dot{\hat\theta}=-\Gamma\phi\varepsilon^TPb\)</strong> in
+        <strong
+          >\(V=\varepsilon^TP\varepsilon+
+          \tilde\theta^T\Gamma^{-1}\tilde\theta\)</strong
+        >
+        gives <strong>\(\dot V=-\varepsilon^TQ\varepsilon\le0\)</strong>.
+        Therefore <strong>\(\varepsilon\)</strong> and
+        <strong>\(\tilde\theta\)</strong> are bounded. Under bounded-regressor
+        assumptions, <strong>\(\varepsilon\to0\)</strong>. Physical tracking
+        additionally requires <strong>\(x_{aw}\to0\)</strong>.
+      </p>
+
+      <p>
+        <strong>Problem 3 (Reference Feasibility):</strong>
+        For <strong>\(\dot x=-1.2x+0.8u\)</strong> with
+        <strong>\(|u|\le1.2\)</strong>, determine the largest possible
+        steady-state magnitude. Can a constant reference of 2 be tracked?
+      </p>
+      <p>
+        <strong>Solution:</strong> At equilibrium,
+        <strong>\(0=-1.2x_{ss}+0.8u_{ss}\)</strong>, hence
+      </p>
+      <h4 class="mathJax">
+        \[ |x_{ss}|=\frac{0.8}{1.2}|u_{ss}| \le\frac{0.8}{1.2}(1.2)=0.8. \]
+      </h4>
+      <p>
+        A constant reference of 2 is infeasible. No anti-windup law can remove
+        this physical limitation; it can only prevent internal states from
+        winding up while the limitation is active.
+      </p>
+
+      <p>
+        <strong>Problem 4 (Back-Calculation Sign):</strong>
+        The command is <strong>\(v=v_a+k_I\eta\)</strong> with
+        <strong>\(k_I&gt;0\)</strong>. At the upper limit,
+        <strong>\(v&gt;\bar u\)</strong>. Show why
+        <strong>\(\dot\eta=e_c+k_{aw}(u-v)\)</strong> has the correct unwinding
+        sign.
+      </p>
+      <p>
+        <strong>Solution:</strong> Upper saturation gives
+        <strong>\(u-v&lt;0\)</strong>. Therefore
+        <strong>\(k_{aw}(u-v)&lt;0\)</strong>, which decreases
+        <strong>\(\eta\)</strong> and hence decreases
+        <strong>\(k_I\eta\)</strong>. The command is driven back toward the
+        realizable interval.
+      </p>
+
+      <p>
+        <strong>Problem 5 (Projection Property):</strong>
+        Suppose the true ideal parameter lies in a convex set
+        <strong>\(\Omega\)</strong>. Explain why a tangent-cone projection is
+        preferable to simply clipping the parameter after numerical integration.
+      </p>
+      <p>
+        <strong>Solution:</strong> Projection modifies the derivative before
+        integration and can be constructed to satisfy the Lyapunov-compatible
+        inequality
+      </p>
+      <h4 class="mathJax">
+        \[ \tilde\theta^T\Gamma^{-1} \left[
+        \operatorname{Proj}_{\Omega}(\hat\theta,y)-y \right]\le0. \]
+      </h4>
+      <p>
+        Post-integration clipping limits the stored value but does not generally
+        preserve this derivative inequality, especially with finite sampling and
+        large update steps.
+      </p>
+
+      <p>
+        <strong>Problem 6 (What Should Be Frozen?):</strong>
+        Compare full adaptation freeze, smooth gating, and modified-error
+        adaptation during saturation.
+      </p>
+      <p>
+        <strong>Solution:</strong> Full freeze is simple and prevents drift but
+        also stops learning from informative transients. Smooth gating retains a
+        reduced update and avoids discontinuous switching, but changes the exact
+        Lyapunov cancellation. Modified-error adaptation is structurally
+        stronger because it subtracts a modeled saturation effect rather than
+        merely suppressing learning. In practice, a mismatch model is often
+        combined with projection, small leakage, and a gate for model
+        imperfections.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 17 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>17. Summary</h2>
+    <div class="down-content">
+      <p>
+        Actuator saturation introduces a known discrepancy between requested and
+        applied control. In an adaptive loop, that discrepancy can wind up both
+        classical controller states and parameter estimates. Back-calculation
+        protects integral states, while a mismatch model produces a modified
+        error whose dynamics recover the nominal adaptive structure. The ideal
+        Lyapunov proof establishes boundedness and convergence of the modified
+        error, not tracking of a permanently infeasible reference. Projection,
+        leakage, and saturation-dependent gating provide practical safeguards
+        but must be analyzed as robust modifications rather than assumed to
+        preserve the exact nominal theorem.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 18 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>18. References</h2>
+    <ol>
+      <li>
+        Hanus, R., Kinnaert, M., &amp; Henrotte, J.-L. (1987). Conditioning
+        technique, a general anti-windup and bumpless transfer method.
+        <em>Automatica</em>, 23(6), 729–739.
+      </li>
+      <li>
+        Åström, K.J., &amp; Rundqwist, L. (1989). Integrator windup and how to
+        avoid it. <em>Proceedings of the American Control Conference</em>,
+        1693–1698.
+      </li>
+      <li>
+        Kárason, S.P., &amp; Annaswamy, A.M. (1994). Adaptive control in the
+        presence of input constraints.
+        <em>IEEE Transactions on Automatic Control</em>, 39(11), 2325–2330.
+      </li>
+      <li>
+        Kothare, M.V., Campo, P.J., Morari, M., &amp; Nett, C.N. (1994). A
+        unified framework for the study of anti-windup designs.
+        <em>Automatica</em>, 30(12), 1869–1883.
+      </li>
+      <li>
+        Annaswamy, A.M., &amp; Kárason, S.P. (1995). Discrete-time adaptive
+        control in the presence of input constraints.
+        <em>Automatica</em>, 31(10), 1421–1431.
+      </li>
+      <li>
+        Kapoor, N., Teel, A.R., &amp; Daoutidis, P. (1998). An anti-windup
+        design for linear systems with input saturation.
+        <em>Automatica</em>, 34(5), 559–574.
+      </li>
+      <li>
+        Zaccarian, L., &amp; Teel, A.R. (2002). A common framework for
+        anti-windup, bumpless transfer and reliable designs.
+        <em>Automatica</em>, 38(10), 1735–1744.
+      </li>
+      <li>
+        Lavretsky, E., &amp; Hovakimyan, N. (2007). Stable adaptation in the
+        presence of input constraints.
+        <em>Systems &amp; Control Letters</em>, 56(11–12), 722–729.
+      </li>
+      <li>
+        Galeani, S., Tarbouriech, S., Turner, M.C., &amp; Zaccarian, L. (2009).
+        A tutorial on modern anti-windup design.
+        <em>European Journal of Control</em>, 15(3–4), 418–440.
+      </li>
+      <li>
+        Tarbouriech, S., &amp; Turner, M.C. (2009). Anti-windup design: An
+        overview of some recent advances and open problems.
+        <em>IET Control Theory &amp; Applications</em>, 3(1), 1–19.
+      </li>
+      <li>
+        Turner, M.C., Sofrony, J., &amp; Prempain, E. (2020). Anti-windup for
+        model-reference adaptive control schemes with rate-limits.
+        <em>Systems &amp; Control Letters</em>, 137, 104630.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter19/Lesson2.html">
+          Lesson 2: Modification of Update Laws to Handle Saturation
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter19/Lesson4.html">
+          Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#">
+              <input
+                type="text"
+                name="search"
+                id="search"
+                placeholder="Search..."
+              />
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <br />
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: \( \theta^T\phi(x,u) \) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression \( \boldsymbol{\phi}^{\mathsf{T}}(t)\boldsymbol{\theta} \)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="active-lesson" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <br />
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>
