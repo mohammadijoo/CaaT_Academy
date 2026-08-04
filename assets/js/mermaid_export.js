@@ -303,6 +303,43 @@
     }
   }
 
+  /*
+   * CaaT export-only Mermaid edge-label normalization.
+   *
+   * Connector-line explanations inherit the active webpage theme. In dark
+   * mode they may be exported as near-white text and disappear when the
+   * transparent image is placed on a light slide. Normalize only the cloned
+   * export SVG: dark ink with a narrow white halo. The live page is untouched.
+   */
+  function normaliseExportedEdgeLabels(clonedSvg) {
+    var selector = [
+      ".edgeLabel text",
+      ".edgeLabels text",
+      "text.edgeLabel",
+      ".edgeLabel .caat-exported-mermaid-label",
+      ".edgeLabels .caat-exported-mermaid-label"
+    ].join(", ");
+
+    Array.prototype.forEach.call(
+      clonedSvg.querySelectorAll(selector),
+      function (textElement) {
+        var parts = [textElement].concat(
+          Array.prototype.slice.call(textElement.querySelectorAll("tspan"))
+        );
+
+        parts.forEach(function (part) {
+          part.setAttribute("fill", "#111827");
+          part.setAttribute("color", "#111827");
+          part.setAttribute("stroke", "#ffffff");
+          part.setAttribute("stroke-opacity", "0.96");
+          part.setAttribute("stroke-width", "2.4");
+          part.setAttribute("stroke-linejoin", "round");
+          part.setAttribute("paint-order", "stroke fill");
+        });
+      }
+    );
+  }
+
   function buildStandaloneSvg(sourceSvg, mermaidElement) {
     var rect = sourceSvg.getBoundingClientRect();
     var box = parseViewBox(sourceSvg, rect);
@@ -310,6 +347,7 @@
 
     inlineComputedStyles(sourceSvg, clonedSvg);
     replaceForeignObjects(sourceSvg, clonedSvg);
+    normaliseExportedEdgeLabels(clonedSvg);
 
     Array.prototype.forEach.call(
       clonedSvg.querySelectorAll("style, script"),
