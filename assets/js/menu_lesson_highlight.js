@@ -1,45 +1,100 @@
 // menu_lesson_highlight.js
-document.addEventListener("DOMContentLoaded", function () {
-  const currentLesson = document.querySelector("#sidebar a.active-lesson");
-  if (!currentLesson) return;
+(function () {
+  "use strict";
 
-  // Find the corresponding chapter header (<span class="opener">)
-  const lessonList = currentLesson.closest("ul");
-  const chapterOpener = lessonList ? lessonList.previousElementSibling : null;
-
-  // Expand the chapter using the menu's native toggle class (commonly "active")
-  // This should NOT prevent toggling; it just sets the initial state to open.
-  if (chapterOpener && chapterOpener.classList.contains("opener")) {
-    chapterOpener.classList.add("active");
-    chapterOpener.setAttribute("aria-expanded", "true"); // harmless if unused
+  function getElements() {
+    return {
+      lesson: document.querySelector("#sidebar a.active-lesson"),
+      sidebar: document.querySelector("#sidebar .inner")
+    };
   }
 
-  // Scroll so the *lesson* is centered inside the sidebar (not the chapter header)
-  const sidebar = document.querySelector("#sidebar .inner");
-  if (!sidebar) {
-    // Fallback: center in nearest scroll container (may also move the page)
-    currentLesson.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
-    return;
+  function openCurrentChapter(lesson) {
+    var list = lesson ? lesson.closest("ul") : null;
+    var opener = list ? list.previousElementSibling : null;
+    if (opener && opener.classList.contains("opener")) {
+      opener.classList.add("active");
+      opener.setAttribute("aria-expanded", "true");
+    }
   }
 
-  const sidebarRect = sidebar.getBoundingClientRect();
-  const lessonRect = currentLesson.getBoundingClientRect();
+  function centerCurrentLesson() {
+    var current = getElements();
+    if (!current.lesson) return;
+    openCurrentChapter(current.lesson);
 
-  // Lesson position relative to the sidebar scroll box
-  const lessonOffsetTop = lessonRect.top - sidebarRect.top;
+    if (!current.sidebar) {
+      current.lesson.scrollIntoView({
+        block: "center",
+        inline: "nearest",
+        behavior: "auto"
+      });
+      return;
+    }
 
-  // Compute target scrollTop so lesson ends up centered
-  const target =
-    sidebar.scrollTop +
-    lessonOffsetTop -
-    (sidebar.clientHeight / 2 - lessonRect.height / 2);
+    var sidebarRect = current.sidebar.getBoundingClientRect();
+    var lessonRect = current.lesson.getBoundingClientRect();
+    var target =
+      current.sidebar.scrollTop +
+      (lessonRect.top - sidebarRect.top) -
+      (current.sidebar.clientHeight / 2 - lessonRect.height / 2);
+    var maximum = Math.max(
+      0,
+      current.sidebar.scrollHeight - current.sidebar.clientHeight
+    );
 
-  // Clamp to valid scroll range
-  const max = sidebar.scrollHeight - sidebar.clientHeight;
-  const clamped = Math.max(0, Math.min(max, target));
+    current.sidebar.scrollTo({
+      top: Math.max(0, Math.min(maximum, target)),
+      behavior: "auto"
+    });
+  }
 
-  sidebar.scrollTo({
-    top: clamped,
-    behavior: "smooth",
-  });
-});
+  function afterLayoutSettles() {
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(centerCurrentLesson);
+    });
+  }
+
+  function initialise() {
+    var current = getElements();
+    if (!current.lesson) return;
+
+    openCurrentChapter(current.lesson);
+    afterLayoutSettles();
+
+    if (document.readyState === "complete") {
+      afterLayoutSettles();
+    } else {
+      window.addEventListener("load", afterLayoutSettles, { once: true });
+    }
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(afterLayoutSettles).catch(function () {});
+    }
+
+    if (
+      window.MathJax &&
+      MathJax.Hub &&
+      typeof MathJax.Hub.Queue === "function"
+    ) {
+      MathJax.Hub.Queue(afterLayoutSettles);
+    }
+
+    document.addEventListener(
+      "caat:sidebar-search-updated",
+      afterLayoutSettles
+    );
+
+    var timer = null;
+    window.addEventListener("resize", function () {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(afterLayoutSettles, 100);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialise, { once: true });
+  } else {
+    initialise();
+  }
+})();
