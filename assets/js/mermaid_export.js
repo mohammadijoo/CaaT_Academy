@@ -330,6 +330,25 @@
 
     insertBackground(clonedSvg, box, effectiveBackground(mermaidElement));
 
+    /* CaaT small visual patch: transparent Mermaid downloads
+     * Keep all node, edge, text, and theme colours, but make only the
+     * exported canvas/background transparent for both SVG and PNG files.
+     */
+    var exportBackground = clonedSvg.querySelector(
+      ".caat-mermaid-export-background"
+    );
+
+    if (exportBackground) {
+      exportBackground.setAttribute("fill", "none");
+      exportBackground.setAttribute("fill-opacity", "0");
+    }
+
+    clonedSvg.setAttribute(
+      "style",
+      "background: transparent; background-color: transparent;"
+    );
+
+
     var serialised = new XMLSerializer().serializeToString(clonedSvg);
     var xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + serialised;
 
