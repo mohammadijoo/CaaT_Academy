@@ -1,0 +1,2901 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign - Lesson 4: Practical Limitations and Implementation Challenges | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank" rel="noopener noreferrer">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>
+      Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain
+      Sign
+    </h1>
+    <h3>
+      <strong
+        >Lesson 4: Practical Limitations and Implementation Challenges</strong
+      >
+    </h3>
+    <p>
+      This lesson examines the gap between the ideal continuous-time analysis of
+      Nussbaum-gain adaptive controllers and their implementation with sampled
+      measurements, finite-precision arithmetic, actuator constraints, delays,
+      disturbances, and supervisory safety logic. The objective is not to
+      replace the stability theory developed in Lessons 1–3, but to identify
+      exactly which assumptions are altered by a practical realization and what
+      must be monitored, tested, or re-proved before deployment.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>1. Learning Objectives and Scope</h2>
+    <div class="down-content">
+      <p>After completing this lesson, students should be able to:</p>
+      <ul>
+        <li>reconstruct the ideal scalar Nussbaum-gain stability argument;</li>
+        <li>
+          identify where actuator saturation, rate limits, and dead zones enter
+          the Lyapunov derivative;
+        </li>
+        <li>derive noise-induced drift in the Nussbaum search variable;</li>
+        <li>
+          state a sample-time restriction for a locally frozen discrete
+          implementation;
+        </li>
+        <li>
+          explain why time-varying or sign-changing control effectiveness is not
+          covered by the standard constant-sign theorem;
+        </li>
+        <li>
+          design numerical guards, monitors, and staged validation tests without
+          claiming that these additions preserve the original proof
+          automatically.
+        </li>
+      </ul>
+      <p>
+        The lesson uses the scalar plant as the main analytical vehicle because
+        it exposes the implementation mechanisms without introducing new
+        nonlinear control structures beyond those already developed in the
+        preceding lessons.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. Ideal Continuous-Time Result Revisited</h2>
+    <div class="down-content">
+      <p>
+        Consider the regulation model
+        <strong>\( \dot{x}=b u \)</strong>, where the constant control
+        coefficient <strong>\( b\in\mathbb{R}\setminus\{0\} \)</strong> is
+        unknown and its sign is not available to the controller. Select
+      </p>
+      <h4 class="mathJax">
+        \[ u=N(\kappa)x, \qquad \dot{\kappa}=x^2, \qquad \kappa(0)=\kappa_0, \]
+      </h4>
+      <p>
+        with a Nussbaum-type function <strong>\(N\)</strong>. A standard
+        defining property is
+      </p>
+      <h4 class="mathJax">
+        \[ \limsup_{q\rightarrow\infty}\frac{1}{q}\int_0^q N(s)\,ds=+\infty,
+        \qquad \liminf_{q\rightarrow\infty}\frac{1}{q}\int_0^q N(s)\,ds=-\infty.
+        \]
+      </h4>
+      <p>
+        The moderate-growth choice used in the implementations is
+        <strong>\(N(\kappa)=\kappa^2\cos\kappa\)</strong>. Its primitive is
+      </p>
+      <h4 class="mathJax">
+        \[ \int_0^q s^2\cos s\,ds=q^2\sin q+2q\cos q-2\sin q, \]
+      </h4>
+      <p>
+        and division by <strong>\(q\)</strong> produces oscillations whose
+        positive and negative envelopes grow without bound.
+      </p>
+
+      <h3>2.1 Proof Sketch</h3>
+      <p>With <strong>\(V=\tfrac12 x^2\)</strong>,</p>
+      <h4 class="mathJax">
+        \[ \dot V=x\dot x=bN(\kappa)x^2=bN(\kappa)\dot\kappa. \]
+      </h4>
+      <p>Integration gives</p>
+      <h4 class="mathJax">
+        \[ V(t)=V(0)+b\int_{\kappa_0}^{\kappa(t)}N(s)\,ds. \]
+      </h4>
+      <p>
+        Suppose <strong>\(\kappa(t)\)</strong> were unbounded. Because
+        <strong>\(\dot\kappa=x^2\ge 0\)</strong>, it would pass through
+        arbitrarily large values. The Nussbaum property guarantees a subsequence
+        at which the integral term has the sign opposite to
+        <strong>\(b\)</strong> and magnitude exceeding
+        <strong>\(V(0)\)</strong>. The right-hand side would then be negative,
+        contradicting <strong>\(V(t)\ge 0\)</strong>. Hence
+        <strong>\(\kappa\)</strong> is bounded. Since
+        <strong
+          >\(\int_0^\infty x^2(t)dt=\kappa(\infty)-\kappa_0&lt;\infty\)</strong
+        >, and bounded closed-loop signals imply bounded
+        <strong>\(\dot x\)</strong>, Barbalat's lemma yields
+        <strong>\(x(t)\rightarrow 0\)</strong>.
+      </p>
+      <p>
+        Every practical limitation discussed below can be interpreted as a
+        change to one of the equalities or boundedness implications used in this
+        proof.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. The Implemented Loop Is a Different Dynamical System</h2>
+    <div class="down-content">
+      <p>A sampled implementation typically has the form</p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} y_k &= x_k+n_k,\\ u_k^{\mathrm{cmd}} &=
+        N(\kappa_k)y_k,\\ u_k &=
+        \operatorname{sat}_{u_{\max}}\!\left(u_k^{\mathrm{cmd}}\right),\\
+        \kappa_{k+1} &= \kappa_k+h\gamma\psi(y_k),\\ x_{k+1} &= x_k+h\left(a
+        x_k+b u_k+d_k\right), \end{aligned} \]
+      </h4>
+      <p>where the practical dead-zone adaptation map may be</p>
+      <h4 class="mathJax">
+        \[ \psi(y)=\left(\max\{|y|-\varepsilon,0\}\right)^2. \]
+      </h4>
+      <p>
+        This realization contains noise <strong>\(n_k\)</strong>, a finite
+        sample period <strong>\(h\)</strong>, actuator saturation, disturbance
+        <strong>\(d_k\)</strong>, and a modified update law. It is therefore not
+        a numerical transcription of the ideal proof; it is a hybrid nonlinear
+        system that requires its own analysis or, at minimum, conservative
+        validation.
+      </p>
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  R["Reference or zero command"] --> E["Tracking error"]
+  Y["Sensor, noise, quantization"] --> E
+  E --> DZ["Dead-zone and normalization"]
+  DZ --> K["Kappa update"]
+  K --> N["Nussbaum map N(kappa)"]
+  E --> M["Control multiplication"]
+  N --> M
+  M --> A["Saturation and rate limit"]
+  A --> P["Plant with unknown input sign"]
+  P --> Y
+  K --> S["Supervisory monitors"]
+  A --> S
+  Y --> S
+  S --> F["Safe fallback or shutdown"]
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Actuator Saturation, Rate Limits, and Lost Lyapunov Cancellation</h2>
+    <div class="down-content">
+      <p>Let the applied input be decomposed as</p>
+      <h4 class="mathJax">
+        \[ u_{\mathrm{act}}=u_{\mathrm{cmd}}+\Delta u, \qquad \Delta
+        u=\operatorname{sat}(u_{\mathrm{cmd}})-u_{\mathrm{cmd}}. \]
+      </h4>
+      <p>
+        For the ideal scalar plant and update law, the Lyapunov derivative
+        becomes
+      </p>
+      <h4 class="mathJax">\[ \dot V=bN(\kappa)\dot\kappa+b x\Delta u. \]</h4>
+      <p>
+        The first term is the Nussbaum term used in the contradiction argument.
+        The second term has no guaranteed sign. Applying Young's inequality for
+        any
+        <strong>\(\rho&gt;0\)</strong>,
+      </p>
+      <h4 class="mathJax">
+        \[ |b x\Delta u|\le \frac{\rho}{2}x^2+ \frac{b^2}{2\rho}(\Delta u)^2. \]
+      </h4>
+      <p>
+        If saturation persists, <strong>\((\Delta u)^2\)</strong> need not be
+        integrable, so asymptotic convergence cannot be recovered from the ideal
+        proof. At best, one may derive ultimate boundedness under additional
+        bounds and sufficient control authority. A rate limiter produces a
+        dynamic mismatch rather than a static one, but it enters the Lyapunov
+        analysis through the same applied-versus-commanded input defect.
+      </p>
+
+      <h3>4.1 Why Nussbaum Search Can Produce Severe Transients</h3>
+      <p>
+        The search variable must move through intervals in which the effective
+        gain
+        <strong>\(bN(\kappa)\)</strong> is destabilizing before it reaches a
+        stabilizing interval. For
+        <strong>\(N(\kappa)=\kappa^2\cos\kappa\)</strong>, the command envelope
+        scales approximately as
+      </p>
+      <h4 class="mathJax">\[ |u_{\mathrm{cmd}}|\le \kappa^2|x|. \]</h4>
+      <p>
+        Larger <strong>\(\kappa\)</strong> therefore increases both the chance
+        of finding the correct direction and the risk of saturation, excitation
+        of neglected dynamics, and numerical overflow. This is a fundamental
+        transient trade-off, not merely a software tuning issue.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Measurement Noise and Monotone Drift of the Search Variable</h2>
+    <div class="down-content">
+      <p>
+        With measured error <strong>\(y=e+n\)</strong> and the unmodified law
+        <strong>\(\dot\kappa=\gamma y^2\)</strong>, assume zero-mean noise
+        independent of the current tracking error, with variance
+        <strong>\(\mathbb{E}[n^2]=\sigma_n^2\)</strong>. Then
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \mathbb{E}[\dot\kappa\mid e]
+        &=\gamma\mathbb{E}[(e+n)^2\mid e]\\
+        &=\gamma(e^2+2e\mathbb{E}[n]+\mathbb{E}[n^2])\\
+        &=\gamma(e^2+\sigma_n^2). \end{aligned} \]
+      </h4>
+      <p>
+        Even at perfect regulation, <strong>\(e=0\)</strong>, the expected drift
+        is <strong>\(\gamma\sigma_n^2&gt;0\)</strong>. Consequently,
+        <strong>\(\kappa\)</strong> continues to move, the Nussbaum gain
+        continues to change sign and amplitude, and the controller may leave a
+        previously benign operating interval.
+      </p>
+
+      <h3>5.1 Dead Zone and Leakage Are Modifications, Not Free Fixes</h3>
+      <p>A dead-zone law such as</p>
+      <h4 class="mathJax">
+        \[ \dot\kappa=\gamma\left(\max\{|y|-\varepsilon,0\}\right)^2 \]
+      </h4>
+      <p>
+        suppresses small-noise updates, but it creates a non-adapting region and
+        generally changes the conclusion from exact convergence to convergence
+        into a neighborhood. A leakage term
+        <strong>\(\dot\kappa=\gamma y^2-\sigma\kappa\)</strong> prevents
+        monotone growth but destroys the monotonicity used in the standard
+        Nussbaum lemma. Either modification requires a revised boundedness
+        proof.
+      </p>
+      <p>
+        Filtering can reduce high-frequency noise, but it introduces phase lag.
+        The filter state must be included in the closed-loop model; otherwise
+        the controller is analyzed using a signal that is not actually applied.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. Sampling, Zero-Order Hold, and Numerical Integration</h2>
+    <div class="down-content">
+      <p>
+        Freeze <strong>\(N(\kappa_k)\)</strong> over one sampling interval and
+        ignore noise, saturation, and disturbances. Explicit Euler gives
+      </p>
+      <h4 class="mathJax">
+        \[ x_{k+1}=\left[1+h\lambda_k\right]x_k, \qquad
+        \lambda_k=a+bN(\kappa_k). \]
+      </h4>
+      <p>
+        For real <strong>\(\lambda_k\)</strong>, local Euler stability requires
+      </p>
+      <h4 class="mathJax">
+        \[ |1+h\lambda_k|&lt;1 \quad\Longleftrightarrow\quad
+        -2&lt;h\lambda_k&lt;0. \]
+      </h4>
+      <p>
+        A continuous-time interval with <strong>\(\lambda_k&lt;0\)</strong> can
+        therefore become numerically unstable when the gain magnitude grows
+        while the sample period remains fixed. Since a Nussbaum function
+        intentionally generates large gain magnitudes, the sample time must be
+        selected from the largest credible closed-loop bandwidth, not merely
+        from the nominal plant dynamics.
+      </p>
+
+      <h3>6.1 Discrete Update Effects</h3>
+      <p>The implemented adaptation step</p>
+      <h4 class="mathJax">\[ \kappa_{k+1}=\kappa_k+h\gamma\psi(y_k) \]</h4>
+      <p>
+        can jump across a favorable interval of
+        <strong>\(N(\kappa)\)</strong> when
+        <strong>\(h\gamma\psi(y_k)\)</strong> is too large. A useful engineering
+        constraint is
+      </p>
+      <h4 class="mathJax">\[ h\gamma\psi(y_k)\le \Delta\kappa_{\max}, \]</h4>
+      <p>
+        where <strong>\(\Delta\kappa_{\max}\)</strong> is selected to resolve
+        the oscillation scale of the chosen Nussbaum function. Limiting this
+        increment is another modification of the ideal law and must be
+        documented explicitly.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Delay, Unmodeled Dynamics, and Relative-Degree Errors</h2>
+    <div class="down-content">
+      <p>
+        Suppose the actuator or computation introduces delay
+        <strong>\(\tau\)</strong>, so that the plant receives
+        <strong>\(u(t-\tau)\)</strong>. For a smooth error signal,
+      </p>
+      <h4 class="mathJax">
+        \[ e(t-\tau)=e(t)-\tau\dot e(t)+\mathcal{O}(\tau^2). \]
+      </h4>
+      <p>
+        The nominal product <strong>\(bN(\kappa)e^2\)</strong> is then
+        accompanied by terms involving
+        <strong>\(-\tau bN(\kappa)e\dot e\)</strong>. Because the Nussbaum
+        amplitude can grow, even a small delay may generate a large phase error.
+        The same concern arises from neglected actuator poles, flexible modes,
+        sensor filters, and transport lags.
+      </p>
+      <p>
+        Unknown high-frequency gain sign theory also assumes a known relative
+        degree and a valid input-output model structure. If an unmodeled pole
+        changes the effective phase near the adaptive-loop bandwidth, the
+        controller may interpret the phase error as an incorrect control
+        direction and increase the search gain, thereby exciting the neglected
+        mode further.
+      </p>
+      <p>
+        Practical validation must therefore include frequency-domain
+        uncertainty, not only parameter variation in the nominal low-order
+        model.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Vanishing, Time-Varying, or Sign-Changing Control Effectiveness</h2>
+    <div class="down-content">
+      <p>
+        The standard scalar proof assumes a constant nonzero coefficient
+        <strong>\(b\)</strong>. If the actual plant has
+        <strong>\(b=b(t)\)</strong>, then
+      </p>
+      <h4 class="mathJax">\[ \dot V=b(t)N(\kappa)\dot\kappa. \]</h4>
+      <p>
+        This expression cannot generally be integrated into a fixed constant
+        times the primitive of <strong>\(N\)</strong>. If
+        <strong>\(b(t)\)</strong> crosses zero, control authority disappears at
+        the crossing and the control direction reverses afterward. A controller
+        proven for an unknown but constant sign must not be advertised as
+        covering arbitrary sign changes.
+      </p>
+      <p>
+        Stronger Nussbaum-function definitions and specialized integral lemmas
+        exist for restricted classes of time-varying coefficients, but they
+        impose explicit conditions on the coefficient and on the chosen
+        function. Those results are separate designs, not automatic extensions
+        of the constant-sign theorem.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Scaling, Initialization, and Finite-Precision Arithmetic</h2>
+    <div class="down-content">
+      <h3>9.1 Signal Scaling</h3>
+      <p>
+        If the physical error is measured in large units, the update
+        <strong>\(\dot\kappa=\gamma e^2\)</strong> can be excessively fast.
+        Introduce a dimensionless normalized error
+      </p>
+      <h4 class="mathJax">
+        \[ e_s=\frac{e}{s_e}, \qquad \dot\kappa=\gamma_s e_s^2, \qquad u=s_u
+        N(\kappa)e_s, \]
+      </h4>
+      <p>
+        where <strong>\(s_e\)</strong> and <strong>\(s_u\)</strong> reflect
+        credible error and actuator scales. This avoids embedding unit choices
+        inside the adaptation gain.
+      </p>
+
+      <h3>9.2 Initial Search Value</h3>
+      <p>
+        For <strong>\(N(0)=0\)</strong>, choosing
+        <strong>\(\kappa_0=0\)</strong>
+        initially applies no control. An unstable plant may grow before
+        adaptation generates useful authority. Conversely, a large
+        <strong>\(|\kappa_0|\)</strong> can create an immediate command spike. A
+        small nonzero initial value should be selected together with an
+        initial-state envelope and actuator limit.
+      </p>
+
+      <h3>9.3 Overflow and Loss of Significance</h3>
+      <p>
+        Polynomial Nussbaum functions grow more slowly than exponential choices,
+        but even <strong>\(\kappa^2\cos\kappa\)</strong> can overflow after
+        prolonged drift. Software should test
+        <strong>\(\operatorname{isfinite}(\kappa)\)</strong>,
+        <strong>\(\operatorname{isfinite}(N(\kappa))\)</strong>, and the
+        commanded input before multiplication reaches the actuator interface.
+        Silent numeric wraparound can invert the effective control direction
+        without any physical change in the plant.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. Supervisory Logic and What It Can Legitimately Claim</h2>
+    <div class="down-content">
+      <p>
+        A practical controller should expose the following variables to a
+        supervisory layer: tracking error, <strong>\(\kappa\)</strong>,
+        <strong>\(N(\kappa)\)</strong>, commanded and applied input, saturation
+        duty cycle, adaptation increment, sample overruns, and finite-value
+        flags.
+      </p>
+      <p>
+        A trip condition may freeze adaptation and command a safe fallback when
+        <strong>\(|\kappa|\)</strong>, control effort, state magnitude, or
+        saturation duration exceeds validated limits. However, clipping
+        <strong>\(\kappa\)</strong> or resetting it periodically destroys the
+        exact integral identity used by the Nussbaum proof. Such logic is
+        acceptable as a safety mechanism only when the fallback behavior is
+        independently safe and the controller's formal claim is reduced
+        accordingly.
+      </p>
+      <p>
+        For an open-loop unstable plant, setting <strong>\(u=0\)</strong> may
+        not be a safe fallback. The fallback may instead be a mechanical
+        shutdown, a known low-authority mode, a redundant sign-verified
+        controller, or a supervisory operating-point transition. The safe action
+        is plant-specific.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. Staged Verification Workflow</h2>
+    <div class="down-content">
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  A["Prove ideal continuous-time model"] --> B["Bound initial state and plant parameters"]
+  B --> C["Add actuator amplitude and rate models"]
+  C --> D["Add sensor noise, quantization, and filters"]
+  D --> E["Select sample time and numeric precision"]
+  E --> F["Monte Carlo simulation for both input signs"]
+  F --> G["Worst-case delay and unmodeled-mode tests"]
+  G --> H["Processor-in-the-loop timing tests"]
+  H --> I["Hardware-in-the-loop with physical limits"]
+  I --> J["Low-energy experiment with independent shutdown"]
+  J --> K["Document validated operating envelope"]
+        </pre>
+      </div>
+      <p>
+        The test matrix must include both signs of the control coefficient,
+        extreme credible magnitudes of that coefficient, initial-condition
+        corners, sensor bias and noise, saturation persistence, delay variation,
+        missed samples, and parameter combinations that excite neglected
+        dynamics. A successful nominal simulation is not evidence of
+        sign-independent robustness.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. Implementation Design Rules</h2>
+    <div class="down-content">
+      <ol>
+        <li>
+          <strong>Use a moderate-growth Nussbaum function first.</strong>
+          Exponential functions may simplify some proofs but can be numerically
+          hazardous.
+        </li>
+        <li>
+          <strong>Normalize measured errors.</strong> Adaptation gains should
+          not depend implicitly on engineering units.
+        </li>
+        <li>
+          <strong>Log commanded and applied input separately.</strong> Their
+          difference is the actuator defect that invalidates nominal
+          cancellation.
+        </li>
+        <li>
+          <strong
+            >Choose the sample time from the maximum adaptive bandwidth.</strong
+          >
+          The nominal plant bandwidth alone is insufficient.
+        </li>
+        <li>
+          <strong>Do not silently clamp or reset the search variable.</strong>
+          Treat every bound, freeze, or reset as a hybrid-mode transition
+          requiring a revised claim.
+        </li>
+        <li>
+          <strong>Provide an independent safety path.</strong> The adaptive
+          controller must not be the only mechanism capable of removing energy
+          or stopping the experiment.
+        </li>
+        <li>
+          <strong>Validate both signs.</strong> Code that works only for the
+          sign used during development does not solve the unknown-direction
+          problem.
+        </li>
+        <li>
+          <strong>Report the operating envelope.</strong> State bounds, noise
+          bounds, delay bounds, actuator limits, and sample-time limits belong
+          in the controller specification.
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. Python Implementation</h2>
+    <div class="down-content">
+      <p>
+        The Python implementation uses <code>NumPy</code> for numerical arrays
+        and random noise, and <code>Matplotlib</code> for separate state,
+        search-variable, and actuator plots. It simulates both positive and
+        negative input gains and exports CSV logs.
+      </p>
+      <h3>Chapter16_Lesson4.py</h3>
+      <pre><code class="language-python">"""Chapter16_Lesson4.py
+
+Practical simulation of a scalar Nussbaum-gain controller for an unknown
+high-frequency gain sign. The script compares both signs of b and records
+measurement noise, actuator saturation, an adaptation dead zone, and a
+supervisory trip. The safeguards are engineering devices; they do not preserve
+the ideal continuous-time proof automatically.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+@dataclass(frozen=True)
+class Config:
+    dt: float = 1.0e-3
+    duration: float = 20.0
+    a: float = 0.25
+    gamma: float = 0.20
+    kappa0: float = 0.50
+    x0: float = 1.50
+    noise_std: float = 0.01
+    dead_zone: float = 0.03
+    u_max: float = 8.0
+    kappa_trip: float = 40.0
+    seed: int = 7
+
+
+def nussbaum(kappa: float) -&gt; float:
+    """Moderate-growth Nussbaum function N(kappa) = kappa^2 cos(kappa)."""
+    return kappa * kappa * np.cos(kappa)
+
+
+def saturate(value: float, limit: float) -&gt; float:
+    return float(np.clip(value, -limit, limit))
+
+
+def simulate(b: float, cfg: Config) -&gt; Dict[str, np.ndarray]:
+    if abs(b) &lt; 1.0e-12:
+        raise ValueError("The control coefficient b must be nonzero.")
+    if cfg.dt &lt;= 0.0 or cfg.duration &lt;= 0.0:
+        raise ValueError("dt and duration must be positive.")
+
+    steps = int(round(cfg.duration / cfg.dt)) + 1
+    t = np.linspace(0.0, cfg.duration, steps)
+    x = np.zeros(steps)
+    y = np.zeros(steps)
+    kappa = np.zeros(steps)
+    gain = np.zeros(steps)
+    u_cmd = np.zeros(steps)
+    u = np.zeros(steps)
+    saturation_active = np.zeros(steps, dtype=bool)
+    safety_trip = np.zeros(steps, dtype=bool)
+
+    x[0] = cfg.x0
+    kappa[0] = cfg.kappa0
+    rng = np.random.default_rng(cfg.seed)
+    tripped = False
+
+    for i in range(steps - 1):
+        y[i] = x[i] + cfg.noise_std * rng.standard_normal()
+        error = y[i]
+
+        gain[i] = nussbaum(kappa[i])
+        u_cmd[i] = gain[i] * error
+        u[i] = saturate(u_cmd[i], cfg.u_max)
+        saturation_active[i] = not np.isclose(u[i], u_cmd[i])
+
+        excess_error = max(abs(error) - cfg.dead_zone, 0.0)
+        kappa_dot = cfg.gamma * excess_error * excess_error
+
+        if kappa[i] &gt;= cfg.kappa_trip or not np.isfinite(gain[i]):
+            tripped = True
+
+        if tripped:
+            u[i] = 0.0
+            kappa_dot = 0.0
+            safety_trip[i] = True
+
+        disturbance = 0.02 * np.sin(1.4 * t[i])
+        x_dot = cfg.a * x[i] + b * u[i] + disturbance
+
+        # Explicit Euler is intentionally visible here because its sample-time
+        # sensitivity is one of the lesson's implementation topics.
+        x[i + 1] = x[i] + cfg.dt * x_dot
+        kappa[i + 1] = kappa[i] + cfg.dt * kappa_dot
+
+        if not np.isfinite(x[i + 1]) or abs(x[i + 1]) &gt; 1.0e6:
+            raise FloatingPointError("Simulation diverged or overflowed.")
+
+    y[-1] = x[-1] + cfg.noise_std * rng.standard_normal()
+    gain[-1] = nussbaum(kappa[-1])
+    u_cmd[-1] = gain[-1] * y[-1]
+    u[-1] = saturate(u_cmd[-1], cfg.u_max)
+    saturation_active[-1] = not np.isclose(u[-1], u_cmd[-1])
+    safety_trip[-1] = tripped
+
+    return {
+        "t": t,
+        "x": x,
+        "y": y,
+        "kappa": kappa,
+        "gain": gain,
+        "u_cmd": u_cmd,
+        "u": u,
+        "saturation": saturation_active.astype(int),
+        "trip": safety_trip.astype(int),
+    }
+
+
+def save_csv(result: Dict[str, np.ndarray], path: Path) -&gt; None:
+    columns = ["t", "x", "y", "kappa", "gain", "u_cmd", "u", "saturation", "trip"]
+    matrix = np.column_stack([result[name] for name in columns])
+    np.savetxt(path, matrix, delimiter=",", header=",".join(columns), comments="")
+
+
+def print_metrics(label: str, result: Dict[str, np.ndarray]) -&gt; None:
+    x = result["x"]
+    u = result["u"]
+    sat_fraction = float(np.mean(result["saturation"]))
+    print(
+        f"{label}: final_x={x[-1]: .6f}, max_abs_x={np.max(np.abs(x)): .6f}, "
+        f"final_kappa={result['kappa'][-1]: .6f}, max_abs_u={np.max(np.abs(u)): .6f}, "
+        f"sat_fraction={sat_fraction: .4f}, tripped={bool(result['trip'][-1])}"
+    )
+
+
+def plot_result(label: str, result: Dict[str, np.ndarray]) -&gt; None:
+    t = result["t"]
+
+    plt.figure()
+    plt.plot(t, result["x"], label="state x")
+    plt.plot(t, result["y"], alpha=0.35, label="measured y")
+    plt.xlabel("time [s]")
+    plt.ylabel("state")
+    plt.title(f"State response: {label}")
+    plt.grid(True)
+    plt.legend()
+
+    plt.figure()
+    plt.plot(t, result["kappa"], label="kappa")
+    plt.plot(t, result["gain"], label="N(kappa)")
+    plt.xlabel("time [s]")
+    plt.ylabel("adaptive variables")
+    plt.title(f"Nussbaum search: {label}")
+    plt.grid(True)
+    plt.legend()
+
+    plt.figure()
+    plt.plot(t, result["u_cmd"], label="commanded input")
+    plt.plot(t, result["u"], label="applied input")
+    plt.xlabel("time [s]")
+    plt.ylabel("control input")
+    plt.title(f"Actuator effect: {label}")
+    plt.grid(True)
+    plt.legend()
+
+
+def main() -&gt; None:
+    cfg = Config()
+    output_dir = Path("Chapter16_Lesson4_output")
+    output_dir.mkdir(exist_ok=True)
+
+    cases = {"b_positive": 1.5, "b_negative": -1.5}
+    for label, b in cases.items():
+        result = simulate(b, cfg)
+        print_metrics(label, result)
+        save_csv(result, output_dir / f"{label}.csv")
+        plot_result(label, result)
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 14 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>14. C++17 Implementation</h2>
+    <div class="down-content">
+      <p>
+        The C++ implementation uses only the standard library. It performs
+        explicit bounds and finite-value checks and writes one CSV file for each
+        possible sign.
+      </p>
+      <h3>Chapter16_Lesson4.cpp</h3>
+      <pre><code class="language-cpp">// Chapter16_Lesson4.cpp
+// C++17 implementation of a sampled Nussbaum-gain controller with practical
+// safeguards. The safety devices modify the ideal theorem and therefore need
+// independent analysis before use on hardware.
+
+#include &lt;algorithm&gt;
+#include &lt;cmath&gt;
+#include &lt;cstddef&gt;
+#include &lt;fstream&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;limits&gt;
+#include &lt;random&gt;
+#include &lt;stdexcept&gt;
+#include &lt;string&gt;
+#include &lt;vector&gt;
+
+struct Config {
+    double dt = 1.0e-3;
+    double duration = 20.0;
+    double a = 0.25;
+    double gamma = 0.20;
+    double kappa0 = 0.50;
+    double x0 = 1.50;
+    double noiseStd = 0.01;
+    double deadZone = 0.03;
+    double uMax = 8.0;
+    double kappaTrip = 40.0;
+    unsigned int seed = 7U;
+};
+
+struct Sample {
+    double t{};
+    double x{};
+    double y{};
+    double kappa{};
+    double gain{};
+    double uCommand{};
+    double uApplied{};
+    int saturation{};
+    int trip{};
+};
+
+double nussbaum(const double kappa) {
+    return kappa * kappa * std::cos(kappa);
+}
+
+double saturate(const double value, const double limit) {
+    return std::clamp(value, -limit, limit);
+}
+
+std::vector&lt;Sample&gt; simulate(const double b, const Config&amp; cfg) {
+    if (std::abs(b) &lt; 1.0e-12) {
+        throw std::invalid_argument("The control coefficient b must be nonzero.");
+    }
+    if (cfg.dt &lt;= 0.0 || cfg.duration &lt;= 0.0) {
+        throw std::invalid_argument("dt and duration must be positive.");
+    }
+
+    const std::size_t steps =
+        static_cast&lt;std::size_t&gt;(std::llround(cfg.duration / cfg.dt)) + 1U;
+    std::vector&lt;Sample&gt; data(steps);
+
+    std::mt19937 generator(cfg.seed);
+    std::normal_distribution&lt;double&gt; normal(0.0, cfg.noiseStd);
+
+    double x = cfg.x0;
+    double kappa = cfg.kappa0;
+    bool tripped = false;
+
+    for (std::size_t i = 0; i &lt; steps; ++i) {
+        const double t = static_cast&lt;double&gt;(i) * cfg.dt;
+        const double y = x + normal(generator);
+        const double error = y;
+        const double gain = nussbaum(kappa);
+        const double uCommand = gain * error;
+        double uApplied = saturate(uCommand, cfg.uMax);
+        const bool saturated = std::abs(uApplied - uCommand) &gt; 1.0e-12;
+
+        const double excessError = std::max(std::abs(error) - cfg.deadZone, 0.0);
+        double kappaDot = cfg.gamma * excessError * excessError;
+
+        if (kappa &gt;= cfg.kappaTrip || !std::isfinite(gain)) {
+            tripped = true;
+        }
+        if (tripped) {
+            uApplied = 0.0;
+            kappaDot = 0.0;
+        }
+
+        data[i] = Sample{t,
+                         x,
+                         y,
+                         kappa,
+                         gain,
+                         uCommand,
+                         uApplied,
+                         saturated ? 1 : 0,
+                         tripped ? 1 : 0};
+
+        if (i + 1U &lt; steps) {
+            const double disturbance = 0.02 * std::sin(1.4 * t);
+            const double xDot = cfg.a * x + b * uApplied + disturbance;
+
+            // Explicit Euler is intentionally retained to expose sample-time
+            // sensitivity in the lesson.
+            x += cfg.dt * xDot;
+            kappa += cfg.dt * kappaDot;
+
+            if (!std::isfinite(x) || std::abs(x) &gt; 1.0e6) {
+                throw std::runtime_error("Simulation diverged or overflowed.");
+            }
+        }
+    }
+
+    return data;
+}
+
+void saveCsv(const std::vector&lt;Sample&gt;&amp; data, const std::string&amp; filename) {
+    std::ofstream file(filename);
+    if (!file) {
+        throw std::runtime_error("Could not open output file: " + filename);
+    }
+
+    file &lt;&lt; "t,x,y,kappa,gain,u_cmd,u,saturation,trip\n";
+    file &lt;&lt; std::setprecision(12);
+    for (const Sample&amp; s : data) {
+        file &lt;&lt; s.t &lt;&lt; ',' &lt;&lt; s.x &lt;&lt; ',' &lt;&lt; s.y &lt;&lt; ',' &lt;&lt; s.kappa &lt;&lt; ','
+             &lt;&lt; s.gain &lt;&lt; ',' &lt;&lt; s.uCommand &lt;&lt; ',' &lt;&lt; s.uApplied &lt;&lt; ','
+             &lt;&lt; s.saturation &lt;&lt; ',' &lt;&lt; s.trip &lt;&lt; '\n';
+    }
+}
+
+void printMetrics(const std::string&amp; label, const std::vector&lt;Sample&gt;&amp; data) {
+    double maxAbsX = 0.0;
+    double maxAbsU = 0.0;
+    std::size_t saturationCount = 0U;
+
+    for (const Sample&amp; s : data) {
+        maxAbsX = std::max(maxAbsX, std::abs(s.x));
+        maxAbsU = std::max(maxAbsU, std::abs(s.uApplied));
+        saturationCount += static_cast&lt;std::size_t&gt;(s.saturation);
+    }
+
+    const Sample&amp; last = data.back();
+    const double saturationFraction =
+        static_cast&lt;double&gt;(saturationCount) / static_cast&lt;double&gt;(data.size());
+
+    std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(6)
+              &lt;&lt; label &lt;&lt; ": final_x=" &lt;&lt; last.x
+              &lt;&lt; ", max_abs_x=" &lt;&lt; maxAbsX
+              &lt;&lt; ", final_kappa=" &lt;&lt; last.kappa
+              &lt;&lt; ", max_abs_u=" &lt;&lt; maxAbsU
+              &lt;&lt; ", sat_fraction=" &lt;&lt; saturationFraction
+              &lt;&lt; ", tripped=" &lt;&lt; (last.trip != 0 ? "true" : "false") &lt;&lt; '\n';
+}
+
+int main() {
+    try {
+        const Config cfg{};
+        const std::vector&lt;std::pair&lt;std::string, double&gt;&gt; cases{
+            {"b_positive", 1.5},
+            {"b_negative", -1.5},
+        };
+
+        for (const auto&amp; item : cases) {
+            const auto result = simulate(item.second, cfg);
+            printMetrics(item.first, result);
+            saveCsv(result, "Chapter16_Lesson4_" + item.first + ".csv");
+        }
+    } catch (const std::exception&amp; error) {
+        std::cerr &lt;&lt; "Error: " &lt;&lt; error.what() &lt;&lt; '\n';
+        return 1;
+    }
+
+    return 0;
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 15 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>15. Java Implementation</h2>
+    <div class="down-content">
+      <p>
+        The Java implementation targets Java 17 and uses standard classes for
+        random noise, CSV output, validation, and exception handling.
+      </p>
+      <h3>Chapter16_Lesson4.java</h3>
+      <pre><code class="language-java">// Chapter16_Lesson4.java
+// Java 17 implementation of a sampled Nussbaum-gain controller with practical
+// safeguards. The safeguards modify the ideal continuous-time theorem and must
+// be analyzed independently before hardware deployment.
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Random;
+
+public final class Chapter16_Lesson4 {
+    private Chapter16_Lesson4() {
+    }
+
+    private static final class Config {
+        final double dt = 1.0e-3;
+        final double duration = 20.0;
+        final double a = 0.25;
+        final double gamma = 0.20;
+        final double kappa0 = 0.50;
+        final double x0 = 1.50;
+        final double noiseStd = 0.01;
+        final double deadZone = 0.03;
+        final double uMax = 8.0;
+        final double kappaTrip = 40.0;
+        final long seed = 7L;
+    }
+
+    private static final class Sample {
+        final double t;
+        final double x;
+        final double y;
+        final double kappa;
+        final double gain;
+        final double uCommand;
+        final double uApplied;
+        final int saturation;
+        final int trip;
+
+        Sample(
+                double t,
+                double x,
+                double y,
+                double kappa,
+                double gain,
+                double uCommand,
+                double uApplied,
+                int saturation,
+                int trip) {
+            this.t = t;
+            this.x = x;
+            this.y = y;
+            this.kappa = kappa;
+            this.gain = gain;
+            this.uCommand = uCommand;
+            this.uApplied = uApplied;
+            this.saturation = saturation;
+            this.trip = trip;
+        }
+    }
+
+    private static double nussbaum(double kappa) {
+        return kappa * kappa * Math.cos(kappa);
+    }
+
+    private static double saturate(double value, double limit) {
+        return Math.max(-limit, Math.min(limit, value));
+    }
+
+    private static List&lt;Sample&gt; simulate(double b, Config cfg) {
+        if (Math.abs(b) &lt; 1.0e-12) {
+            throw new IllegalArgumentException("The control coefficient b must be nonzero.");
+        }
+        if (cfg.dt &lt;= 0.0 || cfg.duration &lt;= 0.0) {
+            throw new IllegalArgumentException("dt and duration must be positive.");
+        }
+
+        int steps = (int) Math.round(cfg.duration / cfg.dt) + 1;
+        List&lt;Sample&gt; data = new ArrayList&lt;&gt;(steps);
+        Random random = new Random(cfg.seed);
+
+        double x = cfg.x0;
+        double kappa = cfg.kappa0;
+        boolean tripped = false;
+
+        for (int i = 0; i &lt; steps; i++) {
+            double t = i * cfg.dt;
+            double y = x + cfg.noiseStd * random.nextGaussian();
+            double error = y;
+            double gain = nussbaum(kappa);
+            double uCommand = gain * error;
+            double uApplied = saturate(uCommand, cfg.uMax);
+            boolean saturated = Math.abs(uApplied - uCommand) &gt; 1.0e-12;
+
+            double excessError = Math.max(Math.abs(error) - cfg.deadZone, 0.0);
+            double kappaDot = cfg.gamma * excessError * excessError;
+
+            if (kappa &gt;= cfg.kappaTrip || !Double.isFinite(gain)) {
+                tripped = true;
+            }
+            if (tripped) {
+                uApplied = 0.0;
+                kappaDot = 0.0;
+            }
+
+            data.add(new Sample(
+                    t,
+                    x,
+                    y,
+                    kappa,
+                    gain,
+                    uCommand,
+                    uApplied,
+                    saturated ? 1 : 0,
+                    tripped ? 1 : 0));
+
+            if (i + 1 &lt; steps) {
+                double disturbance = 0.02 * Math.sin(1.4 * t);
+                double xDot = cfg.a * x + b * uApplied + disturbance;
+
+                // Explicit Euler is intentionally retained to expose sample-time
+                // sensitivity in the lesson.
+                x += cfg.dt * xDot;
+                kappa += cfg.dt * kappaDot;
+
+                if (!Double.isFinite(x) || Math.abs(x) &gt; 1.0e6) {
+                    throw new ArithmeticException("Simulation diverged or overflowed.");
+                }
+            }
+        }
+
+        return data;
+    }
+
+    private static void saveCsv(List&lt;Sample&gt; data, Path path) throws IOException {
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                path, StandardCharsets.UTF_8)) {
+            writer.write("t,x,y,kappa,gain,u_cmd,u,saturation,trip");
+            writer.newLine();
+            for (Sample s : data) {
+                writer.write(String.format(
+                        Locale.ROOT,
+                        "%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%d,%d",
+                        s.t,
+                        s.x,
+                        s.y,
+                        s.kappa,
+                        s.gain,
+                        s.uCommand,
+                        s.uApplied,
+                        s.saturation,
+                        s.trip));
+                writer.newLine();
+            }
+        }
+    }
+
+    private static void printMetrics(String label, List&lt;Sample&gt; data) {
+        double maxAbsX = 0.0;
+        double maxAbsU = 0.0;
+        int saturationCount = 0;
+
+        for (Sample s : data) {
+            maxAbsX = Math.max(maxAbsX, Math.abs(s.x));
+            maxAbsU = Math.max(maxAbsU, Math.abs(s.uApplied));
+            saturationCount += s.saturation;
+        }
+
+        Sample last = data.get(data.size() - 1);
+        double saturationFraction = (double) saturationCount / data.size();
+        System.out.printf(
+                Locale.ROOT,
+                "%s: final_x=% .6f, max_abs_x=% .6f, final_kappa=% .6f, "
+                        + "max_abs_u=% .6f, sat_fraction=% .4f, tripped=%s%n",
+                label,
+                last.x,
+                maxAbsX,
+                last.kappa,
+                maxAbsU,
+                saturationFraction,
+                last.trip != 0);
+    }
+
+    public static void main(String[] args) {
+        Config cfg = new Config();
+        String[] labels = {"b_positive", "b_negative"};
+        double[] gains = {1.5, -1.5};
+
+        try {
+            for (int i = 0; i &lt; labels.length; i++) {
+                List&lt;Sample&gt; result = simulate(gains[i], cfg);
+                printMetrics(labels[i], result);
+                saveCsv(result, Path.of("Chapter16_Lesson4_" + labels[i] + ".csv"));
+            }
+        } catch (IOException | RuntimeException error) {
+            System.err.println("Error: " + error.getMessage());
+            System.exit(1);
+        }
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 16 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>16. MATLAB and Simulink Implementation</h2>
+    <div class="down-content">
+      <p>
+        The MATLAB script simulates the guarded sampled controller and can
+        optionally construct a Simulink model containing the continuous plant,
+        Nussbaum map, saturation, dead-zone adaptation, and a fixed-step solver.
+        The generated core model is intended for extension with plant-specific
+        noise, delay, rate-limit, and supervisory subsystems.
+      </p>
+      <h3>Chapter16_Lesson4.m</h3>
+      <pre><code class="language-matlab">%% Chapter16_Lesson4.m
+% Practical implementation study for a Nussbaum-gain controller with an
+% unknown high-frequency gain sign. The numerical experiment includes
+% measurement noise, actuator saturation, an adaptation dead zone, and a
+% supervisory trip. These safeguards modify the ideal theorem and therefore
+% require independent analysis before hardware deployment.
+
+clear; clc; close all;
+
+cfg.dt = 1.0e-3;
+cfg.duration = 20.0;
+cfg.a = 0.25;
+cfg.gamma = 0.20;
+cfg.kappa0 = 0.50;
+cfg.x0 = 1.50;
+cfg.noiseStd = 0.01;
+cfg.deadZone = 0.03;
+cfg.uMax = 8.0;
+cfg.kappaTrip = 40.0;
+cfg.seed = 7;
+
+cases = struct('label', {'b_positive', 'b_negative'}, ...
+               'b', {1.5, -1.5});
+
+for caseIndex = 1:numel(cases)
+    result = simulateNussbaum(cases(caseIndex).b, cfg);
+    printMetrics(cases(caseIndex).label, result);
+
+    outputTable = table(result.t, result.x, result.y, result.kappa, ...
+        result.gain, result.uCommand, result.uApplied, ...
+        result.saturation, result.trip, ...
+        'VariableNames', {'t', 'x', 'y', 'kappa', 'gain', 'u_cmd', ...
+        'u', 'saturation', 'trip'});
+    writetable(outputTable, ...
+        ['Chapter16_Lesson4_' cases(caseIndex).label '.csv']);
+
+    figure('Name', ['State response: ' cases(caseIndex).label]);
+    plot(result.t, result.x, 'LineWidth', 1.2); hold on;
+    plot(result.t, result.y, 'LineWidth', 0.7);
+    xlabel('time [s]'); ylabel('state'); grid on;
+    legend('state x', 'measured y');
+    title(['State response: ' strrep(cases(caseIndex).label, '_', ' ')]);
+
+    figure('Name', ['Nussbaum search: ' cases(caseIndex).label]);
+    plot(result.t, result.kappa, 'LineWidth', 1.2); hold on;
+    plot(result.t, result.gain, 'LineWidth', 1.0);
+    xlabel('time [s]'); ylabel('adaptive variables'); grid on;
+    legend('\kappa', 'N(\kappa)');
+    title(['Nussbaum search: ' strrep(cases(caseIndex).label, '_', ' ')]);
+
+    figure('Name', ['Actuator effect: ' cases(caseIndex).label]);
+    plot(result.t, result.uCommand, 'LineWidth', 0.8); hold on;
+    plot(result.t, result.uApplied, 'LineWidth', 1.2);
+    xlabel('time [s]'); ylabel('control input'); grid on;
+    legend('commanded input', 'applied input');
+    title(['Actuator effect: ' strrep(cases(caseIndex).label, '_', ' ')]);
+end
+
+% Set this flag to true when Simulink is installed. The generated model
+% contains the continuous plant, Nussbaum map, actuator saturation, dead-zone
+% adaptation, and fixed-step solver configuration.
+buildSimulinkModel = false;
+if buildSimulinkModel
+    buildNussbaumSimulinkModel(cfg, -1.5);
+end
+
+function result = simulateNussbaum(b, cfg)
+    validateattributes(b, {'double'}, {'scalar', 'real', 'finite', 'nonzero'});
+    validateattributes(cfg.dt, {'double'}, {'scalar', 'positive', 'finite'});
+    validateattributes(cfg.duration, {'double'}, {'scalar', 'positive', 'finite'});
+
+    steps = round(cfg.duration / cfg.dt) + 1;
+    t = linspace(0.0, cfg.duration, steps).';
+    x = zeros(steps, 1);
+    y = zeros(steps, 1);
+    kappa = zeros(steps, 1);
+    gain = zeros(steps, 1);
+    uCommand = zeros(steps, 1);
+    uApplied = zeros(steps, 1);
+    saturation = false(steps, 1);
+    trip = false(steps, 1);
+
+    x(1) = cfg.x0;
+    kappa(1) = cfg.kappa0;
+    rng(cfg.seed, 'twister');
+    tripped = false;
+
+    for i = 1:(steps - 1)
+        y(i) = x(i) + cfg.noiseStd * randn();
+        error = y(i);
+
+        gain(i) = nussbaum(kappa(i));
+        uCommand(i) = gain(i) * error;
+        uApplied(i) = min(max(uCommand(i), -cfg.uMax), cfg.uMax);
+        saturation(i) = abs(uApplied(i) - uCommand(i)) &gt; 1.0e-12;
+
+        excessError = max(abs(error) - cfg.deadZone, 0.0);
+        kappaDot = cfg.gamma * excessError^2;
+
+        if kappa(i) &gt;= cfg.kappaTrip || ~isfinite(gain(i))
+            tripped = true;
+        end
+        if tripped
+            uApplied(i) = 0.0;
+            kappaDot = 0.0;
+            trip(i) = true;
+        end
+
+        disturbance = 0.02 * sin(1.4 * t(i));
+        xDot = cfg.a * x(i) + b * uApplied(i) + disturbance;
+
+        % Explicit Euler is intentionally retained so that sample-time
+        % sensitivity remains visible.
+        x(i + 1) = x(i) + cfg.dt * xDot;
+        kappa(i + 1) = kappa(i) + cfg.dt * kappaDot;
+
+        if ~isfinite(x(i + 1)) || abs(x(i + 1)) &gt; 1.0e6
+            error('Simulation diverged or overflowed.');
+        end
+    end
+
+    y(end) = x(end) + cfg.noiseStd * randn();
+    gain(end) = nussbaum(kappa(end));
+    uCommand(end) = gain(end) * y(end);
+    uApplied(end) = min(max(uCommand(end), -cfg.uMax), cfg.uMax);
+    saturation(end) = abs(uApplied(end) - uCommand(end)) &gt; 1.0e-12;
+    trip(end) = tripped;
+
+    result = struct('t', t, 'x', x, 'y', y, 'kappa', kappa, ...
+        'gain', gain, 'uCommand', uCommand, 'uApplied', uApplied, ...
+        'saturation', double(saturation), 'trip', double(trip));
+end
+
+function value = nussbaum(kappa)
+    value = kappa.^2 .* cos(kappa);
+end
+
+function printMetrics(label, result)
+    fprintf(['%s: final_x=% .6f, max_abs_x=% .6f, final_kappa=% .6f, ' ...
+        'max_abs_u=% .6f, sat_fraction=% .4f, tripped=%s\n'], ...
+        label, result.x(end), max(abs(result.x)), result.kappa(end), ...
+        max(abs(result.uApplied)), mean(result.saturation), ...
+        string(logical(result.trip(end))));
+end
+
+function buildNussbaumSimulinkModel(cfg, b)
+    model = 'Chapter16_Lesson4_Simulink';
+    if bdIsLoaded(model)
+        close_system(model, 0);
+    end
+    if exist([model '.slx'], 'file')
+        delete([model '.slx']);
+    end
+
+    new_system(model);
+    open_system(model);
+
+    add_block('simulink/Continuous/Integrator', [model '/Plant state x'], ...
+        'InitialCondition', num2str(cfg.x0), ...
+        'Position', [650 120 680 150]);
+    add_block('simulink/Math Operations/Gain', [model '/Plant drift a'], ...
+        'Gain', num2str(cfg.a), ...
+        'Position', [440 80 500 110]);
+    add_block('simulink/Math Operations/Gain', [model '/Unknown gain b'], ...
+        'Gain', num2str(b), ...
+        'Position', [440 175 500 205]);
+    add_block('simulink/Math Operations/Sum', [model '/Plant sum'], ...
+        'Inputs', '++', ...
+        'Position', [560 115 590 165]);
+
+    add_block('simulink/Continuous/Integrator', [model '/Kappa integrator'], ...
+        'InitialCondition', num2str(cfg.kappa0), ...
+        'Position', [265 285 295 315]);
+    add_block('simulink/User-Defined Functions/Fcn', [model '/Nussbaum map'], ...
+        'Expr', 'u(1)^2*cos(u(1))', ...
+        'Position', [335 270 445 310]);
+    add_block('simulink/Math Operations/Product', [model '/Control product'], ...
+        'Inputs', '**', ...
+        'Position', [335 145 380 190]);
+    add_block('simulink/Discontinuities/Saturation', [model '/Actuator saturation'], ...
+        'UpperLimit', num2str(cfg.uMax), ...
+        'LowerLimit', num2str(-cfg.uMax), ...
+        'Position', [395 145 425 190]);
+
+    add_block('simulink/Discontinuities/Dead Zone', [model '/Adaptation dead zone'], ...
+        'LowerValue', num2str(-cfg.deadZone), ...
+        'UpperValue', num2str(cfg.deadZone), ...
+        'Position', [70 260 140 305]);
+    add_block('simulink/Math Operations/Product', [model '/Squared excess error'], ...
+        'Inputs', '**', ...
+        'Position', [165 260 205 305]);
+    add_block('simulink/Math Operations/Gain', [model '/Adaptation gain gamma'], ...
+        'Gain', num2str(cfg.gamma), ...
+        'Position', [215 265 255 300]);
+
+    add_block('simulink/Signal Routing/Mux', [model '/Monitor mux'], ...
+        'Inputs', '3', ...
+        'Position', [735 100 740 220]);
+    add_block('simulink/Sinks/Scope', [model '/Scope'], ...
+        'Position', [790 125 850 185]);
+
+    add_line(model, 'Plant state x/1', 'Plant drift a/1');
+    add_line(model, 'Plant drift a/1', 'Plant sum/1');
+    add_line(model, 'Unknown gain b/1', 'Plant sum/2');
+    add_line(model, 'Plant sum/1', 'Plant state x/1');
+
+    add_line(model, 'Plant state x/1', 'Control product/1', 'autorouting', 'on');
+    add_line(model, 'Kappa integrator/1', 'Nussbaum map/1');
+    add_line(model, 'Nussbaum map/1', 'Control product/2');
+    add_line(model, 'Control product/1', 'Actuator saturation/1');
+    add_line(model, 'Actuator saturation/1', 'Unknown gain b/1');
+
+    add_line(model, 'Plant state x/1', 'Adaptation dead zone/1', 'autorouting', 'on');
+    add_line(model, 'Adaptation dead zone/1', 'Squared excess error/1');
+    add_line(model, 'Adaptation dead zone/1', 'Squared excess error/2');
+    add_line(model, 'Squared excess error/1', 'Adaptation gain gamma/1');
+    add_line(model, 'Adaptation gain gamma/1', 'Kappa integrator/1');
+
+    add_line(model, 'Plant state x/1', 'Monitor mux/1', 'autorouting', 'on');
+    add_line(model, 'Kappa integrator/1', 'Monitor mux/2', 'autorouting', 'on');
+    add_line(model, 'Actuator saturation/1', 'Monitor mux/3', 'autorouting', 'on');
+    add_line(model, 'Monitor mux/1', 'Scope/1');
+
+    set_param(model, 'Solver', 'ode4', ...
+        'SolverType', 'Fixed-step', ...
+        'FixedStep', num2str(cfg.dt), ...
+        'StopTime', num2str(cfg.duration));
+
+    save_system(model);
+    fprintf('Created %s.slx\n', model);
+end
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 17 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>17. Wolfram Mathematica Implementation</h2>
+    <div class="down-content">
+      <p>
+        The notebook uses built-in associations, random distributions, CSV
+        export, datasets, and line plots. It performs the same two-sign
+        experiment as the other implementations.
+      </p>
+      <h3>Chapter16_Lesson4.nb</h3>
+      <pre><code class="language-mathematica">
+Notebook[{
+  Cell["Chapter 16, Lesson 4: Practical Nussbaum-Gain Implementation", "Title"],
+  Cell["This notebook simulates a scalar plant with an unknown high-frequency gain sign. Measurement noise, actuator saturation, an adaptation dead zone, and a supervisory trip are included. These engineering safeguards modify the ideal continuous-time theorem and require separate analysis before hardware deployment.", "Text"],
+  Cell["ClearAll[\"Global`*\"];
+config = <|\"dt\" -> 0.001, \"duration\" -> 20.0, \"a\" -> 0.25, \"gamma\" -> 0.20, \"kappa0\" -> 0.50,
+  \"x0\" -> 1.50, \"noiseStd\" -> 0.01, \"deadZone\" -> 0.03, \"uMax\" -> 8.0, \"kappaTrip\" -> 40.0, \"seed\" -> 7|>;
+nussbaum[k_?NumericQ] := k^2 Cos[k]; saturate[value_?NumericQ, limit_?NumericQ] := Clip[value, {-limit, limit}];
+finiteRealQ[value_] := NumberQ[value] && Im[N[value]] == 0 && Abs[N[value]] < Infinity;
+simulate[b_?NumericQ, cfg_Association] := Module[
+  {dt, duration, steps, t, x, y, kappa, gain, uCommand, uApplied, saturation, trip, tripped = False,
+   error, excessError, kappaDot, disturbance, xDot, i},
+  If[Abs[b] < 10^-12, Message[simulate::bzero]; Return[$Failed]];
+  dt = cfg[\"dt\"]; duration = cfg[\"duration\"]; steps = Round[duration/dt] + 1;
+  t = N@Subdivide[0.0, duration, steps - 1];
+  x = ConstantArray[0.0, steps]; y = ConstantArray[0.0, steps]; kappa = ConstantArray[0.0, steps];
+  gain = ConstantArray[0.0, steps]; uCommand = ConstantArray[0.0, steps]; uApplied = ConstantArray[0.0, steps];
+  saturation = ConstantArray[0, steps]; trip = ConstantArray[0, steps];
+  x[[1]] = cfg[\"x0\"]; kappa[[1]] = cfg[\"kappa0\"]; SeedRandom[cfg[\"seed\"]];
+  Do[
+   y[[i]] = x[[i]] + cfg[\"noiseStd\"] RandomVariate[NormalDistribution[]];
+   error = y[[i]]; gain[[i]] = nussbaum[kappa[[i]]]; uCommand[[i]] = gain[[i]] error;
+   uApplied[[i]] = saturate[uCommand[[i]], cfg[\"uMax\"]];
+   saturation[[i]] = Boole[Abs[uApplied[[i]] - uCommand[[i]]] > 10^-12];
+   excessError = Max[Abs[error] - cfg[\"deadZone\"], 0.0]; kappaDot = cfg[\"gamma\"] excessError^2;
+   If[kappa[[i]] >= cfg[\"kappaTrip\"] || Not[finiteRealQ[gain[[i]]]], tripped = True];
+   If[tripped, uApplied[[i]] = 0.0; kappaDot = 0.0; trip[[i]] = 1];
+   disturbance = 0.02 Sin[1.4 t[[i]]]; xDot = cfg[\"a\"] x[[i]] + b uApplied[[i]] + disturbance;
+   (* Explicit Euler is intentionally retained to expose sample-time sensitivity. *)
+   x[[i + 1]] = x[[i]] + dt xDot; kappa[[i + 1]] = kappa[[i]] + dt kappaDot;
+   If[Not[finiteRealQ[x[[i + 1]]]] || Abs[x[[i + 1]]] > 10^6,
+    Print[\"Simulation diverged or overflowed.\"]; Return[$Failed]], {i, 1, steps - 1}];
+  y[[-1]] = x[[-1]] + cfg[\"noiseStd\"] RandomVariate[NormalDistribution[]];
+  gain[[-1]] = nussbaum[kappa[[-1]]]; uCommand[[-1]] = gain[[-1]] y[[-1]];
+  uApplied[[-1]] = saturate[uCommand[[-1]], cfg[\"uMax\"]];
+  saturation[[-1]] = Boole[Abs[uApplied[[-1]] - uCommand[[-1]]] > 10^-12]; trip[[-1]] = Boole[tripped];
+  <|\"t\" -> t, \"x\" -> x, \"y\" -> y, \"kappa\" -> kappa, \"gain\" -> gain, \"uCommand\" -> uCommand,
+    \"uApplied\" -> uApplied, \"saturation\" -> saturation, \"trip\" -> trip|>];
+simulate::bzero = \"The control coefficient b must be nonzero.\"; metrics[label_String, result_Association] := <|\"case\" -> label, \"finalX\" -> Last[result[\"x\"]],
+  \"maxAbsX\" -> Max[Abs[result[\"x\"]]], \"finalKappa\" -> Last[result[\"kappa\"]],
+  \"maxAbsU\" -> Max[Abs[result[\"uApplied\"]]], \"saturationFraction\" -> Mean[result[\"saturation\"]],
+  \"tripped\" -> TrueQ[Last[result[\"trip\"]] == 1]|>;
+exportCsv[label_String, result_Association] := Module[{header, rows},
+  header = {\"t\", \"x\", \"y\", \"kappa\", \"gain\", \"u_cmd\", \"u\", \"saturation\", \"trip\"};
+  rows = Transpose[Lookup[result, {\"t\", \"x\", \"y\", \"kappa\", \"gain\", \"uCommand\", \"uApplied\", \"saturation\", \"trip\"}]];
+  Export[\"Chapter16_Lesson4_\" <> label <> \".csv\", Prepend[rows, header], \"CSV\"]];
+results = <|\"b_positive\" -> simulate[1.5, config], \"b_negative\" -> simulate[-1.5, config]|>;
+Dataset[MapThread[metrics, {Keys[results], Values[results]}]]
+KeyValueMap[exportCsv, results];
+statePlots = KeyValueMap[ListLinePlot[{Transpose[{#2[\"t\"], #2[\"x\"]}], Transpose[{#2[\"t\"], #2[\"y\"]}]},
+  PlotLegends -> {\"state x\", \"measured y\"}, AxesLabel -> {\"time [s]\", \"state\"},
+  PlotLabel -> \"State response: \" <> #1, GridLines -> Automatic, ImageSize -> Large] &, results];
+searchPlots = KeyValueMap[ListLinePlot[{Transpose[{#2[\"t\"], #2[\"kappa\"]}], Transpose[{#2[\"t\"], #2[\"gain\"]}]},
+  PlotLegends -> {\"kappa\", \"N(kappa)\"}, AxesLabel -> {\"time [s]\", \"adaptive variables\"},
+  PlotLabel -> \"Nussbaum search: \" <> #1, GridLines -> Automatic, ImageSize -> Large] &, results];
+actuatorPlots = KeyValueMap[ListLinePlot[
+  {Transpose[{#2[\"t\"], #2[\"uCommand\"]}], Transpose[{#2[\"t\"], #2[\"uApplied\"]}]},
+  PlotLegends -> {\"commanded input\", \"applied input\"}, AxesLabel -> {\"time [s]\", \"control input\"},
+  PlotLabel -> \"Actuator effect: \" <> #1, GridLines -> Automatic, ImageSize -> Large] &, results];
+Column[Join[statePlots, searchPlots, actuatorPlots]]", "Input"]
+}, WindowTitle -> "Chapter16_Lesson4", StyleDefinitions -> "Default.nb"]        
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 18 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>18. Problems and Solutions</h2>
+    <div class="down-content">
+      <p>
+        <strong>Problem 1 (Noise-Induced Search Drift):</strong> Let the true
+        tracking error be zero and let the measured error be
+        <strong>\(y=n\)</strong>, where <strong>\(n\)</strong> is zero-mean
+        white measurement noise with variance <strong>\(\sigma_n^2\)</strong>.
+        For <strong>\(\dot\kappa=\gamma y^2\)</strong>, find
+        <strong>\(\mathbb{E}[\kappa(t)]\)</strong> when
+        <strong>\(\kappa(0)=\kappa_0\)</strong>.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ \mathbb{E}[\dot\kappa]=\gamma\mathbb{E}[n^2] =\gamma\sigma_n^2. \]
+      </h4>
+      <p>Integrating the constant expected drift gives</p>
+      <h4 class="mathJax">
+        \[ \mathbb{E}[\kappa(t)]=\kappa_0+\gamma\sigma_n^2 t. \]
+      </h4>
+      <p>
+        Thus the expected search variable grows linearly even though the true
+        error is zero. This explains why a noise floor can eventually move the
+        controller away from a favorable Nussbaum interval.
+      </p>
+
+      <p>
+        <strong>Problem 2 (Saturation Defect Bound):</strong> For
+        <strong>\(\dot x=b(u_{\mathrm{cmd}}+\Delta u)\)</strong>, with
+        <strong>\(u_{\mathrm{cmd}}=N(\kappa)x\)</strong> and
+        <strong>\(\dot\kappa=x^2\)</strong>, derive a bound on the additional
+        Lyapunov term caused by <strong>\(\Delta u\)</strong>.
+      </p>
+      <p><strong>Solution:</strong> For <strong>\(V=\tfrac12x^2\)</strong>,</p>
+      <h4 class="mathJax">\[ \dot V=bN(\kappa)\dot\kappa+b x\Delta u. \]</h4>
+      <p>By Young's inequality, for any <strong>\(\rho&gt;0\)</strong>,</p>
+      <h4 class="mathJax">
+        \[ b x\Delta u\le |b x\Delta u| \le
+        \frac{\rho}{2}x^2+\frac{b^2}{2\rho}(\Delta u)^2. \]
+      </h4>
+      <p>
+        Persistent saturation produces a nonvanishing disturbance term. The
+        ideal contradiction proof does not establish asymptotic regulation
+        unless further conditions make this defect integrable or otherwise
+        dominated.
+      </p>
+
+      <p>
+        <strong>Problem 3 (Euler Sample-Time Restriction):</strong> During one
+        sample, suppose <strong>\(\lambda=a+bN(\kappa)\)</strong> is constant
+        and negative. Determine the explicit-Euler stability interval.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">\[ x_{k+1}=(1+h\lambda)x_k. \]</h4>
+      <p>Discrete stability requires</p>
+      <h4 class="mathJax">\[ |1+h\lambda|&lt;1. \]</h4>
+      <p>
+        For real negative <strong>\(\lambda\)</strong>, this is equivalent to
+      </p>
+      <h4 class="mathJax">
+        \[ -2&lt;h\lambda&lt;0 \qquad\Longleftrightarrow\qquad
+        0&lt;h&lt;\frac{2}{|\lambda|}. \]
+      </h4>
+      <p>
+        As the Nussbaum magnitude grows, the admissible sample period shrinks. A
+        fixed sample period that is adequate near the origin may fail later in
+        the search.
+      </p>
+
+      <p>
+        <strong>Problem 4 (Unknown Constant Sign vs Sign Switching):</strong>
+        Explain why the standard Nussbaum proof for constant
+        <strong>\(b\)</strong> does not directly cover a coefficient
+        <strong>\(b(t)\)</strong> that changes sign.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <p>
+        For constant <strong>\(b\)</strong>, the Lyapunov identity contains
+        <strong>\(b\int N(s)ds\)</strong>, so the fixed sign of
+        <strong>\(b\)</strong> selects which oscillatory subsequence yields the
+        contradiction. For time-varying <strong>\(b(t)\)</strong>, one obtains
+        <strong>\(\int b(t)N(\kappa(t))\dot\kappa(t)dt\)</strong>, which cannot
+        in general be converted to a fixed multiple of the primitive of
+        <strong>\(N\)</strong>. A sign crossing also creates an instant of zero
+        control authority. Additional assumptions and a stronger lemma are
+        required.
+      </p>
+
+      <p>
+        <strong>Problem 5 (Numerical Envelope):</strong> Suppose
+        <strong>\(N(\kappa)=\kappa^2\cos\kappa\)</strong>, the normalized error
+        is bounded by <strong>\(|e_s|\le e_{\max}\)</strong>, and the numerical
+        command should satisfy
+        <strong>\(|u_{\mathrm{cmd}}|\le u_{\mathrm{num}}\)</strong>. Derive a
+        conservative bound on <strong>\(|\kappa|\)</strong>.
+      </p>
+      <p>
+        <strong>Solution:</strong> Since <strong>\(|\cos\kappa|\le1\)</strong>,
+      </p>
+      <h4 class="mathJax">
+        \[ |u_{\mathrm{cmd}}|=|\kappa^2\cos\kappa\,e_s| \le \kappa^2e_{\max}. \]
+      </h4>
+      <p>It is sufficient to require</p>
+      <h4 class="mathJax">
+        \[ |\kappa|\le \sqrt{\frac{u_{\mathrm{num}}}{e_{\max}}}. \]
+      </h4>
+      <p>
+        This is a numerical or supervisory envelope, not a theorem-preserving
+        projection. Reaching the envelope should trigger a documented safe mode
+        rather than silent clipping.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 19 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>19. Summary</h2>
+    <div class="down-content">
+      <p>
+        Nussbaum-gain control resolves an unknown constant control direction
+        through an oscillatory integral argument, but practical implementation
+        changes the closed-loop equations. Saturation introduces an unmatched
+        input defect; measurement noise drives the monotone search variable;
+        sampling can turn a stable continuous-time interval into an unstable
+        discrete multiplier; delay and unmodeled dynamics create phase errors
+        amplified by the adaptive gain; and sign-changing control effectiveness
+        lies outside the standard theorem.
+      </p>
+      <p>
+        Reliable implementation therefore combines normalization,
+        moderate-growth functions, explicit actuator models, finite-value
+        checks, logging, staged worst-case validation, and an independent safety
+        path. Every dead zone, leakage term, freeze, reset, clamp, or fallback
+        must be treated as a change to the controller and to its formal
+        stability claim.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 20 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>20. References</h2>
+    <ol>
+      <li>
+        Nussbaum, R.D. (1983). Some remarks on a conjecture in parameter
+        adaptive control. <em>Systems &amp; Control Letters</em>, 3(5), 243–246.
+        doi:10.1016/0167-6911(83)90021-X.
+      </li>
+      <li>
+        Mudgett, D.R., &amp; Morse, A.S. (1985). Adaptive stabilization of
+        linear systems with unknown high-frequency gain.
+        <em>IEEE Transactions on Automatic Control</em>, 30(6), 549–554.
+      </li>
+      <li>
+        Rohrs, C.E., Valavani, L., Athans, M., &amp; Stein, G. (1985).
+        Robustness of continuous-time adaptive control algorithms in the
+        presence of unmodeled dynamics.
+        <em>IEEE Transactions on Automatic Control</em>, 30(9), 881–889.
+      </li>
+      <li>
+        Mårtensson, B. (1990). Remarks on adaptive stabilization of first-order
+        nonlinear systems. <em>Systems &amp; Control Letters</em>, 14(1), 1–7.
+      </li>
+      <li>
+        Ryan, E.P. (1991). A universal adaptive stabilizer for a class of
+        nonlinear systems. <em>Systems &amp; Control Letters</em>, 16(4),
+        209–218.
+      </li>
+      <li>
+        Kaloust, J., &amp; Qu, Z. (1995). Continuous robust control design for
+        nonlinear uncertain systems without a priori knowledge of control
+        direction. <em>IEEE Transactions on Automatic Control</em>, 40(2),
+        276–282.
+      </li>
+      <li>
+        Ye, X., &amp; Jiang, J. (1998). Adaptive nonlinear design without a
+        priori knowledge of control directions.
+        <em>IEEE Transactions on Automatic Control</em>, 43(11), 1617–1621.
+        doi:10.1109/9.728882.
+      </li>
+      <li>
+        Ding, Z. (1998). Global adaptive output-feedback stabilization of
+        nonlinear systems of any relative degree with unknown high-frequency
+        gains. <em>IEEE Transactions on Automatic Control</em>, 43(10),
+        1442–1446. doi:10.1109/9.720504.
+      </li>
+      <li>
+        Ye, X. (1999). Asymptotic regulation of time-varying uncertain nonlinear
+        systems with unknown control directions. <em>Automatica</em>, 35(5),
+        929–935.
+      </li>
+      <li>
+        Ge, S.S., &amp; Wang, J. (2003). Robust adaptive tracking for
+        time-varying uncertain nonlinear systems with unknown control
+        coefficients. <em>IEEE Transactions on Automatic Control</em>, 48(8),
+        1463–1469. doi:10.1109/TAC.2003.815049.
+      </li>
+      <li>
+        Chen, Z. (2019). Nussbaum functions in adaptive control with
+        time-varying unknown control coefficients. <em>Automatica</em>, 102,
+        72–79. doi:10.1016/j.automatica.2018.12.035.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter16/Lesson3.html">
+          Lesson 3: Stability Analysis with Nussbaum Gains
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter16/Lesson5.html">
+          Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#" role="search" onsubmit="return false;">
+              <label for="sidebar-search-input" class="sr-only">Search course lessons</label>
+              <input
+                type="text"
+                name="search"
+                id="sidebar-search-input"
+                placeholder="Search..."
+              / aria-label="Search course lessons">
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu" class="tex2jax_ignore">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: theta^Tphi(x,u) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression phi^T(t)theta
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="active-lesson" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank" rel="noopener noreferrer"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+              <a href="https://mohammadijoo.github.io/DevOps_Academy" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/DevOps_Academy.jpg"
+                    alt="DevOps Tutorials"
+                  />
+                  <p>DevOps Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank" rel="noopener noreferrer">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]],
+          processEscapes: true,
+          ignoreClass: "tex2jax_ignore"
+        },
+        messageStyle: "none",
+        showMathMenu: false
+      });
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/sidebar_search.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>

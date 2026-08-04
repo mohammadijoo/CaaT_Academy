@@ -1,0 +1,3476 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 26: Applications in Aerospace and Automotive Systems - Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation) | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank" rel="noopener noreferrer">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>Chapter 26: Applications in Aerospace and Automotive Systems</h1>
+    <h3>
+      <strong
+        >Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter
+        Adaptation)</strong
+      >
+    </h3>
+    <p>
+      This lesson develops an integrated adaptive longitudinal-control
+      architecture for road vehicles. A constant-time-headway cruise controller
+      generates a desired acceleration, while a direct adaptive inner loop
+      converts that demand into a generalized propulsion or braking command
+      despite uncertain vehicle mass, driveline effectiveness, aerodynamic drag,
+      rolling resistance, and road grade. A parallel recursive least-squares
+      estimator provides physically interpretable powertrain diagnostics. The
+      emphasis is on parameterization, Lyapunov stability, excitation,
+      projection, saturation handling, and implementation rather than
+      production-level perception or certification.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>1. Learning Objectives and Control Architecture</h2>
+    <div class="down-content">
+      <p>After completing this lesson, students should be able to:</p>
+      <ul>
+        <li>derive a linearly parameterized longitudinal vehicle model;</li>
+        <li>
+          design a constant-time-headway adaptive cruise-control outer loop;
+        </li>
+        <li>prove stability of a direct adaptive torque-domain inner loop;</li>
+        <li>
+          derive and implement normalized RLS for propulsion and road-load
+          parameters;
+        </li>
+        <li>distinguish tracking convergence from parameter convergence;</li>
+        <li>
+          apply projection, dead zones, leakage, excitation gating, and
+          saturation logic;
+        </li>
+        <li>
+          map the equations to Python, C++, Java, MATLAB/Simulink, and Wolfram
+          Mathematica.
+        </li>
+      </ul>
+
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  Lead["Lead vehicle: position and speed"] --> Outer["ACC outer loop: gap and speed control"]
+  Ego["Ego position and speed"] --> Outer
+  Outer --> Aref["Desired acceleration a_ref"]
+  Aref --> Inner["Direct adaptive torque controller"]
+  Ego --> Inner
+  Grade["Road grade estimate"] --> Inner
+  Inner --> Act["Propulsion and brake command"]
+  Act --> Plant["Powertrain plus longitudinal vehicle"]
+  Plant --> Ego
+  Plant --> RLS["Normalized RLS diagnostics"]
+  RLS --> Monitor["Mass, gain, and road-load monitoring"]
+        </pre>
+      </div>
+
+      <p>
+        The architecture is deliberately separated into an
+        <strong>outer motion objective</strong> and an
+        <strong>inner uncertain actuation model</strong>. The outer loop decides
+        how the ego vehicle should accelerate to maintain speed and spacing. The
+        inner loop adapts the command-to-acceleration map. This separation is
+        useful because payload, gear ratio, tire radius, driveline efficiency,
+        and road load affect the inner dynamics, while the traffic objective
+        remains expressed in meters, seconds, and meters per second.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. Longitudinal Vehicle and Powertrain Model</h2>
+    <div class="down-content">
+      <p>
+        Let <strong>\(x\)</strong> and <strong>\(v\)</strong> denote the ego
+        vehicle position and speed. A standard longitudinal force balance is
+      </p>
+      <h4 class="mathJax">
+        \[ m\dot v = F_x - m g\sin\alpha - m g C_r\cos\alpha - \frac{1}{2}\rho
+        C_D A v^2 - F_d, \qquad \dot x=v. \]
+      </h4>
+      <p>
+        Here <strong>\(m\)</strong> is vehicle mass,
+        <strong>\(\alpha\)</strong> is road grade, <strong>\(C_r\)</strong> is
+        rolling-resistance coefficient, <strong>\(\rho C_D A/2\)</strong> is the
+        aerodynamic coefficient, and <strong>\(F_d\)</strong> represents
+        unmodeled disturbances. When a generalized engine/brake torque command
+        <strong>\(T\)</strong> is mapped through gear ratio
+        <strong>\(i_g\)</strong>, effective driveline efficiency
+        <strong>\(\eta_g\)</strong>, and tire radius <strong>\(R_w\)</strong>,
+      </p>
+      <h4 class="mathJax">\[ F_x = \frac{\eta_g i_g}{R_w}T. \]</h4>
+      <p>
+        Dividing the force balance by mass and collecting uncertain coefficients
+        gives the control-oriented model
+      </p>
+      <h4 class="mathJax">
+        \[ \dot v = bT-a_0-a_1v-a_2v^2-g\sin\alpha+d(t), \]
+      </h4>
+      <h4 class="mathJax">
+        \[ b=\frac{\eta_g i_g}{mR_w}, \qquad a_0\approx gC_r, \qquad
+        a_2=\frac{\rho C_D A}{2m}. \]
+      </h4>
+      <p>
+        The coefficient <strong>\(a_1\)</strong> is included to absorb
+        speed-proportional losses and reduced-order powertrain effects. The
+        high-frequency gain has a known positive sign:
+        <strong>\(b&gt;0\)</strong>. Its magnitude can change when payload,
+        gear, clutch state, tire radius, or efficiency changes.
+      </p>
+
+      <h3>2.1 Lumped versus physical parameters</h3>
+      <p>
+        The direct adaptive controller will estimate
+        <em>lumped controller parameters</em>, not necessarily the individual
+        physical quantities. Physical mass is recoverable from an estimate of
+        <strong>\(b\)</strong> only when <strong>\(\eta_g\)</strong>,
+        <strong>\(i_g\)</strong>, and <strong>\(R_w\)</strong> are known with
+        adequate accuracy:
+      </p>
+      <h4 class="mathJax">
+        \[ \widehat m = \frac{\eta_g i_g}{R_w\widehat b}. \]
+      </h4>
+      <p>
+        This distinction prevents a common interpretation error: a parameter
+        vector can yield excellent tracking while not converging to unique
+        physical values.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. Constant-Time-Headway Adaptive Cruise-Control Outer Loop</h2>
+    <div class="down-content">
+      <p>
+        Let <strong>\(x_L,v_L\)</strong> denote the lead-vehicle position and
+        speed, and let <strong>\(L\)</strong> be the effective lead-vehicle
+        length. The measured bumper-to-bumper gap is
+      </p>
+      <h4 class="mathJax">\[ s=x_L-x-L. \]</h4>
+      <p>A constant-time-headway policy specifies</p>
+      <h4 class="mathJax">
+        \[ s_d=s_0+h v, \qquad e_s=s-s_d, \qquad \Delta v=v_L-v, \]
+      </h4>
+      <p>
+        where <strong>\(s_0&gt;0\)</strong> is the standstill gap and
+        <strong>\(h&gt;0\)</strong> is the time headway. In gap-control mode,
+        choose
+      </p>
+      <h4 class="mathJax">
+        \[ a_g=k_p e_s+k_d\Delta v, \qquad k_p&gt;0,\quad k_d&gt;0. \]
+      </h4>
+      <p>
+        A separate speed controller is
+        <strong>\(a_v=k_v^s(v_{set}-v)\)</strong>. A practical ACC command is
+      </p>
+      <h4 class="mathJax">
+        \[ a_{ref}= \operatorname{sat}_{[a_{min},a_{max}]}
+        \left(\min\{a_g,a_v\}\right). \]
+      </h4>
+      <p>
+        Thus speed control dominates on an open road, while gap control
+        dominates when the lead vehicle limits motion.
+      </p>
+
+      <h3>3.1 Gap-mode stability</h3>
+      <p>
+        Assume perfect inner-loop acceleration tracking and locally constant
+        lead speed, so <strong>\(\dot v=a_g\)</strong> and
+        <strong>\(\dot v_L=0\)</strong>. Then
+      </p>
+      <h4 class="mathJax">
+        \[ \dot e_s=\Delta v-h a_g, \qquad \dot{\Delta v}=-a_g. \]
+      </h4>
+      <p>With state <strong>\(z=[e_s\;\Delta v]^T\)</strong>,</p>
+      <h4 class="mathJax">
+        \[ \dot z= \begin{bmatrix} -hk_p & 1-hk_d\\ -k_p & -k_d \end{bmatrix}z.
+        \]
+      </h4>
+      <p>The characteristic polynomial is</p>
+      <h4 class="mathJax">
+        \[ p(\lambda)= \lambda^2+(hk_p+k_d)\lambda+k_p. \]
+      </h4>
+      <p>
+        Since all coefficients are positive for
+        <strong>\(h,k_p,k_d&gt;0\)</strong>, the second-order Routh criterion
+        proves local exponential stability of the gap-mode equilibrium.
+      </p>
+
+      <h3>3.2 String-stability condition</h3>
+      <p>
+        Under the same ideal acceleration assumption, the transfer function from
+        lead speed to ego speed is
+      </p>
+      <h4 class="mathJax">
+        \[ G(s)=\frac{V(s)}{V_L(s)}= \frac{k_d s+k_p} {s^2+(k_d+hk_p)s+k_p}. \]
+      </h4>
+      <p>
+        A sufficient frequency-domain condition for non-amplification is
+        <strong>\(|G(j\omega)|\leq 1\)</strong>. Direct calculation gives
+      </p>
+      <h4 class="mathJax">
+        \[ |D(j\omega)|^2-|N(j\omega)|^2 = \omega^2\left[
+        \omega^2+h^2k_p^2+2hk_pk_d-2k_p \right]. \]
+      </h4>
+      <p>Therefore a convenient sufficient condition is</p>
+      <h4 class="mathJax">\[ h^2k_p+2hk_d\geq 2. \]</h4>
+      <p>
+        This condition concerns propagation through a homogeneous idealized
+        string. Sensor delay, actuator lag, saturation, switching, heterogeneous
+        vehicles, and communication loss require a more complete analysis.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Direct Adaptive Torque-Domain Inner Loop</h2>
+    <div class="down-content">
+      <p>
+        Generate a differentiable command speed <strong>\(v_c\)</strong> by
+        integrating the saturated outer-loop acceleration:
+      </p>
+      <h4 class="mathJax">\[ \dot v_c=a_{ref}, \qquad e=v-v_c. \]</h4>
+      <p>Define the regressor</p>
+      <h4 class="mathJax">
+        \[ \phi= \begin{bmatrix} a_{ref}-k_e e\\ 1\\ v\\ v^2\\ g\sin\alpha
+        \end{bmatrix}, \qquad k_e&gt;0. \]
+      </h4>
+      <p>
+        If the plant parameters are constant and <strong>\(d(t)=0\)</strong>, an
+        ideal torque command is generated by
+      </p>
+      <h4 class="mathJax">
+        \[ T^*=\theta^{*T}\phi, \qquad \theta^*= \begin{bmatrix} 1/b& a_0/b&
+        a_1/b& a_2/b& 1/b \end{bmatrix}^T. \]
+      </h4>
+      <p>The implementable direct adaptive controller is</p>
+      <h4 class="mathJax">
+        \[ T=\widehat\theta^T\phi, \qquad \dot{\widehat\theta}=-\Gamma\phi e,
+        \qquad \Gamma=\Gamma^T&gt;0. \]
+      </h4>
+
+      <h3>4.1 Lyapunov proof</h3>
+      <p>
+        Let <strong>\(\widetilde\theta=\widehat\theta-\theta^*\)</strong>.
+        Substitution into the plant gives
+      </p>
+      <h4 class="mathJax">\[ \dot e=-k_e e+b\widetilde\theta^T\phi. \]</h4>
+      <p>Choose</p>
+      <h4 class="mathJax">
+        \[ V= \frac{1}{2}e^2+ \frac{b}{2} \widetilde\theta^T\Gamma^{-1}
+        \widetilde\theta. \]
+      </h4>
+      <p>
+        Because <strong>\(b&gt;0\)</strong>, this function is positive definite.
+        Its derivative is
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \dot V &= e\left(-k_e
+        e+b\widetilde\theta^T\phi\right) +b\widetilde\theta^T\Gamma^{-1}
+        \left(-\Gamma\phi e\right)\\ &=-k_e e^2\leq 0. \end{aligned} \]
+      </h4>
+      <p>
+        Consequently <strong>\(e\)</strong> and
+        <strong>\(\widetilde\theta\)</strong> are bounded and
+        <strong>\(e\in L_2\)</strong>. If the command, grade, speed, and their
+        required derivatives remain bounded, then <strong>\(\dot e\)</strong>
+        is bounded. Barbalat's lemma yields
+      </p>
+      <h4 class="mathJax">\[ \lim_{t\to\infty}e(t)=0. \]</h4>
+      <p>
+        The proof establishes tracking, not convergence of every parameter.
+        Parameter convergence requires sufficient excitation of
+        <strong>\(\phi\)</strong>. Steady cruising on a flat road is typically
+        not persistently exciting.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Interpretable Powertrain Estimation with Normalized RLS</h2>
+    <div class="down-content">
+      <p>
+        Direct controller parameters are optimized for tracking. For
+        diagnostics, scheduling, mass estimation, or supervisory monitoring, use
+        a parallel regression based on measured acceleration:
+      </p>
+      <h4 class="mathJax">\[ y= \dot v+g\sin\alpha = \varphi^T\vartheta, \]</h4>
+      <h4 class="mathJax">
+        \[ \varphi= \begin{bmatrix} T&-1&-v&-v^2 \end{bmatrix}^T, \qquad
+        \vartheta= \begin{bmatrix} b&a_0&a_1&a_2 \end{bmatrix}^T. \]
+      </h4>
+      <p>At sample <strong>\(k\)</strong>, exponentially weighted RLS is</p>
+      <h4 class="mathJax">
+        \[ K_k= \frac{P_{k-1}\varphi_k} {\lambda+\varphi_k^TP_{k-1}\varphi_k},
+        \]
+      </h4>
+      <h4 class="mathJax">
+        \[ \widehat\vartheta_k= \widehat\vartheta_{k-1}+
+        K_k\left(y_k-\varphi_k^T\widehat\vartheta_{k-1}\right), \]
+      </h4>
+      <h4 class="mathJax">
+        \[ P_k= \frac{1}{\lambda} \left( P_{k-1}- K_k\varphi_k^TP_{k-1} \right),
+        \qquad 0&lt;\lambda\leq 1. \]
+      </h4>
+      <p>
+        A smaller forgetting factor tracks changes faster but increases
+        sensitivity to noise. Since torque and speed-squared have very different
+        magnitudes, numerical scaling is essential. The supplied implementations
+        use
+      </p>
+      <h4 class="mathJax">
+        \[ \bar\varphi= \begin{bmatrix} T/1000&-1&-v/30&-(v/30)^2
+        \end{bmatrix}^T \]
+      </h4>
+      <p>
+        and estimate
+        <strong>\(\bar\vartheta=[1000b,\;a_0,\;30a_1,\;900a_2]^T\)</strong>.
+        This improves covariance conditioning.
+      </p>
+
+      <h3>5.1 Identifiability and excitation</h3>
+      <p>
+        When torque, speed, and grade vary little, columns of the data matrix
+        become nearly dependent. In that case, the estimate may fit acceleration
+        well without uniquely separating mass, drag, rolling resistance, and
+        grade. Useful excitation can arise naturally from
+        acceleration/deceleration, gear changes, moderate road-grade variation,
+        or deliberately designed small test signals. Any deliberate excitation
+        must remain subordinate to safety, comfort, and actuator constraints.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. Robust Adaptation, Saturation, and Gear Changes</h2>
+    <div class="down-content">
+      <p>
+        The ideal proof assumes constant parameters, exact grade, no unmodeled
+        actuator dynamics, and no saturation. Automotive implementations violate
+        all of these assumptions. A robust update law can combine projection, a
+        dead zone, saturation gating, and leakage:
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\widehat\theta}= \operatorname{Proj}_{\Omega} \left[
+        -\chi_{sat}\Gamma\phi e -\sigma\left(\widehat\theta-\theta_0\right)
+        \right], \]
+      </h4>
+      <p>where:</p>
+      <ul>
+        <li>
+          <strong>\(\Omega\)</strong> contains physically plausible controller
+          parameters;
+        </li>
+        <li>
+          <strong>\(\chi_{sat}\)</strong> is zero when actuator saturation
+          invalidates the nominal error model;
+        </li>
+        <li>
+          <strong>\(\sigma&gt;0\)</strong> prevents drift under disturbances and
+          weak excitation;
+        </li>
+        <li>
+          adaptation may be disabled when
+          <strong>\(|e|\leq\varepsilon\)</strong>.
+        </li>
+      </ul>
+
+      <h3>6.1 Piecewise-constant powertrain modes</h3>
+      <p>
+        The propulsion gain contains the gear ratio. A gear shift creates a
+        parameter jump rather than slow drift:
+      </p>
+      <h4 class="mathJax">\[ b_g=\frac{\eta_g i_g}{mR_w}. \]</h4>
+      <p>
+        Three practical strategies are: maintain one estimator per gear;
+        schedule nominal parameters by gear and adapt only residual uncertainty;
+        or use a forgetting factor/reset when a validated mode change occurs.
+        Per-gear parameter banks generally preserve interpretability better than
+        forcing one estimate to average incompatible modes.
+      </p>
+
+      <h3>6.2 Safety constraints</h3>
+      <p>
+        Adaptive tracking alone is not a collision-avoidance certificate.
+        Production architectures require independent minimum-distance logic,
+        sensor-validity checks, emergency braking, acceleration and jerk limits,
+        watchdogs, and fallback control. A simple educational safety margin is
+      </p>
+      <h4 class="mathJax">
+        \[ s_{safe}= s_0+h v+ \frac{\max(0,v^2-v_L^2)}{2a_{brake}}, \]
+      </h4>
+      <p>
+        followed by a supervisory override when
+        <strong>\(s\leq s_{safe}\)</strong>. This formula is only a simplified
+        kinematic layer; delay, tire-road friction, grade, uncertainty, and
+        actuator dynamics must be included for safety-critical design.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Discrete-Time Implementation Sequence</h2>
+    <div class="down-content">
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  S["Read radar, wheel speed, \ngrade, gear, torque"] --> V["Validate and filter signals"]
+  V --> E["Compute gap, desired gap, relative speed"]
+  E --> O["Compute gap-mode and speed-mode accelerations"]
+  O --> C["Apply acceleration, speed, and jerk limits"]
+  C --> P["Build adaptive regressor"]
+  P --> T["Compute raw torque command"]
+  T --> Q["Apply propulsion and braking saturation"]
+  Q --> U["Update vehicle or send actuator command"]
+  U --> A["Update projected \nadaptive parameters"]
+  U --> R["Update normalized RLS diagnostics"]
+  A --> M["Log residuals and safety metrics"]
+  R --> M
+  M --> S
+        </pre>
+      </div>
+
+      <p>
+        For sampling period <strong>\(T_s\)</strong>, the core recursions are
+      </p>
+      <h4 class="mathJax">
+        \[ v_{c,k+1}= \operatorname{sat}_{[0,v_{set}]} \left(v_{c,k}+T_s
+        a_{ref,k}\right), \]
+      </h4>
+      <h4 class="mathJax">
+        \[ e_k=v_k-v_{c,k}, \qquad T_k= \operatorname{sat}
+        \left(\widehat\theta_k^T\phi_k\right), \]
+      </h4>
+      <h4 class="mathJax">
+        \[ \widehat\theta_{k+1}= \operatorname{Proj}_{\Omega} \left(
+        \widehat\theta_k- T_s\Gamma\phi_k e_k \right). \]
+      </h4>
+      <p>
+        The Euler parameter update is appropriate for demonstration. Embedded
+        deployment should check numerical rate limits, fixed-point range, task
+        overruns, asynchronous sensor timestamps, derivative filtering, and
+        bumpless transfer between propulsion and braking.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Software Libraries and Engineering Mapping</h2>
+    <div class="down-content">
+      <table class="table table-bordered">
+        <thead>
+          <tr>
+            <th>Environment</th>
+            <th>Useful libraries or products</th>
+            <th>Role in this lesson</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Python</td>
+            <td>NumPy, SciPy, Matplotlib, python-control, CVXPY</td>
+            <td>
+              Simulation, linear algebra, plotting, transfer-function analysis,
+              optional constrained safety filters
+            </td>
+          </tr>
+          <tr>
+            <td>C++</td>
+            <td>Eigen, Boost.Odeint, OSQP or qpOASES</td>
+            <td>
+              Embedded-oriented matrix operations, numerical integration,
+              optional real-time quadratic programs
+            </td>
+          </tr>
+          <tr>
+            <td>Java</td>
+            <td>EJML, Apache Commons Math, XChart</td>
+            <td>
+              Matrix computations, estimation, desktop or server-side validation
+              tools
+            </td>
+          </tr>
+          <tr>
+            <td>MATLAB/Simulink</td>
+            <td>Control System Toolbox, Simulink, Simulink Control Design</td>
+            <td>
+              Linear analysis, block-diagram implementation,
+              code-generation-oriented prototyping
+            </td>
+          </tr>
+          <tr>
+            <td>Wolfram Mathematica</td>
+            <td>
+              NDSolve, StateSpaceModel, LyapunovSolve, SystemModeler interface
+            </td>
+            <td>
+              Symbolic derivation, numerical simulation, stability calculations,
+              parameter studies
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        The supplied C++ and Java files use only their standard libraries so
+        they compile without package installation. External matrix and
+        optimization libraries become valuable when the model, parameter vector,
+        safety layer, or vehicle platoon is enlarged.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Python Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter26_Lesson3.py</h3>
+      <pre><code class="language-python">&quot;&quot;&quot;
+Chapter26_Lesson3.py
+Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+
+Dependencies:
+    pip install numpy matplotlib
+
+The simulation combines:
+  1. A constant-time-headway ACC outer loop.
+  2. A direct adaptive torque-domain inner loop.
+  3. A normalized recursive least-squares estimator for diagnostic
+     estimates of propulsion gain and road-load coefficients.
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import csv
+import math
+from dataclasses import dataclass
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+def clamp(value: float, lower: float, upper: float) -&gt; float:
+    return max(lower, min(upper, value))
+
+
+@dataclass
+class SimulationConfig:
+    dt: float = 0.01
+    duration: float = 80.0
+    vehicle_length: float = 4.8
+    standstill_gap: float = 8.0
+    time_headway: float = 1.4
+    speed_setpoint: float = 30.0
+    kp_gap: float = 0.28
+    kd_relative_speed: float = 0.75
+    kp_speed: float = 0.60
+    kv_inner: float = 1.50
+    acceleration_min: float = -3.5
+    acceleration_max: float = 2.0
+    torque_min: float = -2500.0
+    torque_max: float = 2500.0
+    forgetting_factor: float = 0.997
+    gravity: float = 9.81
+
+
+def lead_acceleration(time_s: float) -&gt; float:
+    &quot;&quot;&quot;Piecewise lead-vehicle acceleration profile in m/s^2.&quot;&quot;&quot;
+    if 20.0 &lt;= time_s &lt; 24.0:
+        return -1.5
+    if 40.0 &lt;= time_s &lt; 46.0:
+        return 1.0
+    if 60.0 &lt;= time_s &lt; 64.0:
+        return -1.0
+    return 0.0
+
+
+def road_grade_angle(time_s: float) -&gt; float:
+    &quot;&quot;&quot;Smooth grade-angle profile in radians.&quot;&quot;&quot;
+    return 0.03 * math.sin(0.08 * time_s)
+
+
+def true_propulsion_gain(time_s: float) -&gt; float:
+    &quot;&quot;&quot;
+    Generalized acceleration-per-torque gain.
+
+    The step at 45 s emulates a payload, gear, efficiency, or driveline
+    change that reduces effective propulsion authority.
+    &quot;&quot;&quot;
+    return 9.0e-4 if time_s &lt; 45.0 else 7.2e-4
+
+
+def run_simulation(config: SimulationConfig) -&gt; dict[str, np.ndarray]:
+    dt = config.dt
+    sample_count = int(config.duration / dt) + 1
+
+    # Lead and ego states.
+    x_lead, v_lead = 45.0, 24.0
+    x_ego, v_ego = 0.0, 20.0
+    v_command = v_ego
+
+    # Direct adaptive controller parameters. The ideal vector is
+    # [1/b, a0/b, a1/b, a2/b, 1/b], but only tracking is guaranteed
+    # without persistent excitation.
+    theta_hat = np.array([900.0, 80.0, 4.0, 0.30, 900.0])
+    gamma = np.array([50.0, 5.0, 0.20, 0.002, 50.0])
+    theta_lower = np.array([300.0, 0.0, 0.0, 0.0, 300.0])
+    theta_upper = np.array([2500.0, 500.0, 50.0, 5.0, 2500.0])
+
+    # Normalized RLS estimate:
+    # beta = [1000*b, a0, 30*a1, 900*a2].
+    beta_hat = np.array([0.80, 0.10, 0.10, 0.10])
+    covariance = 100.0 * np.eye(4)
+
+    # True normalized road-load parameters.
+    a0_true = 0.08
+    a1_true = 0.005
+    a2_true = 0.0004
+
+    names = [
+        &quot;time&quot;,
+        &quot;gap&quot;,
+        &quot;desired_gap&quot;,
+        &quot;gap_error&quot;,
+        &quot;ego_speed&quot;,
+        &quot;lead_speed&quot;,
+        &quot;command_speed&quot;,
+        &quot;desired_acceleration&quot;,
+        &quot;velocity_tracking_error&quot;,
+        &quot;torque_command&quot;,
+        &quot;true_propulsion_gain&quot;,
+        &quot;estimated_propulsion_gain&quot;,
+        &quot;estimated_a0&quot;,
+        &quot;estimated_a1&quot;,
+        &quot;estimated_a2&quot;,
+        &quot;theta_0&quot;,
+        &quot;theta_1&quot;,
+        &quot;theta_2&quot;,
+        &quot;theta_3&quot;,
+        &quot;theta_4&quot;,
+    ]
+    log = {name: np.zeros(sample_count) for name in names}
+
+    for index in range(sample_count):
+        time_s = index * dt
+
+        # Lead vehicle.
+        v_lead = max(5.0, v_lead + dt * lead_acceleration(time_s))
+        x_lead += dt * v_lead
+
+        # Outer-loop ACC.
+        gap = x_lead - x_ego - config.vehicle_length
+        desired_gap = config.standstill_gap + config.time_headway * v_ego
+        gap_error = gap - desired_gap
+        relative_speed = v_lead - v_ego
+
+        acceleration_gap = (
+            config.kp_gap * gap_error
+            + config.kd_relative_speed * relative_speed
+        )
+        acceleration_speed = config.kp_speed * (
+            config.speed_setpoint - v_ego
+        )
+        desired_acceleration = clamp(
+            min(acceleration_gap, acceleration_speed),
+            config.acceleration_min,
+            config.acceleration_max,
+        )
+
+        old_v_command = v_command
+        v_command = clamp(
+            v_command + dt * desired_acceleration,
+            0.0,
+            config.speed_setpoint,
+        )
+        desired_acceleration = (v_command - old_v_command) / dt
+
+        # Direct adaptive powertrain controller.
+        grade = road_grade_angle(time_s)
+        tracking_error = v_ego - v_command
+        regressor = np.array(
+            [
+                desired_acceleration
+                - config.kv_inner * tracking_error,
+                1.0,
+                v_ego,
+                v_ego * v_ego,
+                config.gravity * math.sin(grade),
+            ]
+        )
+        torque_command = clamp(
+            float(theta_hat @ regressor),
+            config.torque_min,
+            config.torque_max,
+        )
+
+        # Plant dynamics.
+        b_true = true_propulsion_gain(time_s)
+        acceleration = (
+            b_true * torque_command
+            - a0_true
+            - a1_true * v_ego
+            - a2_true * v_ego * v_ego
+            - config.gravity * math.sin(grade)
+        )
+        v_ego = max(0.0, v_ego + dt * acceleration)
+        x_ego += dt * v_ego
+
+        # Lyapunov gradient update with box projection.
+        theta_hat = np.clip(
+            theta_hat - dt * gamma * regressor * tracking_error,
+            theta_lower,
+            theta_upper,
+        )
+
+        # Diagnostic RLS. Regressors are scaled to avoid poor conditioning.
+        measured_output = acceleration + config.gravity * math.sin(grade)
+        normalized_regressor = np.array(
+            [
+                torque_command / 1000.0,
+                -1.0,
+                -v_ego / 30.0,
+                -(v_ego / 30.0) ** 2,
+            ]
+        )
+        denominator = (
+            config.forgetting_factor
+            + normalized_regressor @ covariance @ normalized_regressor
+        )
+        gain = covariance @ normalized_regressor / denominator
+        prediction_error = (
+            measured_output - normalized_regressor @ beta_hat
+        )
+        beta_hat = beta_hat + gain * prediction_error
+        covariance = (
+            covariance
+            - np.outer(gain, normalized_regressor) @ covariance
+        ) / config.forgetting_factor
+
+        b_est = beta_hat[0] / 1000.0
+        a0_est = beta_hat[1]
+        a1_est = beta_hat[2] / 30.0
+        a2_est = beta_hat[3] / 900.0
+
+        values = [
+            time_s,
+            gap,
+            desired_gap,
+            gap_error,
+            v_ego,
+            v_lead,
+            v_command,
+            desired_acceleration,
+            tracking_error,
+            torque_command,
+            b_true,
+            b_est,
+            a0_est,
+            a1_est,
+            a2_est,
+            *theta_hat,
+        ]
+        for name, value in zip(names, values):
+            log[name][index] = value
+
+    return log
+
+
+def save_csv(log: dict[str, np.ndarray], path: str) -&gt; None:
+    names = list(log.keys())
+    with open(path, &quot;w&quot;, newline=&quot;&quot;, encoding=&quot;utf-8&quot;) as handle:
+        writer = csv.writer(handle)
+        writer.writerow(names)
+        for row in zip(*(log[name] for name in names)):
+            writer.writerow(row)
+
+
+def plot_results(log: dict[str, np.ndarray]) -&gt; None:
+    time_s = log[&quot;time&quot;]
+
+    plt.figure()
+    plt.plot(time_s, log[&quot;ego_speed&quot;], label=&quot;ego speed&quot;)
+    plt.plot(time_s, log[&quot;lead_speed&quot;], label=&quot;lead speed&quot;)
+    plt.plot(time_s, log[&quot;command_speed&quot;], &quot;--&quot;, label=&quot;command speed&quot;)
+    plt.xlabel(&quot;Time (s)&quot;)
+    plt.ylabel(&quot;Speed (m/s)&quot;)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.figure()
+    plt.plot(time_s, log[&quot;gap&quot;], label=&quot;actual gap&quot;)
+    plt.plot(time_s, log[&quot;desired_gap&quot;], &quot;--&quot;, label=&quot;desired gap&quot;)
+    plt.xlabel(&quot;Time (s)&quot;)
+    plt.ylabel(&quot;Gap (m)&quot;)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.figure()
+    plt.plot(
+        time_s,
+        1000.0 * log[&quot;true_propulsion_gain&quot;],
+        label=&quot;1000 b true&quot;,
+    )
+    plt.plot(
+        time_s,
+        1000.0 * log[&quot;estimated_propulsion_gain&quot;],
+        &quot;--&quot;,
+        label=&quot;1000 b RLS&quot;,
+    )
+    plt.xlabel(&quot;Time (s)&quot;)
+    plt.ylabel(&quot;Normalized propulsion gain&quot;)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+
+    plt.figure()
+    plt.plot(time_s, log[&quot;torque_command&quot;])
+    plt.xlabel(&quot;Time (s)&quot;)
+    plt.ylabel(&quot;Generalized torque/brake command&quot;)
+    plt.grid(True)
+    plt.tight_layout()
+
+    plt.show()
+
+
+def main() -&gt; None:
+    config = SimulationConfig()
+    log = run_simulation(config)
+    save_csv(log, &quot;Chapter26_Lesson3_results.csv&quot;)
+
+    minimum_gap = float(np.min(log[&quot;gap&quot;]))
+    maximum_speed_error = float(
+        np.max(np.abs(log[&quot;velocity_tracking_error&quot;]))
+    )
+    print(f&quot;Minimum simulated gap: {minimum_gap:.3f} m&quot;)
+    print(
+        &quot;Maximum inner-loop speed tracking error: &quot;
+        f&quot;{maximum_speed_error:.3f} m/s&quot;
+    )
+    print(
+        &quot;Final RLS propulsion-gain estimate: &quot;
+        f&quot;{log[&#x27;estimated_propulsion_gain&#x27;][-1]:.6e}&quot;
+    )
+    plot_results(log)
+
+
+if __name__ == &quot;__main__&quot;:
+    main()
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. C++ Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter26_Lesson3.cpp</h3>
+      <pre><code class="language-cpp">/*
+ * Chapter26_Lesson3.cpp
+ * Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+ *
+ * Build:
+ *   g++ -std=c++17 -O2 Chapter26_Lesson3.cpp -o Chapter26_Lesson3
+ *
+ * The program implements:
+ *   1. Constant-time-headway ACC.
+ *   2. Direct adaptive torque-domain control.
+ *   3. Normalized recursive least squares for powertrain diagnostics.
+ */
+
+#include &lt;algorithm&gt;
+#include &lt;array&gt;
+#include &lt;cmath&gt;
+#include &lt;fstream&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;stdexcept&gt;
+#include &lt;string&gt;
+
+namespace {
+
+constexpr double kPi = 3.14159265358979323846;
+
+double clamp(double value, double lower, double upper) {
+    return std::max(lower, std::min(upper, value));
+}
+
+double leadAcceleration(double timeSeconds) {
+    if (timeSeconds &gt;= 20.0 &amp;&amp; timeSeconds &lt; 24.0) {
+        return -1.5;
+    }
+    if (timeSeconds &gt;= 40.0 &amp;&amp; timeSeconds &lt; 46.0) {
+        return 1.0;
+    }
+    if (timeSeconds &gt;= 60.0 &amp;&amp; timeSeconds &lt; 64.0) {
+        return -1.0;
+    }
+    return 0.0;
+}
+
+double roadGradeAngle(double timeSeconds) {
+    return 0.03 * std::sin(0.08 * timeSeconds);
+}
+
+double truePropulsionGain(double timeSeconds) {
+    return timeSeconds &lt; 45.0 ? 9.0e-4 : 7.2e-4;
+}
+
+using Vector4 = std::array&lt;double, 4&gt;;
+using Vector5 = std::array&lt;double, 5&gt;;
+using Matrix4 = std::array&lt;std::array&lt;double, 4&gt;, 4&gt;;
+
+double dot4(const Vector4&amp; left, const Vector4&amp; right) {
+    double result = 0.0;
+    for (std::size_t i = 0; i &lt; left.size(); ++i) {
+        result += left[i] * right[i];
+    }
+    return result;
+}
+
+double dot5(const Vector5&amp; left, const Vector5&amp; right) {
+    double result = 0.0;
+    for (std::size_t i = 0; i &lt; left.size(); ++i) {
+        result += left[i] * right[i];
+    }
+    return result;
+}
+
+Vector4 multiply(const Matrix4&amp; matrix, const Vector4&amp; vector) {
+    Vector4 result{};
+    for (std::size_t row = 0; row &lt; 4; ++row) {
+        for (std::size_t column = 0; column &lt; 4; ++column) {
+            result[row] += matrix[row][column] * vector[column];
+        }
+    }
+    return result;
+}
+
+}  // namespace
+
+int main() {
+    try {
+        const double dt = 0.01;
+        const double duration = 80.0;
+        const int sampleCount =
+            static_cast&lt;int&gt;(std::round(duration / dt)) + 1;
+
+        const double vehicleLength = 4.8;
+        const double standstillGap = 8.0;
+        const double timeHeadway = 1.4;
+        const double speedSetpoint = 30.0;
+        const double kpGap = 0.28;
+        const double kdRelativeSpeed = 0.75;
+        const double kpSpeed = 0.60;
+        const double kvInner = 1.50;
+        const double accelerationMin = -3.5;
+        const double accelerationMax = 2.0;
+        const double torqueMin = -2500.0;
+        const double torqueMax = 2500.0;
+        const double forgettingFactor = 0.997;
+        const double gravity = 9.81;
+
+        double xLead = 45.0;
+        double vLead = 24.0;
+        double xEgo = 0.0;
+        double vEgo = 20.0;
+        double vCommand = vEgo;
+
+        Vector5 thetaHat{900.0, 80.0, 4.0, 0.30, 900.0};
+        const Vector5 gamma{50.0, 5.0, 0.20, 0.002, 50.0};
+        const Vector5 thetaLower{300.0, 0.0, 0.0, 0.0, 300.0};
+        const Vector5 thetaUpper{2500.0, 500.0, 50.0, 5.0, 2500.0};
+
+        Vector4 betaHat{0.80, 0.10, 0.10, 0.10};
+        Matrix4 covariance{};
+        for (std::size_t i = 0; i &lt; 4; ++i) {
+            covariance[i][i] = 100.0;
+        }
+
+        const double a0True = 0.08;
+        const double a1True = 0.005;
+        const double a2True = 0.0004;
+
+        std::ofstream output(&quot;Chapter26_Lesson3_results.csv&quot;);
+        if (!output) {
+            throw std::runtime_error(&quot;Cannot open output CSV file.&quot;);
+        }
+        output &lt;&lt; std::setprecision(12);
+        output
+            &lt;&lt; &quot;time,gap,desired_gap,gap_error,ego_speed,lead_speed,&quot;
+            &lt;&lt; &quot;command_speed,desired_acceleration,tracking_error,&quot;
+            &lt;&lt; &quot;torque_command,true_b,estimated_b,estimated_a0,&quot;
+            &lt;&lt; &quot;estimated_a1,estimated_a2,theta_0,theta_1,theta_2,&quot;
+            &lt;&lt; &quot;theta_3,theta_4\n&quot;;
+
+        double minimumGap = 1.0e9;
+        double maximumTrackingError = 0.0;
+        double finalEstimatedB = betaHat[0] / 1000.0;
+
+        for (int index = 0; index &lt; sampleCount; ++index) {
+            const double timeSeconds = index * dt;
+
+            vLead = std::max(
+                5.0,
+                vLead + dt * leadAcceleration(timeSeconds)
+            );
+            xLead += dt * vLead;
+
+            const double gap = xLead - xEgo - vehicleLength;
+            const double desiredGap =
+                standstillGap + timeHeadway * vEgo;
+            const double gapError = gap - desiredGap;
+            const double relativeSpeed = vLead - vEgo;
+
+            const double accelerationGap =
+                kpGap * gapError + kdRelativeSpeed * relativeSpeed;
+            const double accelerationSpeed =
+                kpSpeed * (speedSetpoint - vEgo);
+            double desiredAcceleration = clamp(
+                std::min(accelerationGap, accelerationSpeed),
+                accelerationMin,
+                accelerationMax
+            );
+
+            const double oldVCommand = vCommand;
+            vCommand = clamp(
+                vCommand + dt * desiredAcceleration,
+                0.0,
+                speedSetpoint
+            );
+            desiredAcceleration = (vCommand - oldVCommand) / dt;
+
+            const double grade = roadGradeAngle(timeSeconds);
+            const double trackingError = vEgo - vCommand;
+            Vector5 regressor{
+                desiredAcceleration - kvInner * trackingError,
+                1.0,
+                vEgo,
+                vEgo * vEgo,
+                gravity * std::sin(grade),
+            };
+
+            const double torqueCommand = clamp(
+                dot5(thetaHat, regressor),
+                torqueMin,
+                torqueMax
+            );
+
+            const double bTrue = truePropulsionGain(timeSeconds);
+            const double acceleration =
+                bTrue * torqueCommand
+                - a0True
+                - a1True * vEgo
+                - a2True * vEgo * vEgo
+                - gravity * std::sin(grade);
+
+            vEgo = std::max(0.0, vEgo + dt * acceleration);
+            xEgo += dt * vEgo;
+
+            for (std::size_t i = 0; i &lt; thetaHat.size(); ++i) {
+                thetaHat[i] = clamp(
+                    thetaHat[i]
+                        - dt * gamma[i] * regressor[i]
+                        * trackingError,
+                    thetaLower[i],
+                    thetaUpper[i]
+                );
+            }
+
+            const double measuredOutput =
+                acceleration + gravity * std::sin(grade);
+            const Vector4 normalizedRegressor{
+                torqueCommand / 1000.0,
+                -1.0,
+                -vEgo / 30.0,
+                -std::pow(vEgo / 30.0, 2.0),
+            };
+
+            const Vector4 pTimesRegressor =
+                multiply(covariance, normalizedRegressor);
+            const double denominator =
+                forgettingFactor
+                + dot4(normalizedRegressor, pTimesRegressor);
+
+            Vector4 rlsGain{};
+            for (std::size_t i = 0; i &lt; 4; ++i) {
+                rlsGain[i] = pTimesRegressor[i] / denominator;
+            }
+
+            const double predictionError =
+                measuredOutput
+                - dot4(normalizedRegressor, betaHat);
+            for (std::size_t i = 0; i &lt; 4; ++i) {
+                betaHat[i] += rlsGain[i] * predictionError;
+            }
+
+            Matrix4 updatedCovariance{};
+            for (std::size_t row = 0; row &lt; 4; ++row) {
+                for (std::size_t column = 0; column &lt; 4; ++column) {
+                    double correction = 0.0;
+                    for (std::size_t inner = 0; inner &lt; 4; ++inner) {
+                        correction +=
+                            normalizedRegressor[inner]
+                            * covariance[inner][column];
+                    }
+                    updatedCovariance[row][column] =
+                        (
+                            covariance[row][column]
+                            - rlsGain[row] * correction
+                        ) / forgettingFactor;
+                }
+            }
+            covariance = updatedCovariance;
+
+            const double estimatedB = betaHat[0] / 1000.0;
+            const double estimatedA0 = betaHat[1];
+            const double estimatedA1 = betaHat[2] / 30.0;
+            const double estimatedA2 = betaHat[3] / 900.0;
+
+            minimumGap = std::min(minimumGap, gap);
+            maximumTrackingError = std::max(
+                maximumTrackingError,
+                std::abs(trackingError)
+            );
+            finalEstimatedB = estimatedB;
+
+            output
+                &lt;&lt; timeSeconds &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; gap &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; desiredGap &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; gapError &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; vEgo &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; vLead &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; vCommand &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; desiredAcceleration &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; trackingError &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; torqueCommand &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; bTrue &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; estimatedB &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; estimatedA0 &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; estimatedA1 &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; estimatedA2 &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; thetaHat[0] &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; thetaHat[1] &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; thetaHat[2] &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; thetaHat[3] &lt;&lt; &#x27;,&#x27;
+                &lt;&lt; thetaHat[4] &lt;&lt; &#x27;\n&#x27;;
+        }
+
+        std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(6)
+                  &lt;&lt; &quot;Minimum simulated gap: &quot;
+                  &lt;&lt; minimumGap &lt;&lt; &quot; m\n&quot;
+                  &lt;&lt; &quot;Maximum inner-loop speed tracking error: &quot;
+                  &lt;&lt; maximumTrackingError &lt;&lt; &quot; m/s\n&quot;
+                  &lt;&lt; &quot;Final RLS propulsion-gain estimate: &quot;
+                  &lt;&lt; finalEstimatedB &lt;&lt; &#x27;\n&#x27;;
+
+        return 0;
+    } catch (const std::exception&amp; exception) {
+        std::cerr &lt;&lt; &quot;Error: &quot; &lt;&lt; exception.what() &lt;&lt; &#x27;\n&#x27;;
+        return 1;
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. Java Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter26_Lesson3.java</h3>
+      <pre><code class="language-java">/*
+ * Chapter26_Lesson3.java
+ * Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+ *
+ * Build and run:
+ *   javac Chapter26_Lesson3.java
+ *   java Chapter26_Lesson3
+ *
+ * The program writes Chapter26_Lesson3_results.csv.
+ */
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Locale;
+
+public final class Chapter26_Lesson3 {
+    private Chapter26_Lesson3() {
+    }
+
+    private static double clamp(
+            double value,
+            double lower,
+            double upper) {
+        return Math.max(lower, Math.min(upper, value));
+    }
+
+    private static double leadAcceleration(double timeSeconds) {
+        if (timeSeconds &gt;= 20.0 &amp;&amp; timeSeconds &lt; 24.0) {
+            return -1.5;
+        }
+        if (timeSeconds &gt;= 40.0 &amp;&amp; timeSeconds &lt; 46.0) {
+            return 1.0;
+        }
+        if (timeSeconds &gt;= 60.0 &amp;&amp; timeSeconds &lt; 64.0) {
+            return -1.0;
+        }
+        return 0.0;
+    }
+
+    private static double roadGradeAngle(double timeSeconds) {
+        return 0.03 * Math.sin(0.08 * timeSeconds);
+    }
+
+    private static double truePropulsionGain(double timeSeconds) {
+        return timeSeconds &lt; 45.0 ? 9.0e-4 : 7.2e-4;
+    }
+
+    private static double dot(double[] left, double[] right) {
+        if (left.length != right.length) {
+            throw new IllegalArgumentException(
+                &quot;Vector dimensions do not match.&quot;
+            );
+        }
+        double result = 0.0;
+        for (int i = 0; i &lt; left.length; i++) {
+            result += left[i] * right[i];
+        }
+        return result;
+    }
+
+    private static double[] multiply(
+            double[][] matrix,
+            double[] vector) {
+        double[] result = new double[matrix.length];
+        for (int row = 0; row &lt; matrix.length; row++) {
+            for (int column = 0; column &lt; vector.length; column++) {
+                result[row] += matrix[row][column] * vector[column];
+            }
+        }
+        return result;
+    }
+
+    public static void main(String[] args) {
+        Locale.setDefault(Locale.US);
+
+        final double dt = 0.01;
+        final double duration = 80.0;
+        final int sampleCount =
+            (int) Math.round(duration / dt) + 1;
+
+        final double vehicleLength = 4.8;
+        final double standstillGap = 8.0;
+        final double timeHeadway = 1.4;
+        final double speedSetpoint = 30.0;
+        final double kpGap = 0.28;
+        final double kdRelativeSpeed = 0.75;
+        final double kpSpeed = 0.60;
+        final double kvInner = 1.50;
+        final double accelerationMin = -3.5;
+        final double accelerationMax = 2.0;
+        final double torqueMin = -2500.0;
+        final double torqueMax = 2500.0;
+        final double forgettingFactor = 0.997;
+        final double gravity = 9.81;
+
+        double xLead = 45.0;
+        double vLead = 24.0;
+        double xEgo = 0.0;
+        double vEgo = 20.0;
+        double vCommand = vEgo;
+
+        double[] thetaHat =
+            {900.0, 80.0, 4.0, 0.30, 900.0};
+        double[] gamma =
+            {50.0, 5.0, 0.20, 0.002, 50.0};
+        double[] thetaLower =
+            {300.0, 0.0, 0.0, 0.0, 300.0};
+        double[] thetaUpper =
+            {2500.0, 500.0, 50.0, 5.0, 2500.0};
+
+        // beta = [1000*b, a0, 30*a1, 900*a2]
+        double[] betaHat = {0.80, 0.10, 0.10, 0.10};
+        double[][] covariance = new double[4][4];
+        for (int i = 0; i &lt; 4; i++) {
+            covariance[i][i] = 100.0;
+        }
+
+        final double a0True = 0.08;
+        final double a1True = 0.005;
+        final double a2True = 0.0004;
+
+        double minimumGap = Double.POSITIVE_INFINITY;
+        double maximumTrackingError = 0.0;
+        double finalEstimatedB = betaHat[0] / 1000.0;
+
+        Path outputPath =
+            Path.of(&quot;Chapter26_Lesson3_results.csv&quot;);
+
+        try (BufferedWriter output = Files.newBufferedWriter(
+                outputPath,
+                StandardCharsets.UTF_8)) {
+            output.write(
+                &quot;time,gap,desired_gap,gap_error,ego_speed,&quot;
+                + &quot;lead_speed,command_speed,desired_acceleration,&quot;
+                + &quot;tracking_error,torque_command,true_b,&quot;
+                + &quot;estimated_b,estimated_a0,estimated_a1,&quot;
+                + &quot;estimated_a2,theta_0,theta_1,theta_2,&quot;
+                + &quot;theta_3,theta_4&quot;
+            );
+            output.newLine();
+
+            for (int index = 0; index &lt; sampleCount; index++) {
+                double timeSeconds = index * dt;
+
+                vLead = Math.max(
+                    5.0,
+                    vLead
+                        + dt * leadAcceleration(timeSeconds)
+                );
+                xLead += dt * vLead;
+
+                double gap =
+                    xLead - xEgo - vehicleLength;
+                double desiredGap =
+                    standstillGap + timeHeadway * vEgo;
+                double gapError = gap - desiredGap;
+                double relativeSpeed = vLead - vEgo;
+
+                double accelerationGap =
+                    kpGap * gapError
+                    + kdRelativeSpeed * relativeSpeed;
+                double accelerationSpeed =
+                    kpSpeed * (speedSetpoint - vEgo);
+                double desiredAcceleration = clamp(
+                    Math.min(
+                        accelerationGap,
+                        accelerationSpeed
+                    ),
+                    accelerationMin,
+                    accelerationMax
+                );
+
+                double oldVCommand = vCommand;
+                vCommand = clamp(
+                    vCommand + dt * desiredAcceleration,
+                    0.0,
+                    speedSetpoint
+                );
+                desiredAcceleration =
+                    (vCommand - oldVCommand) / dt;
+
+                double grade =
+                    roadGradeAngle(timeSeconds);
+                double trackingError =
+                    vEgo - vCommand;
+                double[] regressor = {
+                    desiredAcceleration
+                        - kvInner * trackingError,
+                    1.0,
+                    vEgo,
+                    vEgo * vEgo,
+                    gravity * Math.sin(grade)
+                };
+
+                double torqueCommand = clamp(
+                    dot(thetaHat, regressor),
+                    torqueMin,
+                    torqueMax
+                );
+
+                double bTrue =
+                    truePropulsionGain(timeSeconds);
+                double acceleration =
+                    bTrue * torqueCommand
+                    - a0True
+                    - a1True * vEgo
+                    - a2True * vEgo * vEgo
+                    - gravity * Math.sin(grade);
+
+                vEgo = Math.max(
+                    0.0,
+                    vEgo + dt * acceleration
+                );
+                xEgo += dt * vEgo;
+
+                for (int i = 0;
+                     i &lt; thetaHat.length;
+                     i++) {
+                    thetaHat[i] = clamp(
+                        thetaHat[i]
+                            - dt * gamma[i]
+                            * regressor[i]
+                            * trackingError,
+                        thetaLower[i],
+                        thetaUpper[i]
+                    );
+                }
+
+                double measuredOutput =
+                    acceleration
+                    + gravity * Math.sin(grade);
+                double normalizedSpeed =
+                    vEgo / 30.0;
+                double[] normalizedRegressor = {
+                    torqueCommand / 1000.0,
+                    -1.0,
+                    -normalizedSpeed,
+                    -normalizedSpeed * normalizedSpeed
+                };
+
+                double[] pTimesRegressor =
+                    multiply(
+                        covariance,
+                        normalizedRegressor
+                    );
+                double denominator =
+                    forgettingFactor
+                    + dot(
+                        normalizedRegressor,
+                        pTimesRegressor
+                    );
+                double[] rlsGain = new double[4];
+                for (int i = 0; i &lt; 4; i++) {
+                    rlsGain[i] =
+                        pTimesRegressor[i] / denominator;
+                }
+
+                double predictionError =
+                    measuredOutput
+                    - dot(
+                        normalizedRegressor,
+                        betaHat
+                    );
+                for (int i = 0; i &lt; 4; i++) {
+                    betaHat[i] +=
+                        rlsGain[i] * predictionError;
+                }
+
+                double[][] updatedCovariance =
+                    new double[4][4];
+                for (int row = 0; row &lt; 4; row++) {
+                    for (int column = 0;
+                         column &lt; 4;
+                         column++) {
+                        double correction = 0.0;
+                        for (int inner = 0;
+                             inner &lt; 4;
+                             inner++) {
+                            correction +=
+                                normalizedRegressor[inner]
+                                * covariance[inner][column];
+                        }
+                        updatedCovariance[row][column] =
+                            (
+                                covariance[row][column]
+                                - rlsGain[row]
+                                * correction
+                            ) / forgettingFactor;
+                    }
+                }
+                covariance = updatedCovariance;
+
+                double estimatedB =
+                    betaHat[0] / 1000.0;
+                double estimatedA0 = betaHat[1];
+                double estimatedA1 =
+                    betaHat[2] / 30.0;
+                double estimatedA2 =
+                    betaHat[3] / 900.0;
+
+                minimumGap =
+                    Math.min(minimumGap, gap);
+                maximumTrackingError = Math.max(
+                    maximumTrackingError,
+                    Math.abs(trackingError)
+                );
+                finalEstimatedB = estimatedB;
+
+                output.write(String.format(
+                    Locale.US,
+                    &quot;%.12g,%.12g,%.12g,%.12g,%.12g,&quot;
+                    + &quot;%.12g,%.12g,%.12g,%.12g,%.12g,&quot;
+                    + &quot;%.12g,%.12g,%.12g,%.12g,%.12g,&quot;
+                    + &quot;%.12g,%.12g,%.12g,%.12g,%.12g&quot;,
+                    timeSeconds,
+                    gap,
+                    desiredGap,
+                    gapError,
+                    vEgo,
+                    vLead,
+                    vCommand,
+                    desiredAcceleration,
+                    trackingError,
+                    torqueCommand,
+                    bTrue,
+                    estimatedB,
+                    estimatedA0,
+                    estimatedA1,
+                    estimatedA2,
+                    thetaHat[0],
+                    thetaHat[1],
+                    thetaHat[2],
+                    thetaHat[3],
+                    thetaHat[4]
+                ));
+                output.newLine();
+            }
+        } catch (IOException exception) {
+            System.err.println(
+                &quot;Failed to write results: &quot;
+                + exception.getMessage()
+            );
+            System.exit(1);
+        }
+
+        System.out.printf(
+            &quot;Minimum simulated gap: %.6f m%n&quot;,
+            minimumGap
+        );
+        System.out.printf(
+            &quot;Maximum inner-loop speed tracking error: &quot;
+            + &quot;%.6f m/s%n&quot;,
+            maximumTrackingError
+        );
+        System.out.printf(
+            &quot;Final RLS propulsion-gain estimate: &quot;
+            + &quot;%.6e%n&quot;,
+            finalEstimatedB
+        );
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. MATLAB/Simulink Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter26_Lesson3.m</h3>
+      <pre><code class="language-matlab">% Chapter26_Lesson3.m
+% Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+%
+% Required for this script: MATLAB only.
+% Useful optional products for extension:
+%   Control System Toolbox, Simulink, Simulink Control Design,
+%   Model Predictive Control Toolbox.
+%
+% The script implements:
+%   1. Constant-time-headway ACC.
+%   2. Direct adaptive torque-domain control.
+%   3. Normalized RLS for powertrain diagnostics.
+%   4. Optional construction of a Simulink architecture shell.
+
+clear; clc; close all;
+
+dt = 0.01;
+duration = 80.0;
+time = (0:dt:duration)&#x27;;
+sampleCount = numel(time);
+
+vehicleLength = 4.8;
+standstillGap = 8.0;
+timeHeadway = 1.4;
+speedSetpoint = 30.0;
+kpGap = 0.28;
+kdRelativeSpeed = 0.75;
+kpSpeed = 0.60;
+kvInner = 1.50;
+accelerationMin = -3.5;
+accelerationMax = 2.0;
+torqueMin = -2500.0;
+torqueMax = 2500.0;
+forgettingFactor = 0.997;
+gravity = 9.81;
+
+xLead = 45.0;
+vLead = 24.0;
+xEgo = 0.0;
+vEgo = 20.0;
+vCommand = vEgo;
+
+thetaHat = [900.0; 80.0; 4.0; 0.30; 900.0];
+gamma = [50.0; 5.0; 0.20; 0.002; 50.0];
+thetaLower = [300.0; 0.0; 0.0; 0.0; 300.0];
+thetaUpper = [2500.0; 500.0; 50.0; 5.0; 2500.0];
+
+% betaHat = [1000*b; a0; 30*a1; 900*a2].
+betaHat = [0.80; 0.10; 0.10; 0.10];
+covariance = 100.0 * eye(4);
+
+a0True = 0.08;
+a1True = 0.005;
+a2True = 0.0004;
+
+gapLog = zeros(sampleCount, 1);
+desiredGapLog = zeros(sampleCount, 1);
+gapErrorLog = zeros(sampleCount, 1);
+egoSpeedLog = zeros(sampleCount, 1);
+leadSpeedLog = zeros(sampleCount, 1);
+commandSpeedLog = zeros(sampleCount, 1);
+desiredAccelerationLog = zeros(sampleCount, 1);
+trackingErrorLog = zeros(sampleCount, 1);
+torqueCommandLog = zeros(sampleCount, 1);
+trueBLog = zeros(sampleCount, 1);
+estimatedBLog = zeros(sampleCount, 1);
+estimatedA0Log = zeros(sampleCount, 1);
+estimatedA1Log = zeros(sampleCount, 1);
+estimatedA2Log = zeros(sampleCount, 1);
+thetaLog = zeros(sampleCount, 5);
+
+for k = 1:sampleCount
+    t = time(k);
+
+    leadAcceleration = 0.0;
+    if t &gt;= 20.0 &amp;&amp; t &lt; 24.0
+        leadAcceleration = -1.5;
+    elseif t &gt;= 40.0 &amp;&amp; t &lt; 46.0
+        leadAcceleration = 1.0;
+    elseif t &gt;= 60.0 &amp;&amp; t &lt; 64.0
+        leadAcceleration = -1.0;
+    end
+
+    vLead = max(5.0, vLead + dt * leadAcceleration);
+    xLead = xLead + dt * vLead;
+
+    gap = xLead - xEgo - vehicleLength;
+    desiredGap = standstillGap + timeHeadway * vEgo;
+    gapError = gap - desiredGap;
+    relativeSpeed = vLead - vEgo;
+
+    accelerationGap = ...
+        kpGap * gapError + kdRelativeSpeed * relativeSpeed;
+    accelerationSpeed = kpSpeed * (speedSetpoint - vEgo);
+    desiredAcceleration = min(accelerationGap, accelerationSpeed);
+    desiredAcceleration = min( ...
+        accelerationMax, ...
+        max(accelerationMin, desiredAcceleration));
+
+    oldVCommand = vCommand;
+    vCommand = min( ...
+        speedSetpoint, ...
+        max(0.0, vCommand + dt * desiredAcceleration));
+    desiredAcceleration = (vCommand - oldVCommand) / dt;
+
+    grade = 0.03 * sin(0.08 * t);
+    trackingError = vEgo - vCommand;
+    regressor = [ ...
+        desiredAcceleration - kvInner * trackingError; ...
+        1.0; ...
+        vEgo; ...
+        vEgo^2; ...
+        gravity * sin(grade)];
+
+    torqueCommand = thetaHat&#x27; * regressor;
+    torqueCommand = min( ...
+        torqueMax, ...
+        max(torqueMin, torqueCommand));
+
+    if t &lt; 45.0
+        bTrue = 9.0e-4;
+    else
+        bTrue = 7.2e-4;
+    end
+
+    acceleration = ...
+        bTrue * torqueCommand ...
+        - a0True ...
+        - a1True * vEgo ...
+        - a2True * vEgo^2 ...
+        - gravity * sin(grade);
+
+    vEgo = max(0.0, vEgo + dt * acceleration);
+    xEgo = xEgo + dt * vEgo;
+
+    thetaHat = thetaHat ...
+        - dt * gamma .* regressor * trackingError;
+    thetaHat = min(thetaUpper, max(thetaLower, thetaHat));
+
+    measuredOutput = acceleration + gravity * sin(grade);
+    normalizedSpeed = vEgo / 30.0;
+    normalizedRegressor = [ ...
+        torqueCommand / 1000.0; ...
+        -1.0; ...
+        -normalizedSpeed; ...
+        -normalizedSpeed^2];
+
+    denominator = forgettingFactor ...
+        + normalizedRegressor&#x27; * covariance ...
+        * normalizedRegressor;
+    rlsGain = covariance * normalizedRegressor / denominator;
+    predictionError = measuredOutput ...
+        - normalizedRegressor&#x27; * betaHat;
+    betaHat = betaHat + rlsGain * predictionError;
+    covariance = ( ...
+        covariance ...
+        - rlsGain * normalizedRegressor&#x27; * covariance ...
+        ) / forgettingFactor;
+
+    estimatedB = betaHat(1) / 1000.0;
+    estimatedA0 = betaHat(2);
+    estimatedA1 = betaHat(3) / 30.0;
+    estimatedA2 = betaHat(4) / 900.0;
+
+    gapLog(k) = gap;
+    desiredGapLog(k) = desiredGap;
+    gapErrorLog(k) = gapError;
+    egoSpeedLog(k) = vEgo;
+    leadSpeedLog(k) = vLead;
+    commandSpeedLog(k) = vCommand;
+    desiredAccelerationLog(k) = desiredAcceleration;
+    trackingErrorLog(k) = trackingError;
+    torqueCommandLog(k) = torqueCommand;
+    trueBLog(k) = bTrue;
+    estimatedBLog(k) = estimatedB;
+    estimatedA0Log(k) = estimatedA0;
+    estimatedA1Log(k) = estimatedA1;
+    estimatedA2Log(k) = estimatedA2;
+    thetaLog(k, :) = thetaHat&#x27;;
+end
+
+results = table( ...
+    time, ...
+    gapLog, ...
+    desiredGapLog, ...
+    gapErrorLog, ...
+    egoSpeedLog, ...
+    leadSpeedLog, ...
+    commandSpeedLog, ...
+    desiredAccelerationLog, ...
+    trackingErrorLog, ...
+    torqueCommandLog, ...
+    trueBLog, ...
+    estimatedBLog, ...
+    estimatedA0Log, ...
+    estimatedA1Log, ...
+    estimatedA2Log, ...
+    thetaLog(:, 1), ...
+    thetaLog(:, 2), ...
+    thetaLog(:, 3), ...
+    thetaLog(:, 4), ...
+    thetaLog(:, 5), ...
+    &#x27;VariableNames&#x27;, { ...
+        &#x27;time&#x27;, ...
+        &#x27;gap&#x27;, ...
+        &#x27;desired_gap&#x27;, ...
+        &#x27;gap_error&#x27;, ...
+        &#x27;ego_speed&#x27;, ...
+        &#x27;lead_speed&#x27;, ...
+        &#x27;command_speed&#x27;, ...
+        &#x27;desired_acceleration&#x27;, ...
+        &#x27;tracking_error&#x27;, ...
+        &#x27;torque_command&#x27;, ...
+        &#x27;true_b&#x27;, ...
+        &#x27;estimated_b&#x27;, ...
+        &#x27;estimated_a0&#x27;, ...
+        &#x27;estimated_a1&#x27;, ...
+        &#x27;estimated_a2&#x27;, ...
+        &#x27;theta_0&#x27;, ...
+        &#x27;theta_1&#x27;, ...
+        &#x27;theta_2&#x27;, ...
+        &#x27;theta_3&#x27;, ...
+        &#x27;theta_4&#x27;});
+
+writetable(results, &#x27;Chapter26_Lesson3_results.csv&#x27;);
+
+fprintf(&#x27;Minimum simulated gap: %.3f m\n&#x27;, min(gapLog));
+fprintf( ...
+    &#x27;Maximum inner-loop speed tracking error: %.3f m/s\n&#x27;, ...
+    max(abs(trackingErrorLog)));
+fprintf( ...
+    &#x27;Final RLS propulsion-gain estimate: %.6e\n&#x27;, ...
+    estimatedBLog(end));
+
+figure;
+plot(time, egoSpeedLog, &#x27;LineWidth&#x27;, 1.2); hold on;
+plot(time, leadSpeedLog, &#x27;LineWidth&#x27;, 1.2);
+plot(time, commandSpeedLog, &#x27;--&#x27;, &#x27;LineWidth&#x27;, 1.2);
+grid on;
+xlabel(&#x27;Time (s)&#x27;);
+ylabel(&#x27;Speed (m/s)&#x27;);
+legend(&#x27;Ego&#x27;, &#x27;Lead&#x27;, &#x27;Command&#x27;, &#x27;Location&#x27;, &#x27;best&#x27;);
+title(&#x27;Adaptive Cruise-Control Speeds&#x27;);
+
+figure;
+plot(time, gapLog, &#x27;LineWidth&#x27;, 1.2); hold on;
+plot(time, desiredGapLog, &#x27;--&#x27;, &#x27;LineWidth&#x27;, 1.2);
+grid on;
+xlabel(&#x27;Time (s)&#x27;);
+ylabel(&#x27;Gap (m)&#x27;);
+legend(&#x27;Actual gap&#x27;, &#x27;Desired gap&#x27;, &#x27;Location&#x27;, &#x27;best&#x27;);
+title(&#x27;Constant-Time-Headway Spacing&#x27;);
+
+figure;
+plot(time, 1000.0 * trueBLog, &#x27;LineWidth&#x27;, 1.2); hold on;
+plot(time, 1000.0 * estimatedBLog, &#x27;--&#x27;, &#x27;LineWidth&#x27;, 1.2);
+grid on;
+xlabel(&#x27;Time (s)&#x27;);
+ylabel(&#x27;Normalized propulsion gain&#x27;);
+legend(&#x27;1000 b true&#x27;, &#x27;1000 b RLS&#x27;, &#x27;Location&#x27;, &#x27;best&#x27;);
+title(&#x27;Powertrain-Gain Adaptation&#x27;);
+
+figure;
+plot(time, torqueCommandLog, &#x27;LineWidth&#x27;, 1.2);
+grid on;
+xlabel(&#x27;Time (s)&#x27;);
+ylabel(&#x27;Generalized torque/brake command&#x27;);
+title(&#x27;Adaptive Inner-Loop Command&#x27;);
+
+buildSimulinkArchitecture = false;
+if buildSimulinkArchitecture
+    createAdaptiveCruiseSimulinkShell();
+end
+
+function createAdaptiveCruiseSimulinkShell()
+    % Create a reusable architecture shell. The numerical equations in
+    % this script map to the corresponding subsystems.
+    modelName = &#x27;Chapter26_Lesson3_Simulink&#x27;;
+    if bdIsLoaded(modelName)
+        close_system(modelName, 0);
+    end
+    new_system(modelName);
+    open_system(modelName);
+
+    add_block( ...
+        &#x27;simulink/Ports &amp; Subsystems/In1&#x27;, ...
+        [modelName &#x27;/Lead state&#x27;]);
+    add_block( ...
+        &#x27;simulink/Ports &amp; Subsystems/Subsystem&#x27;, ...
+        [modelName &#x27;/ACC outer loop&#x27;]);
+    add_block( ...
+        &#x27;simulink/Ports &amp; Subsystems/Subsystem&#x27;, ...
+        [modelName &#x27;/Adaptive torque controller&#x27;]);
+    add_block( ...
+        &#x27;simulink/Ports &amp; Subsystems/Subsystem&#x27;, ...
+        [modelName &#x27;/Powertrain and vehicle&#x27;]);
+    add_block( ...
+        &#x27;simulink/Ports &amp; Subsystems/Subsystem&#x27;, ...
+        [modelName &#x27;/Normalized RLS&#x27;]);
+    add_block( ...
+        &#x27;simulink/Ports &amp; Subsystems/Out1&#x27;, ...
+        [modelName &#x27;/Ego state&#x27;]);
+
+    set_param( ...
+        [modelName &#x27;/Lead state&#x27;], ...
+        &#x27;Position&#x27;, [30 70 60 90]);
+    set_param( ...
+        [modelName &#x27;/ACC outer loop&#x27;], ...
+        &#x27;Position&#x27;, [120 45 260 115]);
+    set_param( ...
+        [modelName &#x27;/Adaptive torque controller&#x27;], ...
+        &#x27;Position&#x27;, [320 45 490 115]);
+    set_param( ...
+        [modelName &#x27;/Powertrain and vehicle&#x27;], ...
+        &#x27;Position&#x27;, [550 45 710 115]);
+    set_param( ...
+        [modelName &#x27;/Normalized RLS&#x27;], ...
+        &#x27;Position&#x27;, [550 165 710 230]);
+    set_param( ...
+        [modelName &#x27;/Ego state&#x27;], ...
+        &#x27;Position&#x27;, [770 70 800 90]);
+
+    add_line( ...
+        modelName, ...
+        &#x27;Lead state/1&#x27;, ...
+        &#x27;ACC outer loop/1&#x27;, ...
+        &#x27;autorouting&#x27;, &#x27;on&#x27;);
+    add_line( ...
+        modelName, ...
+        &#x27;ACC outer loop/1&#x27;, ...
+        &#x27;Adaptive torque controller/1&#x27;, ...
+        &#x27;autorouting&#x27;, &#x27;on&#x27;);
+    add_line( ...
+        modelName, ...
+        &#x27;Adaptive torque controller/1&#x27;, ...
+        &#x27;Powertrain and vehicle/1&#x27;, ...
+        &#x27;autorouting&#x27;, &#x27;on&#x27;);
+    add_line( ...
+        modelName, ...
+        &#x27;Powertrain and vehicle/1&#x27;, ...
+        &#x27;Ego state/1&#x27;, ...
+        &#x27;autorouting&#x27;, &#x27;on&#x27;);
+    add_line( ...
+        modelName, ...
+        &#x27;Powertrain and vehicle/1&#x27;, ...
+        &#x27;Normalized RLS/1&#x27;, ...
+        &#x27;autorouting&#x27;, &#x27;on&#x27;);
+
+    save_system(modelName);
+    fprintf(&#x27;Created %s.slx architecture shell.\n&#x27;, modelName);
+end
+</code></pre>
+      <p>
+        The script performs the complete numerical experiment and can optionally
+        create a Simulink architecture shell. Populate the four subsystems with
+        the equations from Sections 3–7, use discrete integrators at the
+        controller sample time, and expose saturation and reset signals
+        explicitly.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. Wolfram Mathematica Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter26_Lesson3.nb</h3>
+      <pre><code class="language-mathematica">
+Notebook[{
+  Cell["Chapter 26, Lesson 3: Adaptive Cruise Control and Powertrain Control", "Title"],
+  Cell["Direct adaptive torque control, constant-time-headway ACC, and normalized RLS diagnostics.", "Text"],
+  Cell[
+    BoxData["ClearAll[\"Global`*\"];\n\ndt = 0.01;\nduration = 80.0;\ntime = Range[0.0, duration, dt];\nsampleCount = Length[time];\n
+vehicleLength = 4.8;\nstandstillGap = 8.0;\ntimeHeadway = 1.4;\nspeedSetpoint = 30.0;\nkpGap = 0.28;\nkdRelativeSpeed = 0.75;
+kpSpeed = 0.60;\nkvInner = 1.50;\naccelerationMin = -3.5;\naccelerationMax = 2.0;\ntorqueMin = -2500.0;\ntorqueMax = 2500.0;
+forgettingFactor = 0.997;\ngravity = 9.81;\n\nClampValue[value_, lower_, upper_] := Max[lower, Min[upper, value]];\n
+LeadAcceleration[t_] := Piecewise[\n  {\n    {-1.5, 20.0 <= t < 24.0},\n    {1.0, 40.0 <= t < 46.0},\n    {-1.0, 60.0 <= t < 64.0}\n  },
+  0.0\n];\n\nRoadGradeAngle[t_] := 0.03 Sin[0.08 t];\n\nTruePropulsionGain[t_] := If[t < 45.0, 9.0*10^-4, 7.2*10^-4];\n\nxLead = 45.0;
+vLead = 24.0;\nxEgo = 0.0;\nvEgo = 20.0;\nvCommand = vEgo;\n\nthetaHat = {900.0, 80.0, 4.0, 0.30, 900.0};
+gamma = {50.0, 5.0, 0.20, 0.002, 50.0};\nthetaLower = {300.0, 0.0, 0.0, 0.0, 300.0};\nthetaUpper = {2500.0, 500.0, 50.0, 5.0, 2500.0};\n
+(* betaHat = {1000 b, a0, 30 a1, 900 a2}. *)\nbetaHat = {0.80, 0.10, 0.10, 0.10};\ncovariance = 100.0 IdentityMatrix[4];\n\na0True = 0.08;
+a1True = 0.005;\na2True = 0.0004;\n\nlog = Reap[\n  Do[\n    t = time[[k]];\n\n    vLead = Max[\n      5.0,
+      vLead + dt LeadAcceleration[t]\n    ];\n    xLead = xLead + dt vLead;\n\n    gap = xLead - xEgo - vehicleLength;
+    desiredGap = standstillGap + timeHeadway vEgo;\n    gapError = gap - desiredGap;\n    relativeSpeed = vLead - vEgo;\n
+    accelerationGap =\n      kpGap gapError + kdRelativeSpeed relativeSpeed;\n    accelerationSpeed =\n      kpSpeed (speedSetpoint - vEgo);
+    desiredAcceleration = ClampValue[\n      Min[accelerationGap, accelerationSpeed],\n      accelerationMin,\n      accelerationMax\n    ];
+\n    oldVCommand = vCommand;\n    vCommand = ClampValue[\n      vCommand + dt desiredAcceleration,\n      0.0,\n      speedSetpoint\n    ];
+    desiredAcceleration = (vCommand - oldVCommand)/dt;\n\n    grade = RoadGradeAngle[t];\n    trackingError = vEgo - vCommand;
+    regressor = {\n      desiredAcceleration - kvInner trackingError,\n      1.0,\n      vEgo,\n      vEgo^2,\n      gravity Sin[grade]
+    };\n\n    torqueCommand = ClampValue[\n      thetaHat . regressor,\n      torqueMin,\n      torqueMax\n    ];\n
+    bTrue = TruePropulsionGain[t];\n    acceleration =\n      bTrue torqueCommand\n      - a0True\n      - a1True vEgo
+      - a2True vEgo^2\n      - gravity Sin[grade];\n\n    vEgo = Max[0.0, vEgo + dt acceleration];\n    xEgo = xEgo + dt vEgo;\n
+    thetaHat = MapThread[\n      ClampValue,\n      {\n        thetaHat\n          - dt gamma regressor trackingError,\n        thetaLower,
+        thetaUpper\n      }\n    ];\n\n    measuredOutput = acceleration + gravity Sin[grade];\n    normalizedSpeed = vEgo/30.0;
+    normalizedRegressor = {\n      torqueCommand/1000.0,\n      -1.0,\n      -normalizedSpeed,\n      -normalizedSpeed^2\n    };\n
+    denominator =\n      forgettingFactor\n      + normalizedRegressor . covariance .\n        normalizedRegressor;\n    rlsGain =
+      covariance . normalizedRegressor/denominator;\n    predictionError =\n      measuredOutput - normalizedRegressor . betaHat;
+    betaHat = betaHat + rlsGain predictionError;\n    covariance = (\n      covariance\n      - Outer[Times, rlsGain, normalizedRegressor] .
+        covariance\n    )/forgettingFactor;\n\n    estimatedB = betaHat[[1]]/1000.0;\n    estimatedA0 = betaHat[[2]];
+    estimatedA1 = betaHat[[3]]/30.0;\n    estimatedA2 = betaHat[[4]]/900.0;\n\n    Sow[\n      {\n        t,\n        gap,
+        desiredGap,\n        gapError,\n        vEgo,\n        vLead,\n        vCommand,\n        desiredAcceleration,
+        trackingError,\n        torqueCommand,\n        bTrue,\n        estimatedB,\n        estimatedA0,\n        estimatedA1,
+        estimatedA2,\n        Sequence @@ thetaHat\n      }\n    ],\n    {k, 1, sampleCount}\n  ]\n][[2, 1]];\n\nheadings = {\n  \"time\",
+  \"gap\",\n  \"desired_gap\",\n  \"gap_error\",\n  \"ego_speed\",\n  \"lead_speed\",\n  \"command_speed\",\n  \"desired_acceleration\",
+  \"tracking_error\",\n  \"torque_command\",\n  \"true_b\",\n  \"estimated_b\",\n  \"estimated_a0\",\n  \"estimated_a1\",
+  \"estimated_a2\",\n  \"theta_0\",\n  \"theta_1\",\n  \"theta_2\",\n  \"theta_3\",\n  \"theta_4\"\n};\n\nExport[
+  \"Chapter26_Lesson3_results.csv\",\n  Prepend[log, headings]\n];\n\nminimumGap = Min[log[[All, 2]]];
+maximumTrackingError = Max[Abs[log[[All, 9]]]];\nfinalEstimatedB = Last[log][[12]];\n\nPrint[\n  \"Minimum simulated gap: \",
+  NumberForm[minimumGap, {8, 3}],\n  \" m\"\n];\nPrint[\n  \"Maximum inner-loop speed tracking error: \",
+  NumberForm[maximumTrackingError, {8, 3}],\n  \" m/s\"\n];\nPrint[\n  \"Final RLS propulsion-gain estimate: \",
+  ScientificForm[finalEstimatedB, 6]\n];\n\nspeedPlot = ListLinePlot[\n  {\n    log[[All, {1, 5}]],\n    log[[All, {1, 6}]],
+    log[[All, {1, 7}]]\n  },\n  PlotLegends -> {\"Ego\", \"Lead\", \"Command\"},\n  Frame -> True,
+  FrameLabel -> {\"Time (s)\", \"Speed (m/s)\"},\n  PlotLabel -> \"Adaptive Cruise-Control Speeds\",\n  ImageSize -> Large\n];\n
+gapPlot = ListLinePlot[\n  {\n    log[[All, {1, 2}]],\n    log[[All, {1, 3}]]\n  },\n  PlotLegends -> {\"Actual gap\", \"Desired gap\"},
+  Frame -> True,\n  FrameLabel -> {\"Time (s)\", \"Gap (m)\"},\n  PlotLabel -> \"Constant-Time-Headway Spacing\",\n  ImageSize -> Large\n];
+\ngainPlot = ListLinePlot[\n  {\n    Transpose[\n      {\n        log[[All, 1]],\n        1000.0 log[[All, 11]]\n      }\n    ],
+    Transpose[\n      {\n        log[[All, 1]],\n        1000.0 log[[All, 12]]\n      }\n    ]\n  },
+  PlotLegends -> {\"1000 b true\", \"1000 b RLS\"},\n  Frame -> True,\n  FrameLabel -> {\n    \"Time (s)\",
+    \"Normalized propulsion gain\"\n  },\n  PlotLabel -> \"Powertrain-Gain Adaptation\",\n  ImageSize -> Large\n];\n
+Column[{speedPlot, gapPlot, gainPlot}]"],
+    "Input"
+  ]
+},
+WindowSize -> {1200, 900},
+StyleDefinitions -> "Default.nb"
+]        
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 14 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>14. Expected Simulation Behavior and Validation Metrics</h2>
+    <div class="down-content">
+      <p>
+        The example starts with a faster lead vehicle and a positive spacing
+        margin. The lead vehicle later brakes, accelerates, and brakes again. At
+        <strong>45 s</strong>, the true propulsion gain decreases to emulate a
+        payload, gear, or efficiency change. Validation should include:
+      </p>
+      <ul>
+        <li>minimum gap and minimum time-to-collision estimate;</li>
+        <li>peak and RMS spacing error;</li>
+        <li>peak acceleration and jerk;</li>
+        <li>inner-loop command-speed tracking error;</li>
+        <li>fraction of time in propulsion or braking saturation;</li>
+        <li>parameter-bound contact and covariance conditioning;</li>
+        <li>
+          RLS one-step prediction residual before and after the gain change.
+        </li>
+      </ul>
+      <p>
+        The direct adaptive parameters need not equal the physical values. Their
+        primary test is boundedness and tracking performance. The RLS estimates
+        should be assessed through prediction residuals and
+        confidence/conditioning, not by visual convergence alone.
+      </p>
+
+      <h3>14.1 Verification hierarchy</h3>
+      <ol>
+        <li>
+          software unit tests for signs, units, saturation, and projection;
+        </li>
+        <li>nominal simulation with constant parameters;</li>
+        <li>parameter-step and grade scenarios;</li>
+        <li>noise, delay, bias, dropout, and actuator-lag tests;</li>
+        <li>Monte Carlo uncertainty sweeps;</li>
+        <li>processor-in-the-loop and hardware-in-the-loop tests;</li>
+        <li>
+          closed-course experiments with independent emergency supervision.
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- Section 15 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>15. Problems and Solutions</h2>
+    <div class="down-content">
+      <p>
+        <strong>Problem 1 — Outer-loop eigenvalues.</strong>
+        For <strong>\(h=1.4\)</strong>, <strong>\(k_p=0.28\)</strong>, and
+        <strong>\(k_d=0.75\)</strong>, determine the gap-mode characteristic
+        polynomial and verify stability.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ p(\lambda)= \lambda^2+ (1.4\times0.28+0.75)\lambda+0.28 =
+        \lambda^2+1.142\lambda+0.28. \]
+      </h4>
+      <p>
+        Both coefficients are positive, so the second-order Routh criterion
+        proves asymptotic stability. The roots are real or complex depending on
+        the discriminant:
+      </p>
+      <h4 class="mathJax">\[ \Delta=1.142^2-4(0.28)=0.184164&gt;0. \]</h4>
+      <p>
+        The two stable roots are approximately <strong>\(-0.357\)</strong> and
+        <strong>\(-0.785\)</strong>.
+      </p>
+
+      <p>
+        <strong>Problem 2 — String-stability test.</strong>
+        Check the sufficient condition for the same gains.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ h^2k_p+2hk_d = 1.4^2(0.28)+2(1.4)(0.75) = 2.6488\geq2. \]
+      </h4>
+      <p>
+        Hence the idealized homogeneous linear model satisfies the derived
+        non-amplification condition. This does not include delay or saturation.
+      </p>
+
+      <p>
+        <strong>Problem 3 — Lyapunov cancellation.</strong>
+        Starting from
+        <strong>\(\dot e=-k_e e+b\widetilde\theta^T\phi\)</strong>, find an
+        update law that removes the cross term in
+        <strong>\(\dot V\)</strong> for
+        <strong
+          >\(V=e^2/2+b\widetilde\theta^T\Gamma^{-1}\widetilde\theta/2\)</strong
+        >.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <p>
+        The derivative contains
+        <strong
+          >\(be\widetilde\theta^T\phi+
+          b\widetilde\theta^T\Gamma^{-1}\dot{\widehat\theta}\)</strong
+        >. Selecting
+        <strong>\(\dot{\widehat\theta}=-\Gamma\phi e\)</strong>
+        makes the terms equal and opposite, leaving
+        <strong>\(\dot V=-k_e e^2\)</strong>.
+      </p>
+
+      <p>
+        <strong>Problem 4 — Physical mass from propulsion gain.</strong>
+        Suppose <strong>\(\widehat b=8.0\times10^{-4}\)</strong>,
+        <strong>\(\eta_g=0.90\)</strong>, <strong>\(i_g=4.0\)</strong>, and
+        <strong>\(R_w=0.32\,\text{m}\)</strong>. Estimate mass.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ \widehat m= \frac{0.90(4.0)}{0.32(8.0\times10^{-4})} =
+        14062.5\;\text{kg}. \]
+      </h4>
+      <p>
+        The large value is plausible for a heavy vehicle. Its validity depends
+        on whether the torque variable and gear/efficiency model use consistent
+        units.
+      </p>
+
+      <p>
+        <strong>Problem 5 — RLS scaling.</strong>
+        Show the parameter transformation produced by
+        <strong>\(\bar\varphi=[T/1000,-1,-v/30,-(v/30)^2]^T\)</strong>.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ y= \left(\frac{T}{1000}\right)(1000b) -a_0
+        -\left(\frac{v}{30}\right)(30a_1) -\left(\frac{v}{30}\right)^2(900a_2).
+        \]
+      </h4>
+      <p>
+        Thus the scaled parameter vector is
+        <strong>\([1000b,a_0,30a_1,900a_2]^T\)</strong>. Scaling changes
+        numerical conditioning but not the represented model.
+      </p>
+
+      <p>
+        <strong>Problem 6 — Lack of persistent excitation.</strong>
+        Explain why flat-road constant-speed cruising cannot uniquely estimate
+        all four RLS parameters.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <p>
+        At constant speed and torque, every regressor sample is approximately
+        the same vector. The accumulated information matrix is therefore close
+        to rank one rather than rank four. Only one linear combination of
+        parameters is strongly constrained. Acceleration, deceleration, speed
+        variation, and grade variation are needed to increase regressor rank.
+      </p>
+
+      <p>
+        <strong>Problem 7 — Saturation-induced drift.</strong>
+        The requested torque exceeds the maximum for several seconds while the
+        tracking error remains nonzero. Why can the nominal gradient law drift?
+      </p>
+      <p><strong>Solution:</strong></p>
+      <p>
+        The derivation assumes that the plant receives
+        <strong>\(T=\widehat\theta^T\phi\)</strong>. During saturation, the
+        actual input differs from this value, so the error equation used for
+        Lyapunov cancellation is invalid. The update can keep increasing
+        parameters in an attempt to obtain unavailable torque. Projection,
+        saturation gating, and leakage prevent this mechanism.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 16 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>16. Summary</h2>
+    <div class="down-content">
+      <p>
+        Adaptive cruise control can be organized as an outer spacing/speed loop
+        and an inner adaptive powertrain loop. The constant-time-headway
+        controller has a transparent second-order stability analysis and admits
+        a simple string-stability condition. A torque-domain linear
+        parameterization leads to a direct adaptive law whose Lyapunov
+        derivative is negative semidefinite. Parallel normalized RLS provides
+        interpretable estimates of propulsion gain and road-load coefficients.
+        Tracking convergence does not imply physical parameter convergence;
+        persistent excitation, numerical scaling, mode handling, projection,
+        robust modification, and independent safety supervision are essential.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 17 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>17. References</h2>
+    <ol>
+      <li>
+        Ioannou, P.A., &amp; Chien, C.C. (1993). Autonomous intelligent cruise
+        control. <em>IEEE Transactions on Vehicular Technology</em>, 42(4),
+        657–672. https://doi.org/10.1109/25.260745
+      </li>
+      <li>
+        Swaroop, D., &amp; Hedrick, J.K. (1996). String stability of
+        interconnected systems. <em>IEEE Transactions on Automatic Control</em>,
+        41(3), 349–357. https://doi.org/10.1109/9.486636
+      </li>
+      <li>
+        Vahidi, A., Stefanopoulou, A., &amp; Peng, H. (2005). Recursive least
+        squares with forgetting for online estimation of vehicle mass and road
+        grade: Theory and experiments. <em>Vehicle System Dynamics</em>, 43(1),
+        31–55. https://doi.org/10.1080/00423110412331290446
+      </li>
+      <li>
+        Naus, G.J.L., Vugts, R.P.A., Ploeg, J., van de Molengraft, M.J.G., &amp;
+        Steinbuch, M. (2010). String-stable CACC design and experimental
+        validation: A frequency-domain approach.
+        <em>IEEE Transactions on Vehicular Technology</em>, 59(9), 4268–4279.
+        https://doi.org/10.1109/TVT.2010.2076320
+      </li>
+      <li>
+        Narendra, K.S., &amp; Annaswamy, A.M. (1987). A new adaptive law for
+        robust adaptation without persistent excitation.
+        <em>IEEE Transactions on Automatic Control</em>, 32(2), 134–145.
+        https://doi.org/10.1109/TAC.1987.1104543
+      </li>
+      <li>
+        Ioannou, P.A., &amp; Kokotovic, P.V. (1984). Instability analysis and
+        improvement of robustness of adaptive control. <em>Automatica</em>,
+        20(5), 583–594. https://doi.org/10.1016/0005-1098(84)90009-8
+      </li>
+      <li>
+        Ioannou, P.A., &amp; Kokotovic, P.V. (1984). Robust redesign of adaptive
+        control. <em>IEEE Transactions on Automatic Control</em>, 29(3),
+        202–211. https://doi.org/10.1109/TAC.1984.1103490
+      </li>
+      <li>
+        Berger, T., &amp; Rauert, A.-L. (2020). Funnel cruise control.
+        <em>Automatica</em>, 119, 109061.
+        https://doi.org/10.1016/j.automatica.2020.109061
+      </li>
+      <li>
+        Xu, X., Grizzle, J.W., Tabuada, P., &amp; Ames, A.D. (2018). Correctness
+        guarantees for the composition of lane keeping and adaptive cruise
+        control.
+        <em>IEEE Transactions on Automation Science and Engineering</em>, 15(3),
+        1216–1229.
+      </li>
+      <li>
+        Lan, J. (2024). Data-driven cooperative adaptive cruise control for
+        unknown nonlinear vehicle platoons.
+        <em>IET Intelligent Transport Systems</em>, 18(11), 2114–2123.
+        https://doi.org/10.1049/itr2.12556
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter26/Lesson2.html">
+          Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter26/Lesson4.html">
+          Lesson 4: Adaptive Suspension and Chassis Systems
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#" role="search" onsubmit="return false;">
+              <label for="sidebar-search-input" class="sr-only">Search course lessons</label>
+              <input
+                type="text"
+                name="search"
+                id="sidebar-search-input"
+                placeholder="Search..."
+              / aria-label="Search course lessons">
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu" class="tex2jax_ignore">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: theta^Tphi(x,u) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression phi^T(t)theta
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="active-lesson" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank" rel="noopener noreferrer"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+              <a href="https://mohammadijoo.github.io/DevOps_Academy" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/DevOps_Academy.jpg"
+                    alt="DevOps Tutorials"
+                  />
+                  <p>DevOps Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank" rel="noopener noreferrer">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]],
+          processEscapes: true,
+          ignoreClass: "tex2jax_ignore"
+        },
+        messageStyle: "none",
+        showMathMenu: false
+      });
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/sidebar_search.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>

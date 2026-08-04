@@ -1,0 +1,3745 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 28: Advanced Directions and Links to Other Courses - Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control) | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank" rel="noopener noreferrer">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>Chapter 28: Advanced Directions and Links to Other Courses</h1>
+    <h3>
+      <strong
+        >Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust
+        Control)</strong
+      >
+    </h3>
+    <p>
+      This lesson connects the adaptive-control foundations developed in earlier
+      chapters to constrained receding-horizon control. The purpose is not to
+      replace a complete Model Predictive Control or Robust Control course.
+      Instead, it explains how online parameter estimation, scheduling
+      variables, uncertainty sets, and Lyapunov arguments enter Adaptive MPC and
+      Linear Parameter-Varying MPC.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>1. Position of This Lesson and Learning Objectives</h2>
+    <div class="down-content">
+      <p>
+        Earlier chapters introduced recursive least squares, projection,
+        persistent excitation, gain scheduling, LPV ideas, constraints, and
+        implementation safeguards. This lesson assembles those ingredients
+        around an optimization-based controller. Students are assumed to know
+        linear state-space control and the basic meaning of a constrained
+        optimization problem, but no complete MPC theory is assumed.
+      </p>
+      <p>After completing the lesson, the student should be able to:</p>
+      <ul>
+        <li>
+          distinguish certainty-equivalent Adaptive MPC, robust Adaptive MPC,
+          LPV MPC, and robust LPV MPC;
+        </li>
+        <li>
+          write an LPV prediction model with measured or predicted scheduling
+          variables;
+        </li>
+        <li>
+          couple a projected RLS estimator to a receding-horizon controller;
+        </li>
+        <li>
+          state recursive-feasibility and stability conditions at a conceptual
+          but mathematically precise level;
+        </li>
+        <li>
+          explain why parameter convergence, constraint satisfaction, and
+          tracking performance are separate objectives;
+        </li>
+        <li>
+          implement a compact adaptive LPV-MPC simulation in five programming
+          environments.
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. From Fixed-Model MPC to Adaptive MPC</h2>
+    <div class="down-content">
+      <p>Consider the uncertain discrete-time plant</p>
+      <h4 class="mathJax">
+        \[ x_{k+1}=A(\theta^\star)x_k+B(\theta^\star)u_k+w_k, \qquad
+        x_k\in\mathcal{X},\quad u_k\in\mathcal{U}, \]
+      </h4>
+      <p>
+        where <strong>\( \theta^\star \)</strong> is an unknown constant
+        parameter vector and <strong>\( w_k \)</strong> is a bounded
+        disturbance. A fixed-model MPC controller predicts with one nominal
+        parameter <strong>\( \bar{\theta} \)</strong>. An Adaptive MPC
+        controller updates a point estimate
+        <strong>\( \hat{\theta}_k \)</strong>, an uncertainty set
+        <strong>\( \Theta_k \)</strong>, or both.
+      </p>
+      <p>
+        The certainty-equivalent finite-horizon problem has the generic form
+      </p>
+      <!-- prettier-ignore -->
+      <h4 class="mathJax">
+        \[ \begin{aligned} V_N(x_k,\hat{\theta}_k) = \min_{\mathbf{u}_k}
+        &\sum_{i=0}^{N-1} \ell(x_{i|k},u_{i|k}) +V_f(x_{N|k}) \\ \text{subject to}\quad &x_{0|k}=x_k,\\ &x_{i+1|k} = A(\hat{\theta}_k)x_{i|k}
+        +B(\hat{\theta}_k)u_{i|k},\\ &x_{i|k}\in\mathcal{X},\quad
+        u_{i|k}\in\mathcal{U},\\ &x_{N|k}\in\mathcal{X}_f . \end{aligned} \]
+      </h4>
+      <p>
+        Only <strong>\(u_{0|k}^\star\)</strong> is applied. At sample
+        <strong>\(k+1\)</strong>, new measurements update the model and the
+        optimization is solved again. This is the receding-horizon principle.
+      </p>
+      <div class="alert alert-warning">
+        <strong>Important limitation:</strong> replacing the true model by
+        <strong>\(\hat{\theta}_k\)</strong> does not by itself guarantee robust
+        constraint satisfaction. A prediction based on an inaccurate point
+        estimate may be feasible while the true plant violates a constraint.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. LPV Prediction Models</h2>
+    <div class="down-content">
+      <p>
+        An LPV model is linear in the state and input for a fixed scheduling
+        trajectory, while its matrices vary with a measurable scheduling
+        variable
+        <strong>\(\rho_k\)</strong>:
+      </p>
+      <h4 class="mathJax">\[ x_{k+1}=A(\rho_k)x_k+B(\rho_k)u_k. \]</h4>
+      <p>A common affine representation is</p>
+      <h4 class="mathJax">
+        \[ A(\rho)=A_0+\sum_{j=1}^{n_\rho}\rho_jA_j, \qquad
+        B(\rho)=B_0+\sum_{j=1}^{n_\rho}\rho_jB_j. \]
+      </h4>
+      <p>
+        If <strong>\(\rho\)</strong> lies in a polytope, the same model can be
+        embedded as a convex combination of vertex systems:
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} A(\rho)&=\sum_{v=1}^{N_v}\alpha_v(\rho)A_v,\\
+        B(\rho)&=\sum_{v=1}^{N_v}\alpha_v(\rho)B_v,\\ \alpha_v(\rho)&\geq
+        0,\qquad \sum_{v=1}^{N_v}\alpha_v(\rho)=1. \end{aligned} \]
+      </h4>
+      <p>
+        LPV MPC requires an assumption about future scheduling values. Three
+        standard choices are:
+      </p>
+      <ol>
+        <li>
+          <strong>Frozen scheduling:</strong>
+          <strong>\(\rho_{i|k}=\rho_k\)</strong> for the entire horizon.
+        </li>
+        <li>
+          <strong>Anticipative scheduling:</strong> future
+          <strong>\(\rho_{i|k}\)</strong> values are measured, commanded, or
+          forecast.
+        </li>
+        <li>
+          <strong>Set-valued scheduling:</strong>
+          <strong>\(\rho_{i|k}\in\mathcal{P}_{i|k}\)</strong>, often with a
+          bounded rate
+          <strong>\(\|\rho_{k+1}-\rho_k\|\leq\Delta_\rho\)</strong>.
+        </li>
+      </ol>
+      <p>
+        Gain scheduling uses <strong>\(\rho_k\)</strong> to select or
+        interpolate a predesigned controller. LPV MPC instead places the
+        scheduled model inside the online prediction and optimization problem.
+        Neither construction is automatically adaptive: adaptation requires
+        online learning or uncertainty-set updating.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Adaptive LPV Parameterization and Online Estimation</h2>
+    <div class="down-content">
+      <p>A model may be simultaneously LPV and adaptive. For example,</p>
+      <h4 class="mathJax">
+        \[ x_{k+1} = \left(A_0+\sum_{j=1}^{n_\rho}\rho_{j,k}A_j\right)x_k
+        +Bu_k+w_k, \]
+      </h4>
+      <p>
+        where some entries of <strong>\(A_j\)</strong> and
+        <strong>\(B\)</strong> are unknown. Vectorization produces a regression
+      </p>
+      <h4 class="mathJax">\[ y_k=\phi_k^\mathsf{T}\theta^\star+w_k. \]</h4>
+      <p>The scalar implementation later in this lesson uses</p>
+      <h4 class="mathJax">
+        \[ x_{k+1} = (\theta_0^\star+\theta_1^\star\rho_k)x_k +\theta_2^\star
+        u_k+w_k, \]
+      </h4>
+      <h4 class="mathJax">
+        \[ \phi_k= \begin{bmatrix} x_k &amp; \rho_kx_k &amp; u_k
+        \end{bmatrix}^{\mathsf{T}}, \qquad
+        x_{k+1}=\phi_k^\mathsf{T}\theta^\star+w_k. \]
+      </h4>
+      <p>Reusing Chapter 12, projected RLS is</p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} K_k&= \frac{P_k\phi_k}
+        {\lambda+\phi_k^\mathsf{T}P_k\phi_k},\\ \tilde{y}_k&=
+        x_{k+1}-\phi_k^\mathsf{T}\hat{\theta}_k,\\ \hat{\theta}_{k+1}&=
+        \operatorname{Proj}_{\Theta}
+        \left(\hat{\theta}_k+K_k\tilde{y}_k\right),\\ P_{k+1}&= \lambda^{-1}
+        \left(P_k-K_k\phi_k^\mathsf{T}P_k\right). \end{aligned} \]
+      </h4>
+      <p>
+        Projection encodes prior physical bounds and prevents an optimizer from
+        receiving implausible matrices. The forgetting factor
+        <strong>\(0&lt;\lambda\leq 1\)</strong> determines how quickly old data
+        are discounted.
+      </p>
+      <p>
+        Parameter adaptation and LPV scheduling play different roles:
+        <strong>\(\rho_k\)</strong> is assumed measurable and explains known
+        operating-point variation; <strong>\(\hat{\theta}_k\)</strong> estimates
+        uncertain coefficients that remain unknown after scheduling is included.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Finite-Horizon Optimization for Adaptive LPV-MPC</h2>
+    <div class="down-content">
+      <p>
+        With a scheduling prediction
+        <strong
+          >\(\boldsymbol{\rho}_k= \{\rho_{0|k},\ldots,\rho_{N-1|k}\}\)</strong
+        >, define
+      </p>
+      <h4 class="mathJax">
+        \[ A_{i|k}=A(\rho_{i|k},\hat{\theta}_k), \qquad
+        B_{i|k}=B(\rho_{i|k},\hat{\theta}_k). \]
+      </h4>
+      <p>The quadratic tracking problem is</p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \min_{\mathbf{u}_k,\boldsymbol{\epsilon}_k}\quad
+        &\sum_{i=0}^{N-1} \left( \|x_{i|k}-r_{i|k}\|_Q^2+ \|u_{i|k}\|_R^2+
+        \mu\|\epsilon_{i|k}\|_1 \right)\\ &+\|x_{N|k}-r_{N|k}\|_P^2\\
+        \text{subject to}\quad &x_{i+1|k}=A_{i|k}x_{i|k}+B_{i|k}u_{i|k},\\
+        &x_{i|k}\in\mathcal{X}\oplus\{\epsilon_{i|k}\},\\
+        &u_{i|k}\in\mathcal{U},\qquad \epsilon_{i|k}\geq 0. \end{aligned} \]
+      </h4>
+      <p>
+        Slack variables can preserve numerical feasibility, but they convert
+        hard state constraints into soft constraints. Safety-critical
+        constraints should not be softened unless a separate certified
+        protection layer is present.
+      </p>
+      <p>
+        For a fixed scheduling sequence and affine dynamics, the condensed
+        prediction is
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{x}_k= \mathcal{A}_k x_k+\mathcal{B}_k\mathbf{u}_k, \]
+      </h4>
+      <p>where the block rows contain products such as</p>
+      <h4 class="mathJax">
+        \[ x_{2|k} = A_{1|k}A_{0|k}x_k+ A_{1|k}B_{0|k}u_{0|k}+ B_{1|k}u_{1|k}.
+        \]
+      </h4>
+      <p>
+        Substitution yields a quadratic program when the constraints are linear.
+        Nonlinear dependence on scheduling or parameters may instead produce a
+        nonlinear program.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. Certainty Equivalence, Robust Adaptation, and Dual Effect</h2>
+    <div class="down-content">
+      <h3>6.1 Certainty-equivalent Adaptive MPC</h3>
+      <p>
+        The controller predicts only with
+        <strong>\(\hat{\theta}_k\)</strong>. This is computationally attractive
+        and often performs well when estimation error is small, but constraint
+        guarantees generally depend on additional robustness assumptions.
+      </p>
+
+      <h3>6.2 Robust Adaptive MPC</h3>
+      <p>
+        Let
+        <strong>\(\Theta_k\)</strong> contain all parameters consistent with the
+        prior set, measurements, and a disturbance bound:
+      </p>
+      <h4 class="mathJax">
+        \[ \Theta_{k+1} = \Theta_k\cap \left\{ \theta:
+        \|x_{k+1}-\Phi_k\theta\|\leq\bar{w} \right\}. \]
+      </h4>
+      <p>Therefore,</p>
+      <h4 class="mathJax">
+        \[ \theta^\star\in\Theta_{k+1}\subseteq\Theta_k. \]
+      </h4>
+      <p>
+        A tube or min-max MPC formulation can enforce constraints for every
+        admissible parameter and disturbance. The nominal trajectory
+        <strong>\(z_{i|k}\)</strong> is surrounded by an error tube
+        <strong>\(\mathcal{S}_{i|k}\)</strong>:
+      </p>
+      <h4 class="mathJax">\[ x_{i|k}\in z_{i|k}\oplus\mathcal{S}_{i|k}. \]</h4>
+      <p>The nominal constraints are tightened:</p>
+      <h4 class="mathJax">
+        \[ z_{i|k}\in\mathcal{X}\ominus\mathcal{S}_{i|k}, \qquad
+        v_{i|k}\in\mathcal{U}\ominus K\mathcal{S}_{i|k}. \]
+      </h4>
+      <p>
+        As <strong>\(\Theta_k\)</strong> contracts, the tube may shrink and the
+        controller becomes less conservative.
+      </p>
+
+      <h3>6.3 Dual control effect</h3>
+      <p>
+        An input influences both the physical state and the information
+        available to the estimator. A purely tracking-oriented input may fail to
+        excite the uncertain dynamics. A dual or exploration-aware cost may add
+      </p>
+      <h4 class="mathJax">
+        \[ J_{\mathrm{dual}} = J_{\mathrm{track}} +\gamma\,\Psi(P_{k+N|k}), \]
+      </h4>
+      <p>
+        where <strong>\(\Psi\)</strong> penalizes predicted uncertainty, for
+        example <strong>\(\operatorname{tr}(P)\)</strong> or
+        <strong>\(\log\det(P)\)</strong>. This improves identification only if
+        excitation can be introduced without violating constraints.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Recursive Feasibility and Stability: Proof Structure</h2>
+    <div class="down-content">
+      <h3>7.1 Fixed-model nominal MPC argument</h3>
+      <p>
+        Suppose the terminal set <strong>\(\mathcal{X}_f\)</strong> is invariant
+        under a local controller <strong>\(\kappa_f(x)\)</strong> and satisfies
+      </p>
+      <h4 class="mathJax">
+        \[ V_f(f(x,\kappa_f(x)))-V_f(x) \leq -\ell(x,\kappa_f(x)). \]
+      </h4>
+      <p>
+        Shift the optimal sequence at time <strong>\(k\)</strong> and append the
+        terminal action:
+      </p>
+      <h4 class="mathJax">
+        \[ \tilde{\mathbf{u}}_{k+1} = \left\{ u_{1|k}^\star,\ldots,
+        u_{N-1|k}^\star, \kappa_f(x_{N|k}^\star) \right\}. \]
+      </h4>
+      <p>Feasibility of the shifted sequence gives</p>
+      <h4 class="mathJax">\[ V_N(x_{k+1})-V_N(x_k) \leq -\ell(x_k,u_k). \]</h4>
+      <p>Thus the optimal value acts as a Lyapunov function.</p>
+
+      <h3>7.2 What adaptation changes</h3>
+      <p>
+        When the prediction model changes from
+        <strong>\(\hat{\theta}_k\)</strong> to
+        <strong>\(\hat{\theta}_{k+1}\)</strong>, the shifted sequence may no
+        longer generate the same predicted trajectory. Under a local Lipschitz
+        bound on the value function,
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} &V_N(x_{k+1},\hat{\theta}_{k+1})
+        -V_N(x_k,\hat{\theta}_k)\\ &\qquad\leq -\ell(x_k,u_k) +L_\theta
+        \|\hat{\theta}_{k+1}-\hat{\theta}_k\| +c_w\|w_k\|. \end{aligned} \]
+      </h4>
+      <p>
+        Consequently, exact asymptotic stability is not obtained merely because
+        the nominal MPC problem is stabilizing. Typical sufficient routes are:
+      </p>
+      <ul>
+        <li>
+          summable or convergent model updates,
+          <strong>\(\sum_k\|\Delta\hat{\theta}_k\|&lt;\infty\)</strong>;
+        </li>
+        <li>robust tube bounds that absorb model mismatch and disturbances;</li>
+        <li>a common Lyapunov function over all admissible LPV vertices;</li>
+        <li>
+          terminal ingredients parameterized consistently with
+          <strong>\(\rho\)</strong> and <strong>\(\Theta_k\)</strong>;
+        </li>
+        <li>
+          input-to-state stability or practical stability instead of an
+          unjustified asymptotic claim.
+        </li>
+      </ul>
+
+      <h3>7.3 Why nested uncertainty sets help feasibility</h3>
+      <p>
+        Suppose a robust MPC problem at time <strong>\(k\)</strong> enforces its
+        constraints for every <strong>\(\theta\in\Theta_k\)</strong>. If the
+        estimator guarantees <strong>\(\Theta_{k+1}\subseteq\Theta_k\)</strong>,
+        every parameter considered at the next step was already included in the
+        previous robust design. Together with a robustly invariant terminal
+        construction, this monotonicity is a central ingredient in
+        recursive-feasibility proofs.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Closed-Loop Architecture</h2>
+    <div class="down-content">
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  R["Reference and constraints"] --> O["Finite-horizon optimizer"]
+  X["Measured state x(k)"] --> O
+  P["Measured or predicted schedule rho"] --> O
+  E["Projected estimator: theta_hat and uncertainty set"] --> O
+  O --> U["Apply first input u(k)"]
+  U --> G["Uncertain LPV plant"]
+  G --> XN["New state x(k+1)"]
+  XN --> E
+  XN --> X
+  P --> E
+  U --> E
+        </pre>
+      </div>
+      <p>
+        The estimator and optimizer form coupled dynamics. The estimator changes
+        the prediction model; the optimizer changes the input and therefore the
+        informativeness of future data.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Didactic Adaptive LPV-MPC Algorithm</h2>
+    <div class="down-content">
+      <p>The implementations use the scalar model</p>
+      <h4 class="mathJax">
+        \[ x_{k+1} = (\theta_0+\theta_1\rho_k)x_k+\theta_2u_k+w_k. \]
+      </h4>
+      <p>At every sample:</p>
+      <ol>
+        <li>obtain the measured state and a horizon of scheduling values;</li>
+        <li>predict with the current projected RLS estimate;</li>
+        <li>
+          minimize a quadratic tracking cost by projected gradient descent;
+        </li>
+        <li>
+          project each candidate input onto
+          <strong>\([-u_{\max},u_{\max}]\)</strong>;
+        </li>
+        <li>apply the first input;</li>
+        <li>update the parameter estimate with the new transition;</li>
+        <li>
+          shift the previous optimizer solution to warm-start the next problem.
+        </li>
+      </ol>
+      <p>
+        The demonstration uses a quadratic penalty for state-constraint
+        violation. Therefore, the state limit is <em>soft</em>; this code is not
+        a certificate of robust constraint satisfaction. Its purpose is to
+        expose the estimator-predictor-optimizer coupling without hiding the
+        mechanism behind a large software framework.
+      </p>
+      <p>
+        For the scalar prediction, define
+        <strong>\(a_i=\hat{\theta}_0+\hat{\theta}_1\rho_{i|k}\)</strong> and
+        <strong>\(b=\hat{\theta}_2\)</strong>. The adjoint recursion used to
+        compute the cost gradient is
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \lambda_N &= 2P(x_{N|k}-r_N)+ \nabla
+        p_{\mathcal{X}}(x_{N|k}),\\ \frac{\partial J}{\partial u_{i|k}} &=
+        2Ru_{i|k}+b\lambda_{i+1},\\ \lambda_i &= 2Q(x_{i|k}-r_i)+ \nabla
+        p_{\mathcal{X}}(x_{i|k})+ a_i\lambda_{i+1}. \end{aligned} \]
+      </h4>
+      <p>The projected-gradient iteration is</p>
+      <h4 class="mathJax">
+        \[ \mathbf{u}^{(j+1)} = \Pi_{\mathcal{U}^N} \left( \mathbf{u}^{(j)}
+        -\alpha_j\nabla_{\mathbf{u}}J \right). \]
+      </h4>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. Python Implementation</h2>
+    <div class="down-content">
+      <p>
+        The example requires NumPy. For larger constrained problems, common
+        choices include CVXPY with OSQP, CasADi, do-mpc, GEKKO, or direct solver
+        interfaces.
+      </p>
+      <h3>Chapter28_Lesson4.py</h3>
+      <pre><code class="language-python">&quot;&quot;&quot;
+Chapter28_Lesson4.py
+Adaptive LPV model predictive control for a scalar constrained plant.
+
+Model:
+    x[k+1] = (theta0 + theta1*rho[k]) * x[k] + theta2*u[k] + w[k]
+
+The controller:
+1. estimates theta online with projected recursive least squares;
+2. predicts the measured scheduling variable rho over the MPC horizon;
+3. solves a box-constrained finite-horizon problem by projected gradient descent;
+4. applies only the first optimized input (receding-horizon control).
+
+Dependencies:
+    numpy
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Tuple
+
+import numpy as np
+
+
+@dataclass(frozen=True)
+class MPCConfig:
+    horizon: int = 12
+    q: float = 5.0
+    r: float = 0.15
+    p_terminal: float = 8.0
+    u_max: float = 1.5
+    x_max: float = 3.0
+    state_penalty: float = 80.0
+    step_size: float = 0.012
+    iterations: int = 90
+
+
+class ProjectedRLS:
+    &quot;&quot;&quot;Recursive least squares with forgetting and componentwise projection.&quot;&quot;&quot;
+
+    def __init__(
+        self,
+        theta0: np.ndarray,
+        covariance_scale: float = 80.0,
+        forgetting: float = 0.995,
+        lower: np.ndarray | None = None,
+        upper: np.ndarray | None = None,
+    ) -&gt; None:
+        self.theta = np.asarray(theta0, dtype=float).copy()
+        self.P = covariance_scale * np.eye(self.theta.size)
+        self.forgetting = float(forgetting)
+        self.lower = (
+            np.full_like(self.theta, -np.inf)
+            if lower is None
+            else np.asarray(lower, dtype=float)
+        )
+        self.upper = (
+            np.full_like(self.theta, np.inf)
+            if upper is None
+            else np.asarray(upper, dtype=float)
+        )
+
+    def update(self, phi: np.ndarray, y: float) -&gt; Tuple[np.ndarray, float]:
+        phi = np.asarray(phi, dtype=float)
+        denominator = self.forgetting + phi @ self.P @ phi
+        gain = (self.P @ phi) / denominator
+        prediction_error = float(y - phi @ self.theta)
+
+        self.theta = self.theta + gain * prediction_error
+        self.theta = np.clip(self.theta, self.lower, self.upper)
+
+        self.P = (self.P - np.outer(gain, phi) @ self.P) / self.forgetting
+        self.P = 0.5 * (self.P + self.P.T)
+        return self.theta.copy(), prediction_error
+
+
+def scheduling_signal(k: int) -&gt; float:
+    &quot;&quot;&quot;Measured exogenous scheduling variable in [-1, 1].&quot;&quot;&quot;
+    return float(0.75 * np.sin(0.045 * k) + 0.20 * np.sin(0.11 * k))
+
+
+def reference_signal(k: int) -&gt; float:
+    if k &lt; 25:
+        return 0.0
+    if k &lt; 95:
+        return 1.0
+    if k &lt; 145:
+        return -0.7
+    return 0.4
+
+
+def state_penalty_derivative(x: float, x_max: float, weight: float) -&gt; float:
+    excess = abs(x) - x_max
+    if excess &lt;= 0.0:
+        return 0.0
+    return 2.0 * weight * excess * np.sign(x)
+
+
+def predict_states(
+    x0: float,
+    u_sequence: np.ndarray,
+    rho_sequence: np.ndarray,
+    theta: np.ndarray,
+) -&gt; np.ndarray:
+    horizon = u_sequence.size
+    x = np.empty(horizon + 1, dtype=float)
+    x[0] = x0
+    b_hat = float(theta[2])
+
+    for i in range(horizon):
+        a_hat = float(theta[0] + theta[1] * rho_sequence[i])
+        x[i + 1] = a_hat * x[i] + b_hat * u_sequence[i]
+    return x
+
+
+def objective_and_gradient(
+    x0: float,
+    u_sequence: np.ndarray,
+    rho_sequence: np.ndarray,
+    reference: float,
+    theta: np.ndarray,
+    cfg: MPCConfig,
+) -&gt; Tuple[float, np.ndarray, np.ndarray]:
+    &quot;&quot;&quot;Return finite-horizon cost, its input gradient, and predicted states.&quot;&quot;&quot;
+    x = predict_states(x0, u_sequence, rho_sequence, theta)
+    horizon = cfg.horizon
+
+    cost = 0.0
+    for i in range(horizon):
+        state_error = x[i] - reference
+        excess = max(abs(x[i]) - cfg.x_max, 0.0)
+        cost += (
+            cfg.q * state_error**2
+            + cfg.r * u_sequence[i] ** 2
+            + cfg.state_penalty * excess**2
+        )
+
+    terminal_error = x[horizon] - reference
+    terminal_excess = max(abs(x[horizon]) - cfg.x_max, 0.0)
+    cost += (
+        cfg.p_terminal * terminal_error**2
+        + cfg.state_penalty * terminal_excess**2
+    )
+
+    gradient = np.zeros(horizon, dtype=float)
+    adjoint = (
+        2.0 * cfg.p_terminal * terminal_error
+        + state_penalty_derivative(
+            x[horizon], cfg.x_max, cfg.state_penalty
+        )
+    )
+
+    b_hat = float(theta[2])
+    for i in range(horizon - 1, -1, -1):
+        gradient[i] = 2.0 * cfg.r * u_sequence[i] + b_hat * adjoint
+
+        a_hat = float(theta[0] + theta[1] * rho_sequence[i])
+        stage_derivative = (
+            2.0 * cfg.q * (x[i] - reference)
+            + state_penalty_derivative(
+                x[i], cfg.x_max, cfg.state_penalty
+            )
+        )
+        adjoint = stage_derivative + a_hat * adjoint
+
+    return float(cost), gradient, x
+
+
+def solve_adaptive_lpv_mpc(
+    x0: float,
+    rho_sequence: np.ndarray,
+    reference: float,
+    theta: np.ndarray,
+    warm_start: np.ndarray,
+    cfg: MPCConfig,
+) -&gt; Tuple[np.ndarray, np.ndarray, float]:
+    &quot;&quot;&quot;Projected-gradient MPC with warm starting and box input constraints.&quot;&quot;&quot;
+    u = np.clip(warm_start.copy(), -cfg.u_max, cfg.u_max)
+    best_u = u.copy()
+    best_cost = np.inf
+    best_x = predict_states(x0, u, rho_sequence, theta)
+
+    for iteration in range(cfg.iterations):
+        cost, gradient, x_prediction = objective_and_gradient(
+            x0, u, rho_sequence, reference, theta, cfg
+        )
+
+        if cost &lt; best_cost:
+            best_cost = cost
+            best_u = u.copy()
+            best_x = x_prediction.copy()
+
+        diminishing_step = cfg.step_size / np.sqrt(1.0 + 0.03 * iteration)
+        u = np.clip(
+            u - diminishing_step * gradient,
+            -cfg.u_max,
+            cfg.u_max,
+        )
+
+    return best_u, best_x, float(best_cost)
+
+
+def main() -&gt; None:
+    rng = np.random.default_rng(7)
+    cfg = MPCConfig()
+
+    theta_true = np.array([0.72, 0.18, 0.55], dtype=float)
+    estimator = ProjectedRLS(
+        theta0=np.array([0.55, 0.02, 0.35], dtype=float),
+        covariance_scale=60.0,
+        forgetting=0.995,
+        lower=np.array([0.35, -0.05, 0.15]),
+        upper=np.array([1.05, 0.40, 0.90]),
+    )
+
+    steps = 190
+    x = 0.0
+    warm_start = np.zeros(cfg.horizon, dtype=float)
+
+    x_log = np.zeros(steps + 1)
+    u_log = np.zeros(steps)
+    rho_log = np.zeros(steps)
+    reference_log = np.zeros(steps)
+    theta_log = np.zeros((steps, 3))
+    prediction_error_log = np.zeros(steps)
+
+    for k in range(steps):
+        rho_horizon = np.array(
+            [scheduling_signal(k + i) for i in range(cfg.horizon)],
+            dtype=float,
+        )
+        reference = reference_signal(k)
+
+        optimal_u, _, _ = solve_adaptive_lpv_mpc(
+            x0=x,
+            rho_sequence=rho_horizon,
+            reference=reference,
+            theta=estimator.theta,
+            warm_start=warm_start,
+            cfg=cfg,
+        )
+        u = float(optimal_u[0])
+
+        rho = scheduling_signal(k)
+        a_true = theta_true[0] + theta_true[1] * rho
+        process_noise = 0.006 * rng.standard_normal()
+        x_next = a_true * x + theta_true[2] * u + process_noise
+
+        phi = np.array([x, rho * x, u], dtype=float)
+        theta_hat, prediction_error = estimator.update(phi, x_next)
+
+        x_log[k] = x
+        u_log[k] = u
+        rho_log[k] = rho
+        reference_log[k] = reference
+        theta_log[k] = theta_hat
+        prediction_error_log[k] = prediction_error
+
+        warm_start[:-1] = optimal_u[1:]
+        warm_start[-1] = optimal_u[-1]
+        x = float(x_next)
+
+    x_log[-1] = x
+
+    tracking_rmse = np.sqrt(
+        np.mean((x_log[:-1] - reference_log) ** 2)
+    )
+    maximum_input = np.max(np.abs(u_log))
+    maximum_state = np.max(np.abs(x_log))
+    final_parameter_error = np.linalg.norm(estimator.theta - theta_true)
+
+    print(&quot;Adaptive LPV-MPC simulation completed.&quot;)
+    print(f&quot;Tracking RMSE: {tracking_rmse:.5f}&quot;)
+    print(f&quot;Maximum |u|:  {maximum_input:.5f}&quot;)
+    print(f&quot;Maximum |x|:  {maximum_state:.5f}&quot;)
+    print(&quot;True theta:  &quot;, theta_true)
+    print(&quot;Final theta: &quot;, estimator.theta)
+    print(f&quot;Final parameter error norm: {final_parameter_error:.5f}&quot;)
+    print(
+        &quot;Mean absolute one-step prediction error: &quot;
+        f&quot;{np.mean(np.abs(prediction_error_log)):.5f}&quot;
+    )
+
+
+if __name__ == &quot;__main__&quot;:
+    main()
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. C++ Implementation</h2>
+    <div class="down-content">
+      <p>
+        The code is self-contained C++17. Production implementations commonly
+        use Eigen for linear algebra and OSQP, qpOASES, HPIPM, acados, or CasADi
+        generated code for optimization.
+      </p>
+      <h3>Chapter28_Lesson4.cpp</h3>
+      <pre><code class="language-cpp">/*
+Chapter28_Lesson4.cpp
+Adaptive LPV model predictive control for a scalar constrained plant.
+
+Build:
+    g++ -std=c++17 -O2 Chapter28_Lesson4.cpp -o Chapter28_Lesson4
+Run:
+    ./Chapter28_Lesson4
+*/
+
+#include &lt;algorithm&gt;
+#include &lt;array&gt;
+#include &lt;cmath&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;limits&gt;
+#include &lt;random&gt;
+#include &lt;vector&gt;
+
+struct MPCConfig {
+    int horizon = 12;
+    double q = 5.0;
+    double r = 0.15;
+    double p_terminal = 8.0;
+    double u_max = 1.5;
+    double x_max = 3.0;
+    double state_penalty = 80.0;
+    double step_size = 0.012;
+    int iterations = 90;
+};
+
+class ProjectedRLS {
+public:
+    ProjectedRLS(
+        const std::array&lt;double, 3&gt;&amp; theta0,
+        double covariance_scale,
+        double forgetting,
+        const std::array&lt;double, 3&gt;&amp; lower,
+        const std::array&lt;double, 3&gt;&amp; upper)
+        : theta_(theta0),
+          forgetting_(forgetting),
+          lower_(lower),
+          upper_(upper) {
+        for (auto&amp; row : P_) {
+            row.fill(0.0);
+        }
+        for (int i = 0; i &lt; 3; ++i) {
+            P_[i][i] = covariance_scale;
+        }
+    }
+
+    std::pair&lt;std::array&lt;double, 3&gt;, double&gt; update(
+        const std::array&lt;double, 3&gt;&amp; phi,
+        double y) {
+        std::array&lt;double, 3&gt; Pphi{};
+        for (int i = 0; i &lt; 3; ++i) {
+            for (int j = 0; j &lt; 3; ++j) {
+                Pphi[i] += P_[i][j] * phi[j];
+            }
+        }
+
+        double denominator = forgetting_;
+        for (int i = 0; i &lt; 3; ++i) {
+            denominator += phi[i] * Pphi[i];
+        }
+
+        std::array&lt;double, 3&gt; gain{};
+        for (int i = 0; i &lt; 3; ++i) {
+            gain[i] = Pphi[i] / denominator;
+        }
+
+        double prediction = 0.0;
+        for (int i = 0; i &lt; 3; ++i) {
+            prediction += phi[i] * theta_[i];
+        }
+        const double error = y - prediction;
+
+        for (int i = 0; i &lt; 3; ++i) {
+            theta_[i] += gain[i] * error;
+            theta_[i] = std::clamp(theta_[i], lower_[i], upper_[i]);
+        }
+
+        std::array&lt;std::array&lt;double, 3&gt;, 3&gt; newP{};
+        for (int i = 0; i &lt; 3; ++i) {
+            for (int j = 0; j &lt; 3; ++j) {
+                double correction = 0.0;
+                for (int m = 0; m &lt; 3; ++m) {
+                    correction += gain[i] * phi[m] * P_[m][j];
+                }
+                newP[i][j] = (P_[i][j] - correction) / forgetting_;
+            }
+        }
+
+        for (int i = 0; i &lt; 3; ++i) {
+            for (int j = 0; j &lt; 3; ++j) {
+                P_[i][j] = 0.5 * (newP[i][j] + newP[j][i]);
+            }
+        }
+
+        return {theta_, error};
+    }
+
+    const std::array&lt;double, 3&gt;&amp; theta() const {
+        return theta_;
+    }
+
+private:
+    std::array&lt;double, 3&gt; theta_{};
+    std::array&lt;std::array&lt;double, 3&gt;, 3&gt; P_{};
+    double forgetting_;
+    std::array&lt;double, 3&gt; lower_{};
+    std::array&lt;double, 3&gt; upper_{};
+};
+
+double schedulingSignal(int k) {
+    return 0.75 * std::sin(0.045 * k) + 0.20 * std::sin(0.11 * k);
+}
+
+double referenceSignal(int k) {
+    if (k &lt; 25) return 0.0;
+    if (k &lt; 95) return 1.0;
+    if (k &lt; 145) return -0.7;
+    return 0.4;
+}
+
+double statePenaltyDerivative(double x, const MPCConfig&amp; cfg) {
+    const double excess = std::abs(x) - cfg.x_max;
+    if (excess &lt;= 0.0) {
+        return 0.0;
+    }
+    const double sign = (x &gt;= 0.0) ? 1.0 : -1.0;
+    return 2.0 * cfg.state_penalty * excess * sign;
+}
+
+std::vector&lt;double&gt; predictStates(
+    double x0,
+    const std::vector&lt;double&gt;&amp; u,
+    const std::vector&lt;double&gt;&amp; rho,
+    const std::array&lt;double, 3&gt;&amp; theta) {
+    std::vector&lt;double&gt; x(u.size() + 1, 0.0);
+    x[0] = x0;
+    const double bHat = theta[2];
+
+    for (std::size_t i = 0; i &lt; u.size(); ++i) {
+        const double aHat = theta[0] + theta[1] * rho[i];
+        x[i + 1] = aHat * x[i] + bHat * u[i];
+    }
+    return x;
+}
+
+struct ObjectiveResult {
+    double cost;
+    std::vector&lt;double&gt; gradient;
+    std::vector&lt;double&gt; states;
+};
+
+ObjectiveResult objectiveAndGradient(
+    double x0,
+    const std::vector&lt;double&gt;&amp; u,
+    const std::vector&lt;double&gt;&amp; rho,
+    double reference,
+    const std::array&lt;double, 3&gt;&amp; theta,
+    const MPCConfig&amp; cfg) {
+    const int N = cfg.horizon;
+    auto x = predictStates(x0, u, rho, theta);
+    double cost = 0.0;
+
+    for (int i = 0; i &lt; N; ++i) {
+        const double error = x[i] - reference;
+        const double excess = std::max(std::abs(x[i]) - cfg.x_max, 0.0);
+        cost += cfg.q * error * error
+              + cfg.r * u[i] * u[i]
+              + cfg.state_penalty * excess * excess;
+    }
+
+    const double terminalError = x[N] - reference;
+    const double terminalExcess =
+        std::max(std::abs(x[N]) - cfg.x_max, 0.0);
+    cost += cfg.p_terminal * terminalError * terminalError
+          + cfg.state_penalty * terminalExcess * terminalExcess;
+
+    std::vector&lt;double&gt; gradient(N, 0.0);
+    double adjoint =
+        2.0 * cfg.p_terminal * terminalError
+        + statePenaltyDerivative(x[N], cfg);
+
+    const double bHat = theta[2];
+    for (int i = N - 1; i &gt;= 0; --i) {
+        gradient[i] = 2.0 * cfg.r * u[i] + bHat * adjoint;
+
+        const double aHat = theta[0] + theta[1] * rho[i];
+        const double stageDerivative =
+            2.0 * cfg.q * (x[i] - reference)
+            + statePenaltyDerivative(x[i], cfg);
+        adjoint = stageDerivative + aHat * adjoint;
+    }
+
+    return {cost, gradient, x};
+}
+
+struct MPCResult {
+    std::vector&lt;double&gt; input;
+    std::vector&lt;double&gt; statePrediction;
+    double cost;
+};
+
+MPCResult solveAdaptiveLPVMPC(
+    double x0,
+    const std::vector&lt;double&gt;&amp; rho,
+    double reference,
+    const std::array&lt;double, 3&gt;&amp; theta,
+    const std::vector&lt;double&gt;&amp; warmStart,
+    const MPCConfig&amp; cfg) {
+    std::vector&lt;double&gt; u = warmStart;
+    for (double&amp; value : u) {
+        value = std::clamp(value, -cfg.u_max, cfg.u_max);
+    }
+
+    std::vector&lt;double&gt; bestU = u;
+    std::vector&lt;double&gt; bestX = predictStates(x0, u, rho, theta);
+    double bestCost = std::numeric_limits&lt;double&gt;::infinity();
+
+    for (int iteration = 0; iteration &lt; cfg.iterations; ++iteration) {
+        const auto result =
+            objectiveAndGradient(x0, u, rho, reference, theta, cfg);
+
+        if (result.cost &lt; bestCost) {
+            bestCost = result.cost;
+            bestU = u;
+            bestX = result.states;
+        }
+
+        const double step =
+            cfg.step_size / std::sqrt(1.0 + 0.03 * iteration);
+        for (int i = 0; i &lt; cfg.horizon; ++i) {
+            u[i] = std::clamp(
+                u[i] - step * result.gradient[i],
+                -cfg.u_max,
+                cfg.u_max);
+        }
+    }
+
+    return {bestU, bestX, bestCost};
+}
+
+int main() {
+    const MPCConfig cfg;
+    const std::array&lt;double, 3&gt; thetaTrue{0.72, 0.18, 0.55};
+
+    ProjectedRLS estimator(
+        {0.55, 0.02, 0.35},
+        60.0,
+        0.995,
+        {0.35, -0.05, 0.15},
+        {1.05, 0.40, 0.90});
+
+    std::mt19937 generator(7);
+    std::normal_distribution&lt;double&gt; normal(0.0, 1.0);
+
+    const int steps = 190;
+    double x = 0.0;
+    std::vector&lt;double&gt; warmStart(cfg.horizon, 0.0);
+
+    double squaredTrackingError = 0.0;
+    double maxInput = 0.0;
+    double maxState = 0.0;
+    double absolutePredictionError = 0.0;
+
+    for (int k = 0; k &lt; steps; ++k) {
+        std::vector&lt;double&gt; rhoHorizon(cfg.horizon, 0.0);
+        for (int i = 0; i &lt; cfg.horizon; ++i) {
+            rhoHorizon[i] = schedulingSignal(k + i);
+        }
+
+        const double reference = referenceSignal(k);
+        const auto result = solveAdaptiveLPVMPC(
+            x,
+            rhoHorizon,
+            reference,
+            estimator.theta(),
+            warmStart,
+            cfg);
+
+        const double u = result.input.front();
+        const double rho = schedulingSignal(k);
+        const double aTrue = thetaTrue[0] + thetaTrue[1] * rho;
+        const double processNoise = 0.006 * normal(generator);
+        const double xNext =
+            aTrue * x + thetaTrue[2] * u + processNoise;
+
+        const std::array&lt;double, 3&gt; phi{x, rho * x, u};
+        const auto update = estimator.update(phi, xNext);
+
+        squaredTrackingError += (x - reference) * (x - reference);
+        maxInput = std::max(maxInput, std::abs(u));
+        maxState = std::max(maxState, std::abs(x));
+        absolutePredictionError += std::abs(update.second);
+
+        for (int i = 0; i &lt; cfg.horizon - 1; ++i) {
+            warmStart[i] = result.input[i + 1];
+        }
+        warmStart.back() = result.input.back();
+        x = xNext;
+    }
+
+    maxState = std::max(maxState, std::abs(x));
+    const auto thetaFinal = estimator.theta();
+    double parameterErrorSquared = 0.0;
+    for (int i = 0; i &lt; 3; ++i) {
+        const double difference = thetaFinal[i] - thetaTrue[i];
+        parameterErrorSquared += difference * difference;
+    }
+
+    std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(5);
+    std::cout &lt;&lt; &quot;Adaptive LPV-MPC simulation completed.\n&quot;;
+    std::cout &lt;&lt; &quot;Tracking RMSE: &quot;
+              &lt;&lt; std::sqrt(squaredTrackingError / steps) &lt;&lt; &quot;\n&quot;;
+    std::cout &lt;&lt; &quot;Maximum |u|:  &quot; &lt;&lt; maxInput &lt;&lt; &quot;\n&quot;;
+    std::cout &lt;&lt; &quot;Maximum |x|:  &quot; &lt;&lt; maxState &lt;&lt; &quot;\n&quot;;
+    std::cout &lt;&lt; &quot;True theta:   [&quot;
+              &lt;&lt; thetaTrue[0] &lt;&lt; &quot;, &quot;
+              &lt;&lt; thetaTrue[1] &lt;&lt; &quot;, &quot;
+              &lt;&lt; thetaTrue[2] &lt;&lt; &quot;]\n&quot;;
+    std::cout &lt;&lt; &quot;Final theta:  [&quot;
+              &lt;&lt; thetaFinal[0] &lt;&lt; &quot;, &quot;
+              &lt;&lt; thetaFinal[1] &lt;&lt; &quot;, &quot;
+              &lt;&lt; thetaFinal[2] &lt;&lt; &quot;]\n&quot;;
+    std::cout &lt;&lt; &quot;Final parameter error norm: &quot;
+              &lt;&lt; std::sqrt(parameterErrorSquared) &lt;&lt; &quot;\n&quot;;
+    std::cout &lt;&lt; &quot;Mean absolute one-step prediction error: &quot;
+              &lt;&lt; absolutePredictionError / steps &lt;&lt; &quot;\n&quot;;
+
+    return 0;
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. Java Implementation</h2>
+    <div class="down-content">
+      <p>
+        The Java version is dependency-free. EJML can replace manual matrix
+        operations, while ojAlgo provides quadratic and convex optimization
+        facilities for larger MPC formulations.
+      </p>
+      <h3>Chapter28_Lesson4.java</h3>
+      <pre><code class="language-java">/*
+Chapter28_Lesson4.java
+Adaptive LPV model predictive control for a scalar constrained plant.
+
+Build:
+    javac Chapter28_Lesson4.java
+Run:
+    java Chapter28_Lesson4
+*/
+
+import java.util.Arrays;
+import java.util.Random;
+
+public final class Chapter28_Lesson4 {
+    private Chapter28_Lesson4() {
+    }
+
+    private static final class MPCConfig {
+        final int horizon = 12;
+        final double q = 5.0;
+        final double r = 0.15;
+        final double pTerminal = 8.0;
+        final double uMax = 1.5;
+        final double xMax = 3.0;
+        final double statePenalty = 80.0;
+        final double stepSize = 0.012;
+        final int iterations = 90;
+    }
+
+    private static final class RLSUpdate {
+        final double[] theta;
+        final double predictionError;
+
+        RLSUpdate(double[] theta, double predictionError) {
+            this.theta = theta;
+            this.predictionError = predictionError;
+        }
+    }
+
+    private static final class ProjectedRLS {
+        private final double[] theta;
+        private final double[][] covariance;
+        private final double forgetting;
+        private final double[] lower;
+        private final double[] upper;
+
+        ProjectedRLS(
+                double[] theta0,
+                double covarianceScale,
+                double forgetting,
+                double[] lower,
+                double[] upper) {
+            this.theta = theta0.clone();
+            this.covariance = new double[3][3];
+            this.forgetting = forgetting;
+            this.lower = lower.clone();
+            this.upper = upper.clone();
+
+            for (int i = 0; i &lt; 3; i++) {
+                covariance[i][i] = covarianceScale;
+            }
+        }
+
+        RLSUpdate update(double[] phi, double y) {
+            double[] pPhi = new double[3];
+            for (int i = 0; i &lt; 3; i++) {
+                for (int j = 0; j &lt; 3; j++) {
+                    pPhi[i] += covariance[i][j] * phi[j];
+                }
+            }
+
+            double denominator = forgetting;
+            for (int i = 0; i &lt; 3; i++) {
+                denominator += phi[i] * pPhi[i];
+            }
+
+            double[] gain = new double[3];
+            for (int i = 0; i &lt; 3; i++) {
+                gain[i] = pPhi[i] / denominator;
+            }
+
+            double prediction = 0.0;
+            for (int i = 0; i &lt; 3; i++) {
+                prediction += phi[i] * theta[i];
+            }
+            double error = y - prediction;
+
+            for (int i = 0; i &lt; 3; i++) {
+                theta[i] = clamp(
+                        theta[i] + gain[i] * error,
+                        lower[i],
+                        upper[i]);
+            }
+
+            double[][] updated = new double[3][3];
+            for (int i = 0; i &lt; 3; i++) {
+                for (int j = 0; j &lt; 3; j++) {
+                    double correction = 0.0;
+                    for (int m = 0; m &lt; 3; m++) {
+                        correction +=
+                                gain[i] * phi[m] * covariance[m][j];
+                    }
+                    updated[i][j] =
+                            (covariance[i][j] - correction) / forgetting;
+                }
+            }
+
+            for (int i = 0; i &lt; 3; i++) {
+                for (int j = 0; j &lt; 3; j++) {
+                    covariance[i][j] =
+                            0.5 * (updated[i][j] + updated[j][i]);
+                }
+            }
+
+            return new RLSUpdate(theta.clone(), error);
+        }
+
+        double[] theta() {
+            return theta.clone();
+        }
+    }
+
+    private static final class ObjectiveResult {
+        final double cost;
+        final double[] gradient;
+        final double[] states;
+
+        ObjectiveResult(double cost, double[] gradient, double[] states) {
+            this.cost = cost;
+            this.gradient = gradient;
+            this.states = states;
+        }
+    }
+
+    private static final class MPCResult {
+        final double[] input;
+        final double[] statePrediction;
+        final double cost;
+
+        MPCResult(double[] input, double[] statePrediction, double cost) {
+            this.input = input;
+            this.statePrediction = statePrediction;
+            this.cost = cost;
+        }
+    }
+
+    private static double clamp(double value, double lower, double upper) {
+        return Math.max(lower, Math.min(upper, value));
+    }
+
+    private static double schedulingSignal(int k) {
+        return 0.75 * Math.sin(0.045 * k)
+                + 0.20 * Math.sin(0.11 * k);
+    }
+
+    private static double referenceSignal(int k) {
+        if (k &lt; 25) {
+            return 0.0;
+        }
+        if (k &lt; 95) {
+            return 1.0;
+        }
+        if (k &lt; 145) {
+            return -0.7;
+        }
+        return 0.4;
+    }
+
+    private static double statePenaltyDerivative(
+            double x,
+            MPCConfig cfg) {
+        double excess = Math.abs(x) - cfg.xMax;
+        if (excess &lt;= 0.0) {
+            return 0.0;
+        }
+        double sign = x &gt;= 0.0 ? 1.0 : -1.0;
+        return 2.0 * cfg.statePenalty * excess * sign;
+    }
+
+    private static double[] predictStates(
+            double x0,
+            double[] input,
+            double[] rho,
+            double[] theta) {
+        double[] states = new double[input.length + 1];
+        states[0] = x0;
+        double bHat = theta[2];
+
+        for (int i = 0; i &lt; input.length; i++) {
+            double aHat = theta[0] + theta[1] * rho[i];
+            states[i + 1] =
+                    aHat * states[i] + bHat * input[i];
+        }
+        return states;
+    }
+
+    private static ObjectiveResult objectiveAndGradient(
+            double x0,
+            double[] input,
+            double[] rho,
+            double reference,
+            double[] theta,
+            MPCConfig cfg) {
+        int horizon = cfg.horizon;
+        double[] states =
+                predictStates(x0, input, rho, theta);
+        double cost = 0.0;
+
+        for (int i = 0; i &lt; horizon; i++) {
+            double error = states[i] - reference;
+            double excess =
+                    Math.max(Math.abs(states[i]) - cfg.xMax, 0.0);
+            cost += cfg.q * error * error
+                    + cfg.r * input[i] * input[i]
+                    + cfg.statePenalty * excess * excess;
+        }
+
+        double terminalError = states[horizon] - reference;
+        double terminalExcess =
+                Math.max(
+                        Math.abs(states[horizon]) - cfg.xMax,
+                        0.0);
+        cost += cfg.pTerminal * terminalError * terminalError
+                + cfg.statePenalty
+                * terminalExcess * terminalExcess;
+
+        double[] gradient = new double[horizon];
+        double adjoint =
+                2.0 * cfg.pTerminal * terminalError
+                + statePenaltyDerivative(
+                        states[horizon],
+                        cfg);
+
+        double bHat = theta[2];
+        for (int i = horizon - 1; i &gt;= 0; i--) {
+            gradient[i] =
+                    2.0 * cfg.r * input[i] + bHat * adjoint;
+
+            double aHat = theta[0] + theta[1] * rho[i];
+            double stageDerivative =
+                    2.0 * cfg.q * (states[i] - reference)
+                    + statePenaltyDerivative(states[i], cfg);
+            adjoint = stageDerivative + aHat * adjoint;
+        }
+
+        return new ObjectiveResult(cost, gradient, states);
+    }
+
+    private static MPCResult solveAdaptiveLPVMPC(
+            double x0,
+            double[] rho,
+            double reference,
+            double[] theta,
+            double[] warmStart,
+            MPCConfig cfg) {
+        double[] input = warmStart.clone();
+        for (int i = 0; i &lt; input.length; i++) {
+            input[i] =
+                    clamp(input[i], -cfg.uMax, cfg.uMax);
+        }
+
+        double[] bestInput = input.clone();
+        double[] bestStates =
+                predictStates(x0, input, rho, theta);
+        double bestCost = Double.POSITIVE_INFINITY;
+
+        for (int iteration = 0;
+                iteration &lt; cfg.iterations;
+                iteration++) {
+            ObjectiveResult result =
+                    objectiveAndGradient(
+                            x0,
+                            input,
+                            rho,
+                            reference,
+                            theta,
+                            cfg);
+
+            if (result.cost &lt; bestCost) {
+                bestCost = result.cost;
+                bestInput = input.clone();
+                bestStates = result.states.clone();
+            }
+
+            double step =
+                    cfg.stepSize
+                    / Math.sqrt(1.0 + 0.03 * iteration);
+            for (int i = 0; i &lt; cfg.horizon; i++) {
+                input[i] = clamp(
+                        input[i] - step * result.gradient[i],
+                        -cfg.uMax,
+                        cfg.uMax);
+            }
+        }
+
+        return new MPCResult(bestInput, bestStates, bestCost);
+    }
+
+    public static void main(String[] args) {
+        MPCConfig cfg = new MPCConfig();
+        double[] thetaTrue = {0.72, 0.18, 0.55};
+
+        ProjectedRLS estimator = new ProjectedRLS(
+                new double[] {0.55, 0.02, 0.35},
+                60.0,
+                0.995,
+                new double[] {0.35, -0.05, 0.15},
+                new double[] {1.05, 0.40, 0.90});
+
+        Random random = new Random(7L);
+        int steps = 190;
+        double x = 0.0;
+        double[] warmStart = new double[cfg.horizon];
+
+        double squaredTrackingError = 0.0;
+        double maxInput = 0.0;
+        double maxState = 0.0;
+        double absolutePredictionError = 0.0;
+
+        for (int k = 0; k &lt; steps; k++) {
+            double[] rhoHorizon = new double[cfg.horizon];
+            for (int i = 0; i &lt; cfg.horizon; i++) {
+                rhoHorizon[i] = schedulingSignal(k + i);
+            }
+
+            double reference = referenceSignal(k);
+            MPCResult result = solveAdaptiveLPVMPC(
+                    x,
+                    rhoHorizon,
+                    reference,
+                    estimator.theta(),
+                    warmStart,
+                    cfg);
+
+            double input = result.input[0];
+            double rho = schedulingSignal(k);
+            double aTrue =
+                    thetaTrue[0] + thetaTrue[1] * rho;
+            double processNoise =
+                    0.006 * random.nextGaussian();
+            double xNext =
+                    aTrue * x
+                    + thetaTrue[2] * input
+                    + processNoise;
+
+            double[] phi = {x, rho * x, input};
+            RLSUpdate update = estimator.update(phi, xNext);
+
+            squaredTrackingError +=
+                    (x - reference) * (x - reference);
+            maxInput = Math.max(maxInput, Math.abs(input));
+            maxState = Math.max(maxState, Math.abs(x));
+            absolutePredictionError +=
+                    Math.abs(update.predictionError);
+
+            for (int i = 0; i &lt; cfg.horizon - 1; i++) {
+                warmStart[i] = result.input[i + 1];
+            }
+            warmStart[cfg.horizon - 1] =
+                    result.input[cfg.horizon - 1];
+            x = xNext;
+        }
+
+        maxState = Math.max(maxState, Math.abs(x));
+        double[] thetaFinal = estimator.theta();
+        double parameterErrorSquared = 0.0;
+        for (int i = 0; i &lt; 3; i++) {
+            double difference =
+                    thetaFinal[i] - thetaTrue[i];
+            parameterErrorSquared += difference * difference;
+        }
+
+        System.out.println(
+                &quot;Adaptive LPV-MPC simulation completed.&quot;);
+        System.out.printf(
+                &quot;Tracking RMSE: %.5f%n&quot;,
+                Math.sqrt(squaredTrackingError / steps));
+        System.out.printf(&quot;Maximum |u|:  %.5f%n&quot;, maxInput);
+        System.out.printf(&quot;Maximum |x|:  %.5f%n&quot;, maxState);
+        System.out.println(
+                &quot;True theta:   &quot; + Arrays.toString(thetaTrue));
+        System.out.println(
+                &quot;Final theta:  &quot; + Arrays.toString(thetaFinal));
+        System.out.printf(
+                &quot;Final parameter error norm: %.5f%n&quot;,
+                Math.sqrt(parameterErrorSquared));
+        System.out.printf(
+                &quot;Mean absolute one-step prediction error: %.5f%n&quot;,
+                absolutePredictionError / steps);
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. MATLAB/Simulink Implementation</h2>
+    <div class="down-content">
+      <p>
+        The script needs no toolbox. In MATLAB projects, the same structure can
+        use <code>quadprog</code>, <code>fmincon</code>, the Model Predictive
+        Control Toolbox, YALMIP, or CasADi. In Simulink, place the estimator in
+        a discrete subsystem and execute the optimizer in a MATLAB Function
+        block, an S-Function, or generated solver code.
+      </p>
+      <h3>Chapter28_Lesson4.m</h3>
+      <pre><code class="language-matlab">% Chapter28_Lesson4.m
+% Adaptive LPV model predictive control for a scalar constrained plant.
+%
+% Model:
+%   x(k+1) = (theta(1) + theta(2)*rho(k))*x(k) + theta(3)*u(k) + w(k)
+%
+% The script combines:
+%   1) projected recursive least squares,
+%   2) measured/predicted LPV scheduling,
+%   3) constrained finite-horizon optimization by projected gradient descent,
+%   4) receding-horizon implementation.
+%
+% No toolbox is required. For production MPC, consider Model Predictive
+% Control Toolbox, Optimization Toolbox (quadprog/fmincon), or YALMIP.
+
+clear;
+clc;
+rng(7);
+
+cfg.horizon = 12;
+cfg.q = 5.0;
+cfg.r = 0.15;
+cfg.pTerminal = 8.0;
+cfg.uMax = 1.5;
+cfg.xMax = 3.0;
+cfg.statePenalty = 80.0;
+cfg.stepSize = 0.012;
+cfg.iterations = 90;
+
+thetaTrue = [0.72; 0.18; 0.55];
+
+thetaHat = [0.55; 0.02; 0.35];
+covariance = 60.0 * eye(3);
+forgetting = 0.995;
+lowerTheta = [0.35; -0.05; 0.15];
+upperTheta = [1.05; 0.40; 0.90];
+
+steps = 190;
+x = 0.0;
+warmStart = zeros(cfg.horizon, 1);
+
+xLog = zeros(steps + 1, 1);
+uLog = zeros(steps, 1);
+rhoLog = zeros(steps, 1);
+referenceLog = zeros(steps, 1);
+thetaLog = zeros(steps, 3);
+predictionErrorLog = zeros(steps, 1);
+
+for k = 0:(steps - 1)
+    rhoHorizon = zeros(cfg.horizon, 1);
+    for i = 1:cfg.horizon
+        rhoHorizon(i) = schedulingSignal(k + i - 1);
+    end
+
+    reference = referenceSignal(k);
+
+    [optimalInput, ~, ~] = solveAdaptiveLPVMPC( ...
+        x, ...
+        rhoHorizon, ...
+        reference, ...
+        thetaHat, ...
+        warmStart, ...
+        cfg);
+
+    u = optimalInput(1);
+    rho = schedulingSignal(k);
+    aTrue = thetaTrue(1) + thetaTrue(2) * rho;
+    processNoise = 0.006 * randn();
+    xNext = aTrue * x + thetaTrue(3) * u + processNoise;
+
+    phi = [x; rho * x; u];
+    [thetaHat, covariance, predictionError] = projectedRLSUpdate( ...
+        thetaHat, ...
+        covariance, ...
+        phi, ...
+        xNext, ...
+        forgetting, ...
+        lowerTheta, ...
+        upperTheta);
+
+    xLog(k + 1) = x;
+    uLog(k + 1) = u;
+    rhoLog(k + 1) = rho;
+    referenceLog(k + 1) = reference;
+    thetaLog(k + 1, :) = thetaHat.&#x27;;
+    predictionErrorLog(k + 1) = predictionError;
+
+    warmStart(1:end-1) = optimalInput(2:end);
+    warmStart(end) = optimalInput(end);
+    x = xNext;
+end
+
+xLog(end) = x;
+
+trackingRMSE = sqrt(mean((xLog(1:end-1) - referenceLog).^2));
+maximumInput = max(abs(uLog));
+maximumState = max(abs(xLog));
+finalParameterError = norm(thetaHat - thetaTrue);
+meanAbsolutePredictionError = mean(abs(predictionErrorLog));
+
+fprintf(&#x27;Adaptive LPV-MPC simulation completed.\n&#x27;);
+fprintf(&#x27;Tracking RMSE: %.5f\n&#x27;, trackingRMSE);
+fprintf(&#x27;Maximum |u|:  %.5f\n&#x27;, maximumInput);
+fprintf(&#x27;Maximum |x|:  %.5f\n&#x27;, maximumState);
+fprintf(&#x27;True theta:   [%.5f, %.5f, %.5f]\n&#x27;, thetaTrue);
+fprintf(&#x27;Final theta:  [%.5f, %.5f, %.5f]\n&#x27;, thetaHat);
+fprintf(&#x27;Final parameter error norm: %.5f\n&#x27;, finalParameterError);
+fprintf(&#x27;Mean absolute one-step prediction error: %.5f\n&#x27;, ...
+    meanAbsolutePredictionError);
+
+figure(&#x27;Name&#x27;, &#x27;Adaptive LPV-MPC&#x27;);
+subplot(3, 1, 1);
+plot(0:(steps - 1), xLog(1:end-1), &#x27;LineWidth&#x27;, 1.2);
+hold on;
+plot(0:(steps - 1), referenceLog, &#x27;--&#x27;, &#x27;LineWidth&#x27;, 1.2);
+grid on;
+ylabel(&#x27;State&#x27;);
+legend(&#x27;x&#x27;, &#x27;reference&#x27;, &#x27;Location&#x27;, &#x27;best&#x27;);
+title(&#x27;Adaptive LPV-MPC tracking&#x27;);
+
+subplot(3, 1, 2);
+plot(0:(steps - 1), uLog, &#x27;LineWidth&#x27;, 1.2);
+hold on;
+yline(cfg.uMax, &#x27;--&#x27;);
+yline(-cfg.uMax, &#x27;--&#x27;);
+grid on;
+ylabel(&#x27;Input&#x27;);
+
+subplot(3, 1, 3);
+plot(0:(steps - 1), thetaLog, &#x27;LineWidth&#x27;, 1.1);
+grid on;
+xlabel(&#x27;Sample&#x27;);
+ylabel(&#x27;Parameter estimates&#x27;);
+legend(&#x27;\theta_0&#x27;, &#x27;\theta_1&#x27;, &#x27;\theta_2&#x27;, &#x27;Location&#x27;, &#x27;best&#x27;);
+
+
+function rho = schedulingSignal(k)
+    rho = 0.75 * sin(0.045 * k) + 0.20 * sin(0.11 * k);
+end
+
+
+function reference = referenceSignal(k)
+    if k &lt; 25
+        reference = 0.0;
+    elseif k &lt; 95
+        reference = 1.0;
+    elseif k &lt; 145
+        reference = -0.7;
+    else
+        reference = 0.4;
+    end
+end
+
+
+function derivative = statePenaltyDerivative(x, cfg)
+    excess = abs(x) - cfg.xMax;
+    if excess &lt;= 0.0
+        derivative = 0.0;
+        return;
+    end
+
+    derivative = 2.0 * cfg.statePenalty * excess * sign(x);
+end
+
+
+function states = predictStates(x0, input, rho, theta)
+    horizon = numel(input);
+    states = zeros(horizon + 1, 1);
+    states(1) = x0;
+    bHat = theta(3);
+
+    for i = 1:horizon
+        aHat = theta(1) + theta(2) * rho(i);
+        states(i + 1) = aHat * states(i) + bHat * input(i);
+    end
+end
+
+
+function [cost, gradient, states] = objectiveAndGradient( ...
+    x0, input, rho, reference, theta, cfg)
+
+    horizon = cfg.horizon;
+    states = predictStates(x0, input, rho, theta);
+    cost = 0.0;
+
+    for i = 1:horizon
+        stateError = states(i) - reference;
+        excess = max(abs(states(i)) - cfg.xMax, 0.0);
+        cost = cost ...
+            + cfg.q * stateError^2 ...
+            + cfg.r * input(i)^2 ...
+            + cfg.statePenalty * excess^2;
+    end
+
+    terminalError = states(horizon + 1) - reference;
+    terminalExcess = max( ...
+        abs(states(horizon + 1)) - cfg.xMax, ...
+        0.0);
+
+    cost = cost ...
+        + cfg.pTerminal * terminalError^2 ...
+        + cfg.statePenalty * terminalExcess^2;
+
+    gradient = zeros(horizon, 1);
+    adjoint = 2.0 * cfg.pTerminal * terminalError ...
+        + statePenaltyDerivative(states(horizon + 1), cfg);
+
+    bHat = theta(3);
+    for i = horizon:-1:1
+        gradient(i) = 2.0 * cfg.r * input(i) + bHat * adjoint;
+
+        aHat = theta(1) + theta(2) * rho(i);
+        stageDerivative = 2.0 * cfg.q * (states(i) - reference) ...
+            + statePenaltyDerivative(states(i), cfg);
+        adjoint = stageDerivative + aHat * adjoint;
+    end
+end
+
+
+function [bestInput, bestStates, bestCost] = solveAdaptiveLPVMPC( ...
+    x0, rho, reference, theta, warmStart, cfg)
+
+    input = min(max(warmStart, -cfg.uMax), cfg.uMax);
+    bestInput = input;
+    bestStates = predictStates(x0, input, rho, theta);
+    bestCost = inf;
+
+    for iteration = 0:(cfg.iterations - 1)
+        [cost, gradient, states] = objectiveAndGradient( ...
+            x0, ...
+            input, ...
+            rho, ...
+            reference, ...
+            theta, ...
+            cfg);
+
+        if cost &lt; bestCost
+            bestCost = cost;
+            bestInput = input;
+            bestStates = states;
+        end
+
+        step = cfg.stepSize / sqrt(1.0 + 0.03 * iteration);
+        input = input - step * gradient;
+        input = min(max(input, -cfg.uMax), cfg.uMax);
+    end
+end
+
+
+function [thetaNew, covarianceNew, predictionError] = projectedRLSUpdate( ...
+    theta, covariance, phi, y, forgetting, lowerTheta, upperTheta)
+
+    denominator = forgetting + phi.&#x27; * covariance * phi;
+    gain = covariance * phi / denominator;
+    predictionError = y - phi.&#x27; * theta;
+
+    thetaNew = theta + gain * predictionError;
+    thetaNew = min(max(thetaNew, lowerTheta), upperTheta);
+
+    covarianceNew = ( ...
+        covariance - gain * phi.&#x27; * covariance ...
+        ) / forgetting;
+    covarianceNew = 0.5 * (covarianceNew + covarianceNew.&#x27;);
+end
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 14 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>14. Wolfram Mathematica Implementation</h2>
+    <div class="down-content">
+      <p>
+        The notebook uses core Wolfram Language operations. For exact quadratic
+        programs, <code>QuadraticOptimization</code> is appropriate; for
+        nonlinear adaptive prediction models, <code>NMinimize</code> can be
+        used.
+      </p>
+      <h3>Chapter28_Lesson4.nb</h3>
+      <pre><code class="language-mathematica">(* Chapter28_Lesson4.nb
+   Adaptive LPV model predictive control for a scalar constrained plant.
+
+   The notebook combines projected recursive least squares, an LPV prediction
+   model, projected-gradient MPC, and receding-horizon implementation.
+*)
+
+ClearAll[&quot;Global`*&quot;];
+SeedRandom[7];
+
+cfg = &lt;|
+   &quot;Horizon&quot; -&gt; 12,
+   &quot;Q&quot; -&gt; 5.0,
+   &quot;R&quot; -&gt; 0.15,
+   &quot;PTerminal&quot; -&gt; 8.0,
+   &quot;UMax&quot; -&gt; 1.5,
+   &quot;XMax&quot; -&gt; 3.0,
+   &quot;StatePenalty&quot; -&gt; 80.0,
+   &quot;StepSize&quot; -&gt; 0.012,
+   &quot;Iterations&quot; -&gt; 90
+   |&gt;;
+
+schedulingSignal[k_Integer] :=
+  0.75 Sin[0.045 k] + 0.20 Sin[0.11 k];
+
+referenceSignal[k_Integer] := Piecewise[
+  {
+   {0.0, k &lt; 25},
+   {1.0, k &lt; 95},
+   {-0.7, k &lt; 145}
+   },
+  0.4
+  ];
+
+statePenaltyDerivative[x_?NumericQ] := Module[
+  {excess, sign},
+  excess = Abs[x] - cfg[&quot;XMax&quot;];
+  If[excess &lt;= 0.0,
+   0.0,
+   sign = If[x &gt;= 0.0, 1.0, -1.0];
+   2.0 cfg[&quot;StatePenalty&quot;] excess sign
+   ]
+  ];
+
+predictStates[
+   x0_?NumericQ,
+   input_List,
+   rho_List,
+   theta_List
+   ] := Module[
+  {horizon, states, bHat, i, aHat},
+  horizon = Length[input];
+  states = ConstantArray[0.0, horizon + 1];
+  states[[1]] = x0;
+  bHat = theta[[3]];
+
+  For[i = 1, i &lt;= horizon, i++,
+   aHat = theta[[1]] + theta[[2]] rho[[i]];
+   states[[i + 1]] =
+    aHat states[[i]] + bHat input[[i]];
+   ];
+
+  states
+  ];
+
+objectiveAndGradient[
+   x0_?NumericQ,
+   input_List,
+   rho_List,
+   reference_?NumericQ,
+   theta_List
+   ] := Module[
+  {
+   horizon, states, cost, i, stateError, excess,
+   terminalError, terminalExcess, gradient,
+   adjoint, bHat, aHat, stageDerivative
+   },
+
+  horizon = cfg[&quot;Horizon&quot;];
+  states = predictStates[x0, input, rho, theta];
+  cost = 0.0;
+
+  For[i = 1, i &lt;= horizon, i++,
+   stateError = states[[i]] - reference;
+   excess = Max[Abs[states[[i]]] - cfg[&quot;XMax&quot;], 0.0];
+   cost += cfg[&quot;Q&quot;] stateError^2
+     + cfg[&quot;R&quot;] input[[i]]^2
+     + cfg[&quot;StatePenalty&quot;] excess^2;
+   ];
+
+  terminalError = states[[horizon + 1]] - reference;
+  terminalExcess =
+   Max[Abs[states[[horizon + 1]]] - cfg[&quot;XMax&quot;], 0.0];
+
+  cost += cfg[&quot;PTerminal&quot;] terminalError^2
+    + cfg[&quot;StatePenalty&quot;] terminalExcess^2;
+
+  gradient = ConstantArray[0.0, horizon];
+  adjoint =
+   2.0 cfg[&quot;PTerminal&quot;] terminalError
+    + statePenaltyDerivative[states[[horizon + 1]]];
+
+  bHat = theta[[3]];
+  For[i = horizon, i &gt;= 1, i--,
+   gradient[[i]] =
+    2.0 cfg[&quot;R&quot;] input[[i]] + bHat adjoint;
+
+   aHat = theta[[1]] + theta[[2]] rho[[i]];
+   stageDerivative =
+    2.0 cfg[&quot;Q&quot;] (states[[i]] - reference)
+     + statePenaltyDerivative[states[[i]]];
+
+   adjoint = stageDerivative + aHat adjoint;
+   ];
+
+  &lt;|
+   &quot;Cost&quot; -&gt; cost,
+   &quot;Gradient&quot; -&gt; gradient,
+   &quot;States&quot; -&gt; states
+   |&gt;
+  ];
+
+solveAdaptiveLPVMPC[
+   x0_?NumericQ,
+   rho_List,
+   reference_?NumericQ,
+   theta_List,
+   warmStart_List
+   ] := Module[
+  {
+   input, bestInput, bestStates, bestCost,
+   iteration, result, step
+   },
+
+  input = Clip[warmStart, {-cfg[&quot;UMax&quot;], cfg[&quot;UMax&quot;]}];
+  bestInput = input;
+  bestStates = predictStates[x0, input, rho, theta];
+  bestCost = Infinity;
+
+  For[iteration = 0, iteration &lt; cfg[&quot;Iterations&quot;], iteration++,
+   result =
+    objectiveAndGradient[x0, input, rho, reference, theta];
+
+   If[result[&quot;Cost&quot;] &lt; bestCost,
+    bestCost = result[&quot;Cost&quot;];
+    bestInput = input;
+    bestStates = result[&quot;States&quot;];
+    ];
+
+   step =
+    cfg[&quot;StepSize&quot;]/Sqrt[1.0 + 0.03 iteration];
+
+   input = Clip[
+     input - step result[&quot;Gradient&quot;],
+     {-cfg[&quot;UMax&quot;], cfg[&quot;UMax&quot;]}
+     ];
+   ];
+
+  &lt;|
+   &quot;Input&quot; -&gt; bestInput,
+   &quot;States&quot; -&gt; bestStates,
+   &quot;Cost&quot; -&gt; bestCost
+   |&gt;
+  ];
+
+projectedRLSUpdate[
+   theta_List,
+   covariance_List,
+   phi_List,
+   y_?NumericQ,
+   forgetting_?NumericQ,
+   lower_List,
+   upper_List
+   ] := Module[
+  {
+   denominator, gain, predictionError,
+   thetaNew, covarianceNew
+   },
+
+  denominator =
+   forgetting + phi . covariance . phi;
+  gain = covariance . phi/denominator;
+  predictionError = y - phi . theta;
+
+  thetaNew =
+   Clip[theta + gain predictionError, Transpose[{lower, upper}]];
+
+  covarianceNew =
+   (covariance - Outer[Times, gain, phi] . covariance)/
+    forgetting;
+  covarianceNew =
+   0.5 (covarianceNew + Transpose[covarianceNew]);
+
+  &lt;|
+   &quot;Theta&quot; -&gt; thetaNew,
+   &quot;Covariance&quot; -&gt; covarianceNew,
+   &quot;PredictionError&quot; -&gt; predictionError
+   |&gt;
+  ];
+
+thetaTrue = {0.72, 0.18, 0.55};
+thetaHat = {0.55, 0.02, 0.35};
+covariance = 60.0 IdentityMatrix[3];
+forgetting = 0.995;
+lowerTheta = {0.35, -0.05, 0.15};
+upperTheta = {1.05, 0.40, 0.90};
+
+steps = 190;
+x = 0.0;
+warmStart = ConstantArray[0.0, cfg[&quot;Horizon&quot;]];
+
+xLog = ConstantArray[0.0, steps + 1];
+uLog = ConstantArray[0.0, steps];
+rhoLog = ConstantArray[0.0, steps];
+referenceLog = ConstantArray[0.0, steps];
+thetaLog = ConstantArray[0.0, {steps, 3}];
+predictionErrorLog = ConstantArray[0.0, steps];
+
+For[k = 0, k &lt; steps, k++,
+ rhoHorizon =
+  Table[schedulingSignal[k + i], {i, 0, cfg[&quot;Horizon&quot;] - 1}];
+ reference = referenceSignal[k];
+
+ mpcResult =
+  solveAdaptiveLPVMPC[
+   x,
+   rhoHorizon,
+   reference,
+   thetaHat,
+   warmStart
+   ];
+
+ u = mpcResult[&quot;Input&quot;][[1]];
+ rho = schedulingSignal[k];
+ aTrue = thetaTrue[[1]] + thetaTrue[[2]] rho;
+ processNoise =
+  0.006 RandomVariate[NormalDistribution[0.0, 1.0]];
+ xNext = aTrue x + thetaTrue[[3]] u + processNoise;
+
+ phi = {x, rho x, u};
+ rlsResult =
+  projectedRLSUpdate[
+   thetaHat,
+   covariance,
+   phi,
+   xNext,
+   forgetting,
+   lowerTheta,
+   upperTheta
+   ];
+
+ thetaHat = rlsResult[&quot;Theta&quot;];
+ covariance = rlsResult[&quot;Covariance&quot;];
+
+ xLog[[k + 1]] = x;
+ uLog[[k + 1]] = u;
+ rhoLog[[k + 1]] = rho;
+ referenceLog[[k + 1]] = reference;
+ thetaLog[[k + 1]] = thetaHat;
+ predictionErrorLog[[k + 1]] =
+  rlsResult[&quot;PredictionError&quot;];
+
+ warmStart =
+  Join[
+   Rest[mpcResult[&quot;Input&quot;]],
+   {Last[mpcResult[&quot;Input&quot;]]}
+   ];
+
+ x = xNext;
+ ];
+
+xLog[[-1]] = x;
+
+trackingRMSE =
+ Sqrt[Mean[(Most[xLog] - referenceLog)^2]];
+maximumInput = Max[Abs[uLog]];
+maximumState = Max[Abs[xLog]];
+finalParameterError = Norm[thetaHat - thetaTrue];
+meanAbsolutePredictionError =
+ Mean[Abs[predictionErrorLog]];
+
+Print[&quot;Adaptive LPV-MPC simulation completed.&quot;];
+Print[&quot;Tracking RMSE: &quot;, NumberForm[trackingRMSE, {8, 5}]];
+Print[&quot;Maximum |u|:  &quot;, NumberForm[maximumInput, {8, 5}]];
+Print[&quot;Maximum |x|:  &quot;, NumberForm[maximumState, {8, 5}]];
+Print[&quot;True theta:   &quot;, thetaTrue];
+Print[&quot;Final theta:  &quot;, thetaHat];
+Print[
+ &quot;Final parameter error norm: &quot;,
+ NumberForm[finalParameterError, {8, 5}]
+ ];
+Print[
+ &quot;Mean absolute one-step prediction error: &quot;,
+ NumberForm[meanAbsolutePredictionError, {8, 5}]
+ ];
+
+trackingPlot = ListLinePlot[
+  {
+   Transpose[{Range[0, steps - 1], Most[xLog]}],
+   Transpose[{Range[0, steps - 1], referenceLog}]
+   },
+  PlotLegends -&gt; {&quot;x&quot;, &quot;reference&quot;},
+  Frame -&gt; True,
+  FrameLabel -&gt; {&quot;Sample&quot;, &quot;State&quot;},
+  PlotLabel -&gt; &quot;Adaptive LPV-MPC Tracking&quot;,
+  ImageSize -&gt; Large
+  ];
+
+parameterPlot = ListLinePlot[
+  Transpose[thetaLog],
+  PlotLegends -&gt; {&quot;theta0&quot;, &quot;theta1&quot;, &quot;theta2&quot;},
+  Frame -&gt; True,
+  FrameLabel -&gt; {&quot;Sample&quot;, &quot;Estimate&quot;},
+  PlotLabel -&gt; &quot;Online Parameter Estimates&quot;,
+  ImageSize -&gt; Large
+  ];
+
+Column[{trackingPlot, parameterPlot}]
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 15 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>15. Solver and Implementation Choices</h2>
+    <div class="down-content">
+      <div class="table-responsive">
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>Model and constraints</th>
+              <th>Typical online problem</th>
+              <th>Representative tools</th>
+              <th>Main caution</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Linear/LPV with fixed scheduling sequence</td>
+              <td>QP</td>
+              <td>OSQP, qpOASES, HPIPM, quadprog, CVXPY</td>
+              <td>Changing model matrices must preserve conditioning.</td>
+            </tr>
+            <tr>
+              <td>Polytopic robust LPV model</td>
+              <td>QP, SOCP, LMI, or min-max approximation</td>
+              <td>YALMIP, CVX, MOSEK, SDPT3</td>
+              <td>Vertex growth can become computationally expensive.</td>
+            </tr>
+            <tr>
+              <td>Nonlinear adaptive model</td>
+              <td>NLP</td>
+              <td>CasADi, IPOPT, acados, fmincon</td>
+              <td>Local minima and real-time iteration limits matter.</td>
+            </tr>
+            <tr>
+              <td>Embedded real-time controller</td>
+              <td>Generated sparse QP/NLP</td>
+              <td>acados, FORCESPRO, CVXGEN, custom C/C++</td>
+              <td>Worst-case execution time must be verified.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>15.1 Numerical safeguards</h3>
+      <ul>
+        <li>scale states, inputs, regressors, and cost weights;</li>
+        <li>symmetrize and regularize covariance matrices;</li>
+        <li>project parameter estimates onto physically valid bounds;</li>
+        <li>warm-start the optimizer by shifting the prior solution;</li>
+        <li>impose iteration and wall-clock limits;</li>
+        <li>retain a verified fallback controller when optimization fails;</li>
+        <li>
+          log feasibility, solver residuals, active constraints, and estimator
+          covariance.
+        </li>
+      </ul>
+
+      <h3>15.2 Sampling and time-scale separation</h3>
+      <p>
+        Adaptation, optimization, and plant dynamics should not all be tuned as
+        if they were independent. Excessively rapid parameter updates can make
+        the prediction model vary faster than the optimizer and terminal design
+        can tolerate. A practical implementation may filter estimates, update
+        the model at a slower supervisory rate, or limit
+        <strong>\(\|\hat{\theta}_{k+1}-\hat{\theta}_k\|\)</strong>.
+      </p>
+
+      <h3>15.3 Validation hierarchy</h3>
+      <ol>
+        <li>
+          offline Monte Carlo simulation over the initial uncertainty set;
+        </li>
+        <li>constraint stress tests and infeasibility injection;</li>
+        <li>processor-in-the-loop timing tests;</li>
+        <li>hardware-in-the-loop testing with sensor and actuator faults;</li>
+        <li>
+          limited-envelope experiments with an independent safety monitor.
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- Section 16 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>16. Choosing the Appropriate Architecture</h2>
+    <div class="down-content">
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  S["Start with constrained varying dynamics"] --> M["Is a reliable scheduling \nvariable measured?"]
+  M -->|yes| L["Use an LPV prediction model"]
+  M -->|no| U["Use an uncertain LTI \nor nonlinear model"]
+  L --> K["Are LPV coefficients \naccurately known?"]
+  K -->|yes| LPV["LPV MPC"]
+  K -->|no| ALPV["Adaptive LPV MPC"]
+  U --> C["Is point-estimate \nconstraint risk acceptable?"]
+  C -->|yes| CE["Certainty-equivalent \nAdaptive MPC"]
+  C -->|no| RAMPC["Robust Adaptive \nMPC with uncertainty \nsets or tubes"]
+  ALPV --> G["Need guaranteed constraints?"]
+  G -->|yes| RLPV["Robust Adaptive LPV MPC"]
+  G -->|no| CELPV["Certainty-equivalent \nAdaptive LPV MPC"]
+        </pre>
+      </div>
+      <p>
+        The strongest architecture is not always the best engineering choice.
+        Robust adaptive LPV-MPC may be too expensive for a fast embedded loop,
+        while a simpler scheduled controller with supervisory adaptation and
+        independent constraint protection may be more verifiable.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 17 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>17. Problems and Solutions</h2>
+    <div class="down-content">
+      <h3>Problem 1: LPV Condensed Prediction</h3>
+      <p>
+        For
+        <strong>\(x_{i+1}=A_ix_i+B_iu_i\)</strong>, derive
+        <strong>\(x_1,x_2,x_3\)</strong> as affine functions of
+        <strong>\(x_0,u_0,u_1,u_2\)</strong>.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">\[ x_1=A_0x_0+B_0u_0. \]</h4>
+      <h4 class="mathJax">
+        \[ \begin{aligned} x_2 &=A_1x_1+B_1u_1\\ &=A_1A_0x_0+A_1B_0u_0+B_1u_1.
+        \end{aligned} \]
+      </h4>
+      <h4 class="mathJax">
+        \[ \begin{aligned} x_3 &=A_2x_2+B_2u_2\\ &=A_2A_1A_0x_0 +A_2A_1B_0u_0
+        +A_2B_1u_1 +B_2u_2. \end{aligned} \]
+      </h4>
+      <p>
+        These block products form the matrices
+        <strong>\(\mathcal{A}_k\)</strong> and
+        <strong>\(\mathcal{B}_k\)</strong>. Unlike LTI MPC, the products depend
+        on the predicted scheduling sequence.
+      </p>
+
+      <h3>Problem 2: Regression for the Adaptive LPV Model</h3>
+      <p>
+        Show that
+        <strong
+          >\(x_{k+1}=(\theta_0+\theta_1\rho_k)x_k+\theta_2u_k+w_k\)</strong
+        >
+        is linear in the unknown parameter vector.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ x_{k+1} = \theta_0x_k+ \theta_1(\rho_kx_k)+ \theta_2u_k+w_k. \]
+      </h4>
+      <p>Define</p>
+      <h4 class="mathJax">
+        \[ \theta= \begin{bmatrix} \theta_0 &amp; \theta_1 &amp; \theta_2
+        \end{bmatrix}^{\mathsf{T}}, \qquad \phi_k= \begin{bmatrix} x_k &amp;
+        \rho_kx_k &amp; u_k \end{bmatrix}^{\mathsf{T}}. \]
+      </h4>
+      <p>Then</p>
+      <h4 class="mathJax">\[ x_{k+1}=\phi_k^\mathsf{T}\theta+w_k, \]</h4>
+      <p>
+        which is suitable for RLS even though the physical dynamics vary with
+        <strong>\(\rho_k\)</strong>.
+      </p>
+
+      <h3>Problem 3: Numerical RLS Update</h3>
+      <p>
+        Let
+        <strong>\(\hat{\theta}_k=[0.6,\;0.1,\;0.4]^\mathsf{T}\)</strong>,
+        <strong>\(P_k=10I\)</strong>, <strong>\(\lambda=1\)</strong>,
+        <strong>\(x_k=1\)</strong>, <strong>\(\rho_k=0.5\)</strong>,
+        <strong>\(u_k=0.2\)</strong>, and <strong>\(x_{k+1}=0.82\)</strong>.
+        Compute the unprojected RLS update.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ \phi_k= \begin{bmatrix} 1 &amp; 0.5 &amp; 0.2
+        \end{bmatrix}^{\mathsf{T}}. \]
+      </h4>
+      <h4 class="mathJax">
+        \[ \hat{x}_{k+1|k} = \phi_k^\mathsf{T}\hat{\theta}_k =
+        0.6+0.05+0.08=0.73. \]
+      </h4>
+      <h4 class="mathJax">\[ \tilde{y}_k=0.82-0.73=0.09. \]</h4>
+      <h4 class="mathJax">
+        \[ \phi_k^\mathsf{T}P_k\phi_k = 10(1^2+0.5^2+0.2^2)=12.9. \]
+      </h4>
+      <h4 class="mathJax">
+        \[ K_k= \frac{10\phi_k}{1+12.9} = \frac{1}{13.9} \begin{bmatrix} 10
+        &amp; 5 &amp; 2 \end{bmatrix}^{\mathsf{T}}. \]
+      </h4>
+      <h4 class="mathJax">
+        \[ \hat{\theta}_{k+1} = \hat{\theta}_k+K_k(0.09) \approx \begin{bmatrix}
+        0.66475 &amp; 0.13237 &amp; 0.41295 \end{bmatrix}^{\mathsf{T}}. \]
+      </h4>
+
+      <h3>Problem 4: Nested Sets and Robust Feasibility</h3>
+      <p>
+        Explain why
+        <strong>\(\Theta_{k+1}\subseteq\Theta_k\)</strong> is useful but not by
+        itself sufficient for recursive feasibility.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <p>
+        The inclusion means that uncertainty has not expanded, so any constraint
+        enforced for all models in <strong>\(\Theta_k\)</strong> also covers all
+        models in <strong>\(\Theta_{k+1}\)</strong>. However, recursive
+        feasibility also requires the realized disturbed successor state to
+        remain inside the robust feasible region. This normally needs a robustly
+        invariant tube or terminal set, a bounded disturbance model, and a valid
+        shifted candidate sequence. Nested parameter sets remove one source of
+        expansion but do not replace the invariant-set argument.
+      </p>
+
+      <h3>Problem 5: Stability Under Model Updates</h3>
+      <p>Suppose</p>
+      <h4 class="mathJax">
+        \[ V_{k+1}-V_k \leq -c\|x_k\|^2+ L\|\Delta\hat{\theta}_k\|. \]
+      </h4>
+      <p>
+        State one condition under which asymptotic convergence remains plausible
+        and one condition that yields only practical stability.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <p>
+        If
+        <strong
+          >\(\sum_{k=0}^{\infty}\|\Delta\hat{\theta}_k\|&lt;\infty\)</strong
+        >, the cumulative perturbation of the Lyapunov decrease is finite. With
+        standard boundedness and detectability conditions, this can support an
+        asymptotic convergence argument. If instead
+        <strong>\(\|\Delta\hat{\theta}_k\|\leq\bar{d}_\theta\)</strong> with a
+        nonzero constant bound, then <strong>\(V_k\)</strong> is guaranteed to
+        decrease only outside a neighborhood whose size depends on
+        <strong>\(L\bar{d}_\theta/c\)</strong>. The appropriate conclusion is
+        ultimate boundedness or practical stability.
+      </p>
+
+      <h3>Problem 6: Frozen Versus Anticipative Scheduling</h3>
+      <p>
+        A plant has
+        <strong>\(A(\rho)=A_0+\rho A_1\)</strong>. Compare frozen scheduling
+        with an exact known future scheduling trajectory.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <p>
+        Frozen scheduling sets every prediction matrix to
+        <strong>\(A(\rho_k)\)</strong>. It is simple but introduces prediction
+        mismatch when <strong>\(\rho\)</strong> changes appreciably over the
+        horizon. Anticipative scheduling uses
+        <strong>\(A(\rho_{i|k})\)</strong> at each prediction stage. When the
+        trajectory is known accurately, this removes that source of mismatch and
+        can reduce conservatism. When the schedule forecast is uncertain, a
+        set-valued or robust treatment is needed; treating a poor forecast as
+        exact can be less safe than freezing the current value.
+      </p>
+
+      <h3>
+        Problem 7: Why Parameter Convergence Is Not Guaranteed by MPC Tracking
+      </h3>
+      <p>
+        Explain why small tracking error does not imply
+        <strong>\(\hat{\theta}_k&rarr;\theta^\star\)</strong>.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <p>
+        MPC may regulate the state near a constant reference using an
+        input-state trajectory that does not persistently excite every regressor
+        direction. Several parameter vectors can then predict nearly identical
+        local behavior. Tracking error can converge while the information matrix
+        remains rank deficient. Parameter convergence still requires an
+        excitation or identifiability condition, and deliberate excitation must
+        respect the MPC constraints.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 18 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>18. Summary</h2>
+    <div class="down-content">
+      <p>
+        Adaptive MPC places an online-updated model inside a receding-horizon
+        optimization. LPV MPC uses measured or predicted scheduling variables to
+        describe known operating-condition dependence. The two ideas can be
+        combined by estimating uncertain LPV coefficients online.
+      </p>
+      <p>
+        Certainty-equivalent implementations are relatively simple but do not
+        automatically protect constraints against estimation error. Robust
+        Adaptive MPC augments the point estimate with parameter sets, tubes,
+        tightened constraints, or min-max predictions. Nested uncertainty sets,
+        invariant terminal ingredients, and bounded model updates are central to
+        recursive-feasibility and stability arguments.
+      </p>
+      <p>
+        Full derivations of terminal sets, robust invariant tubes,
+        multiparametric quadratic programming, nonlinear programming, and
+        real-time solver design belong in dedicated MPC and Robust Control
+        courses. The adaptive-control contribution is the estimator-controller
+        coupling, the information effect of control inputs, and the need to
+        reconcile learning with stability and constraints.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 19 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>19. References</h2>
+    <ol>
+      <li>
+        García, C. E., Prett, D. M., &amp; Morari, M. (1989). Model predictive
+        control: Theory and practice—A survey.
+        <em>Automatica</em>, 25(3), 335–348. doi: 10.1016/0005-1098(89)90002-2.
+      </li>
+      <li>
+        Kothare, M. V., Balakrishnan, V., &amp; Morari, M. (1996). Robust
+        constrained model predictive control using linear matrix inequalities.
+        <em>Automatica</em>, 32(10), 1361–1379. doi:
+        10.1016/0005-1098(96)00063-5.
+      </li>
+      <li>
+        Mayne, D. Q., Rawlings, J. B., Rao, C. V., &amp; Scokaert, P. O. M.
+        (2000). Constrained model predictive control: Stability and optimality.
+        <em>Automatica</em>, 36(6), 789–814. doi: 10.1016/S0005-1098(99)00214-9.
+      </li>
+      <li>
+        Apkarian, P., Gahinet, P., &amp; Becker, G. (1995). Self-scheduled
+        H-infinity control of linear parameter-varying systems: A design
+        example. <em>Automatica</em>, 31(9), 1251–1261. doi:
+        10.1016/0005-1098(95)00038-X.
+      </li>
+      <li>
+        Tanaskovic, M., Fagiano, L., Smith, R., &amp; Morari, M. (2014).
+        Adaptive receding horizon control for constrained MIMO systems.
+        <em>Automatica</em>, 50(12), 3019–3029. doi:
+        10.1016/j.automatica.2014.10.036.
+      </li>
+      <li>
+        Hanema, J., Tóth, R., &amp; Lazar, M. (2016). Tube-based anticipative
+        model predictive control for linear parameter-varying systems. In
+        <em>Proceedings of the 55th IEEE Conference on Decision and Control</em
+        >, 1458–1463. doi: 10.1109/CDC.2016.7798472.
+      </li>
+      <li>
+        Lorenzen, M., Allgöwer, F., &amp; Cannon, M. (2017). Adaptive model
+        predictive control with robust constraint satisfaction.
+        <em>IFAC-PapersOnLine</em>, 50(1), 3313–3318. doi:
+        10.1016/j.ifacol.2017.08.512.
+      </li>
+      <li>
+        Lorenzen, M., Cannon, M., &amp; Allgöwer, F. (2019). Robust MPC with
+        recursive model update.
+        <em>Automatica</em>, 103, 461–471. doi:
+        10.1016/j.automatica.2019.02.023.
+      </li>
+      <li>
+        Zhang, K., &amp; Shi, Y. (2020). Adaptive model predictive control for a
+        class of constrained linear systems with parametric uncertainties.
+        <em>Automatica</em>, 117, 108974. doi: 10.1016/j.automatica.2020.108974.
+      </li>
+      <li>
+        Lu, X., Cannon, M., &amp; Koksal-Rivet, D. (2021). Robust adaptive model
+        predictive control: Performance and parameter estimation.
+        <em>International Journal of Robust and Nonlinear Control</em>, 31(18),
+        8703–8724. doi: 10.1002/rnc.5175.
+      </li>
+      <li>
+        Köhler, J., Kötting, P., Soloperto, R., Allgöwer, F., &amp; Müller, M.
+        A. (2021). A robust adaptive model predictive control framework for
+        nonlinear uncertain systems.
+        <em>International Journal of Robust and Nonlinear Control</em>, 31(18),
+        8725–8749. doi: 10.1002/rnc.5147.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter28/Lesson3.html">
+          Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter28/Lesson5.html">
+          Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#" role="search" onsubmit="return false;">
+              <label for="sidebar-search-input" class="sr-only">Search course lessons</label>
+              <input
+                type="text"
+                name="search"
+                id="sidebar-search-input"
+                placeholder="Search..."
+              / aria-label="Search course lessons">
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu" class="tex2jax_ignore">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: theta^Tphi(x,u) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression phi^T(t)theta
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="active-lesson" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank" rel="noopener noreferrer"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+              <a href="https://mohammadijoo.github.io/DevOps_Academy" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/DevOps_Academy.jpg"
+                    alt="DevOps Tutorials"
+                  />
+                  <p>DevOps Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank" rel="noopener noreferrer">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]],
+          processEscapes: true,
+          ignoreClass: "tex2jax_ignore"
+        },
+        messageStyle: "none",
+        showMathMenu: false
+      });
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/sidebar_search.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>

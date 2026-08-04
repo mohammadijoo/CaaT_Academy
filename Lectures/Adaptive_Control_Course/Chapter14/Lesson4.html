@@ -1,0 +1,3087 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 14: Discrete-Time Adaptive Control – Essentials - Lesson 4: Implementation Issues: Sampling, Quantization, and Delay | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank" rel="noopener noreferrer">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>Chapter 14: Discrete-Time Adaptive Control – Essentials</h1>
+    <h3>
+      <strong
+        >Lesson 4: Implementation Issues: Sampling, Quantization, and
+        Delay</strong
+      >
+    </h3>
+    <p>
+      This lesson studies the nonidealities that appear when a mathematically
+      derived discrete-time adaptive controller is executed on a digital
+      processor. We derive exact and approximate sampled models, quantify
+      measurement and actuator quantization errors, represent computation and
+      transport delays, and establish practical stability bounds for the
+      resulting adaptive loop. A common RLS-based example is then implemented in
+      Python, C++, Java, MATLAB/Simulink, and Wolfram Mathematica.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>1. From an Ideal Adaptive Law to a Real Digital Loop</h2>
+    <div class="down-content">
+      <p>
+        In the preceding lessons, the plant, estimator, and control update were
+        written at ideal sampling instants. A real implementation inserts an
+        analog-to-digital converter, finite-word arithmetic, a task scheduler,
+        an actuator interface, and a zero-order hold. The controller therefore
+        operates on quantized measurements and its command reaches the plant
+        only after a finite computation and communication time.
+      </p>
+      <p>
+        For a scalar plant, the implementation model used throughout this lesson
+        is
+      </p>
+      <h4 class="mathJax">
+        \[ y_{k+1}=a y_k+b u_k+w_k,\qquad u_k=c_{k-d},\qquad
+        y_k^{q}=Q_{\Delta_y}(y_k+v_k), \]
+      </h4>
+      <p>
+        where <strong>\( c_k \)</strong> is the newly calculated command,
+        <strong>\( d \)</strong> is an integer delay in samples,
+        <strong>\( u_k \)</strong> is the command actually applied during the
+        current interval, and <strong>\( Q_{\Delta_y} \)</strong> is a
+        quantizer. The estimator must use <em>the applied input</em>
+        <strong>\( u_k \)</strong>, not merely the command
+        <strong>\( c_k \)</strong>; otherwise the regressor is time-misaligned.
+      </p>
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  R["Reference r(k)"] --> C["Adaptive controller"]
+  YQ["Quantized measurement yq(k)"] --> C
+  C --> CQ["Command quantizer and saturation"]
+  CQ --> D["Computation and transport delay"]
+  D --> H["Zero-order hold"]
+  H --> P["Physical plant"]
+  P --> S["Sensor and sampler"]
+  S --> YQ
+  YQ --> E["Online estimator"]
+  H --> E
+  E --> C
+        </pre>
+      </div>
+      <p>
+        The three implementation effects are coupled. A larger sampling period
+        changes the discrete plant coefficients, converts a fixed computation
+        time into a larger or smaller fractional delay, and changes the physical
+        meaning of one quantization count per sample. Consequently, sampling,
+        quantization, and delay should be analyzed as one closed-loop design
+        problem rather than as independent software details.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. Exact Sampling with a Zero-Order Hold</h2>
+    <div class="down-content">
+      <p>
+        Consider the continuous-time linear plant
+        <strong>\( \dot{x}(t)=A_c x(t)+B_c u(t) \)</strong>. If the digital
+        controller holds <strong>\( u(t)=u_k \)</strong> for
+        <strong>\( t\in[kT_s,(k+1)T_s) \)</strong>, exact integration gives
+      </p>
+      <h4 class="mathJax">
+        \[ x_{k+1}=A_d x_k+B_d u_k, \qquad A_d=e^{A_cT_s}, \qquad
+        B_d=\int_0^{T_s}e^{A_c\tau}B_c\,d\tau. \]
+      </h4>
+      <p>
+        This is not an approximation: it is the exact sample-to-sample model
+        under a zero-order hold. For the first-order process
+      </p>
+      <h4 class="mathJax">\[ \tau_p\dot{y}(t)+y(t)=K_pu(t), \]</h4>
+      <p>the exact sampled coefficients are</p>
+      <h4 class="mathJax">
+        \[ a(T_s)=e^{-T_s/\tau_p}, \qquad
+        b(T_s)=K_p\left(1-e^{-T_s/\tau_p}\right). \]
+      </h4>
+      <p>
+        Hence changing <strong>\( T_s \)</strong> changes the parameter vector
+        being estimated. If a controller changes its sampling rate online but
+        retains old estimates of <strong>\( a \)</strong> and
+        <strong>\( b \)</strong>, the estimator experiences an artificial
+        parameter jump even though the physical plant has not changed.
+      </p>
+
+      <h3>2.1 Euler approximation and its error</h3>
+      <p>
+        The forward-Euler approximation is
+        <strong>\( A_E=I+A_cT_s \)</strong> and
+        <strong>\( B_E=B_cT_s \)</strong>. Expanding the matrix exponential,
+      </p>
+      <h4 class="mathJax">
+        \[ e^{A_cT_s} =I+A_cT_s+\frac{A_c^2T_s^2}{2!}
+        +\frac{A_c^3T_s^3}{3!}+\cdots . \]
+      </h4>
+      <p>
+        Therefore the local matrix error is second order in the sampling period.
+        Using a compatible matrix norm,
+      </p>
+      <h4 class="mathJax">
+        \[ \left\|A_d-A_E\right\| \le e^{\|A_c\|T_s}-1-\|A_c\|T_s
+        =\mathcal{O}(T_s^2). \]
+      </h4>
+      <p>
+        Adaptive control can magnify this modeling error because the estimator
+        may interpret discretization error as a parameter change. Exact
+        zero-order-hold discretization should therefore be used whenever the
+        continuous model is known and the matrix exponential is available
+        offline.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. Selecting the Sampling Period</h2>
+    <div class="down-content">
+      <p>
+        The sampling period must satisfy several competing requirements:
+        adequate closed-loop phase margin, sufficiently small intersample
+        motion, enough processor time to finish the adaptive update, and enough
+        excitation per observation for reliable estimation. Sampling faster is
+        not automatically better: very small changes in output may become
+        comparable with sensor quantization, while covariance updates occur more
+        frequently and can amplify numerical roundoff.
+      </p>
+
+      <h3>3.1 Bandwidth and delay-phase constraint</h3>
+      <p>
+        A pure delay of <strong>\( dT_s \)</strong> contributes the frequency
+        response factor <strong>\( e^{-j\omega dT_s} \)</strong> and phase lag
+      </p>
+      <h4 class="mathJax">\[ \phi_d(\omega)=-\omega dT_s. \]</h4>
+      <p>
+        If the delay is allowed to consume at most
+        <strong>\( \phi_{\mathrm{allow} } \)</strong> radians at the desired
+        closed-loop bandwidth <strong>\( \omega_b \)</strong>, then
+      </p>
+      <h4 class="mathJax">
+        \[ T_s\le \frac{\phi_{\mathrm{allow} } }{d\omega_b}. \]
+      </h4>
+      <p>
+        This relation is a delay budget, not a complete stability theorem. It is
+        useful for rejecting sampling choices that necessarily consume too much
+        phase margin before the adaptive dynamics are considered.
+      </p>
+
+      <h3>3.2 Sampling jitter</h3>
+      <p>
+        Let the actual interval be
+        <strong>\( T_k=T_s+\delta T_k \)</strong>, with bounded jitter
+        <strong>\( |\delta T_k|\le J \)</strong>. For the first-order process,
+      </p>
+      <h4 class="mathJax">
+        \[ a_k=e^{-T_k/\tau_p}, \qquad |a_k-a(T_s)| \le \frac{J}{\tau_p}
+        e^{-(T_s-J)/\tau_p}, \qquad J&lt;T_s. \]
+      </h4>
+      <p>
+        The inequality follows from the mean-value theorem because the maximum
+        magnitude of <strong>\( da/dT \)</strong> on
+        <strong>\( [T_s-J,T_s+J] \)</strong> occurs at the smallest interval.
+        Thus scheduler jitter appears to the estimator as bounded time-varying
+        parameter uncertainty.
+      </p>
+
+      <h3>3.3 Deadline condition</h3>
+      <p>A deterministic implementation should satisfy</p>
+      <h4 class="mathJax">
+        \[ t_{\mathrm{ADC} }+ t_{\mathrm{filter} }+ t_{\mathrm{estimator} }+
+        t_{\mathrm{controller} }+ t_{\mathrm{DAC} } \le T_s-t_{\mathrm{margin}
+        }. \]
+      </h4>
+      <p>
+        If this condition is occasionally violated, the effective delay switches
+        between different integers. Such deadline misses are more damaging than
+        a known constant delay because the controller and regressor alignment
+        become time varying.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Quantization Models and Error Bounds</h2>
+    <div class="down-content">
+      <p>
+        A uniform mid-tread quantizer with resolution
+        <strong>\( \Delta \)</strong> is
+      </p>
+      <h4 class="mathJax">
+        \[ Q_\Delta(z)
+        =\Delta\left\lfloor\frac{z}{\Delta}+\frac{1}{2}\right\rfloor. \]
+      </h4>
+      <p>
+        When the quantizer is not saturated, define
+        <strong>\( \eta_q=Q_\Delta(z)-z \)</strong>. Then
+      </p>
+      <h4 class="mathJax">\[ |\eta_q|\le\frac{\Delta}{2}. \]</h4>
+      <p>
+        This deterministic bound is preferable to automatically modeling
+        quantization as white noise. The white-noise approximation requires
+        additional assumptions, such as sufficiently rich signals and weak
+        correlation between the signal and the quantization error. Near a
+        setpoint, those assumptions often fail and deterministic limit cycles
+        may appear.
+      </p>
+
+      <h3>4.1 Quantized regression equation</h3>
+      <p>Let both output and applied input be quantized:</p>
+      <h4 class="mathJax">
+        \[ y_k^q=y_k+\eta_k^y, \qquad u_k^q=u_k+\eta_k^u. \]
+      </h4>
+      <p>Substitution into the scalar plant gives the measured regression</p>
+      <h4 class="mathJax">
+        \[ y_{k+1}^q = \begin{bmatrix}y_k^q &amp; u_k^q\end{bmatrix}
+        \begin{bmatrix}a\\b\end{bmatrix} +w_k+d_k^q, \]
+      </h4>
+      <p>where the quantization-induced disturbance is</p>
+      <h4 class="mathJax">\[ d_k^q = \eta_{k+1}^y-a\eta_k^y-b\eta_k^u. \]</h4>
+      <p>Hence, before saturation,</p>
+      <h4 class="mathJax">
+        \[ |d_k^q| \le \frac{1+|a|}{2}\Delta_y +\frac{|b|}{2}\Delta_u. \]
+      </h4>
+      <p>
+        This bound explains why reducing only sensor quantization may not
+        improve identification if the actuator command remains coarse. Both
+        channels enter the prediction error.
+      </p>
+
+      <h3>4.2 Finite range and saturation</h3>
+      <p>
+        A real converter has both resolution and range. If
+        <strong>\( |z| \)</strong> exceeds the representable range, the
+        quantization error is no longer bounded by
+        <strong>\( \Delta/2 \)</strong>. Saturation must therefore be treated as
+        a separate nonlinearity. Parameter projection, command saturation, and
+        anti-drift logic should be active before hardware limits are reached.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Delay Modeling and Predictor Compensation</h2>
+    <div class="down-content">
+      <p>
+        Suppose command <strong>\( c_k \)</strong> is applied after
+        <strong>\( d \)</strong> complete sample intervals. The plant equation
+        can be written as
+      </p>
+      <h4 class="mathJax">\[ y_{k+1}=a y_k+b c_{k-d}+w_k. \]</h4>
+      <p>
+        A delay can be represented by an augmented state containing the command
+        queue:
+      </p>
+      <h4 class="mathJax">
+        \[ \xi_k= \begin{bmatrix} y_k &amp; c_{k-d} &amp; c_{k-d+1} &amp; \cdots
+        &amp; c_{k-1} \end{bmatrix}^T. \]
+      </h4>
+      <p>
+        The augmented model is delay free but has higher order. For the simple
+        certainty-equivalent controller in this lesson, it is more transparent
+        to predict through the queue directly. Let
+        <strong>\( q_i(k) \)</strong> denote the inputs already scheduled over
+        the delay horizon, with <strong>\( q_0(k)=u_k \)</strong> equal to the
+        input applied in the current interval. Starting from the quantized
+        measurement,
+      </p>
+      <h4 class="mathJax">
+        \[ \widehat y_{k|k}=y_k^q, \qquad \widehat y_{k+i+1|k} = \widehat
+        a_k\widehat y_{k+i|k} +\widehat b_k q_i(k), \quad i=0,\ldots,d-1. \]
+      </h4>
+      <p>
+        The newly calculated command affects
+        <strong>\( y_{k+d+1} \)</strong>. With desired scalar closed-loop pole
+        <strong>\( a_c \)</strong>, choose the target
+      </p>
+      <h4 class="mathJax">
+        \[ y_{k+d+1}^\star = a_c\widehat y_{k+d|k} +(1-a_c)r_k, \qquad
+        |a_c|&lt;1, \]
+      </h4>
+      <p>and compute</p>
+      <h4 class="mathJax">
+        \[ c_k= \operatorname{sat}_{u_{\max} } \left( \frac{ y_{k+d+1}^\star-
+        \widehat a_k\widehat y_{k+d|k} }{\widehat b_k} \right). \]
+      </h4>
+      <p>
+        Projection must keep <strong>\( \widehat b_k \)</strong> away from zero;
+        otherwise the certainty-equivalent division can produce an unbounded
+        command. The implementation example assumes the sign of
+        <strong>\( b \)</strong> is known, consistent with the sign-definite
+        case studied earlier in the course.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. RLS with Quantized, Delayed Data</h2>
+    <div class="down-content">
+      <p>
+        Define the regressor from the quantized output and the input actually
+        applied during the interval:
+      </p>
+      <h4 class="mathJax">
+        \[ \varphi_k= \begin{bmatrix}y_k^q\\u_k\end{bmatrix}, \qquad \widehat
+        y_{k+1|k}=\widehat\theta_k^T\varphi_k, \qquad \widehat\theta_k=
+        \begin{bmatrix}\widehat a_k\\\widehat b_k\end{bmatrix}. \]
+      </h4>
+      <p>The exponentially weighted RLS recursion is</p>
+      <h4 class="mathJax">
+        \[ L_k= \frac{P_k\varphi_k} {\lambda+\varphi_k^TP_k\varphi_k}, \qquad
+        \varepsilon_{k+1} =y_{k+1}^q-\widehat\theta_k^T\varphi_k, \]
+      </h4>
+      <h4 class="mathJax">
+        \[ \widehat\theta_{k+1} = \operatorname{Proj}_\Theta \left(
+        \widehat\theta_k+L_k\varepsilon_{k+1} \right), \]
+      </h4>
+      <h4 class="mathJax">
+        \[ P_{k+1} = \frac{1}{\lambda} \left( P_k-L_k\varphi_k^TP_k \right),
+        \qquad 0&lt;\lambda\le1. \]
+      </h4>
+      <p>
+        In exact arithmetic, the covariance matrix remains symmetric. In finite
+        precision it should be explicitly symmetrized:
+      </p>
+      <h4 class="mathJax">
+        \[ P_{k+1} &larr; \frac{1}{2} \left(P_{k+1}+P_{k+1}^T\right) +\epsilon_P
+        I, \qquad \epsilon_P&gt;0. \]
+      </h4>
+      <p>
+        The small diagonal regularizer is a numerical safeguard, not a
+        substitute for excitation. Quantization may cause
+        <strong>\( \varphi_k \)</strong> to remain constant over many samples,
+        so the estimator can temporarily receive almost no new information.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Practical Stability Under Bounded Implementation Error</h2>
+    <div class="down-content">
+      <p>
+        Under ideal parameters and exact delay prediction, the scalar tracking
+        error satisfies <strong>\( e_{k+1}=a_c e_k \)</strong>. Sampling
+        mismatch, parameter error, quantization, disturbances, and imperfect
+        delay prediction combine into a perturbation
+        <strong>\( \zeta_k \)</strong>:
+      </p>
+      <h4 class="mathJax">
+        \[ e_{k+1}=a_c e_k+\zeta_k, \qquad |a_c|&lt;1, \qquad
+        |\zeta_k|\le\overline\zeta. \]
+      </h4>
+
+      <h3>7.1 Direct geometric bound</h3>
+      <p>Repeated substitution yields</p>
+      <h4 class="mathJax">
+        \[ e_k=a_c^k e_0+ \sum_{i=0}^{k-1}a_c^{k-1-i}\zeta_i. \]
+      </h4>
+      <p>Taking absolute values and using the geometric series,</p>
+      <h4 class="mathJax">
+        \[ |e_k| \le |a_c|^k|e_0| + \frac{1-|a_c|^k}{1-|a_c|}\overline\zeta. \]
+      </h4>
+      <p>Consequently,</p>
+      <h4 class="mathJax">
+        \[ \limsup_{k&rarr;\infty}|e_k| \le \frac{\overline\zeta}{1-|a_c|}. \]
+      </h4>
+      <p>
+        Thus fixed quantization and bounded implementation errors generally
+        imply practical convergence to a neighborhood, not exact asymptotic
+        tracking. The neighborhood shrinks when converter resolution improves
+        and when the desired pole is not chosen too close to one.
+      </p>
+
+      <h3>7.2 Lyapunov-difference proof</h3>
+      <p>Let <strong>\( V_k=e_k^2 \)</strong>. Then</p>
+      <h4 class="mathJax">
+        \[ \Delta V_k = (a_c^2-1)e_k^2 +2a_c e_k\zeta_k+\zeta_k^2. \]
+      </h4>
+      <p>
+        Young's inequality gives, for
+        <strong>\( 0&lt;\epsilon&lt;1-a_c^2 \)</strong>,
+      </p>
+      <h4 class="mathJax">
+        \[ 2|a_c||e_k||\zeta_k| \le \epsilon e_k^2+
+        \frac{a_c^2}{\epsilon}\zeta_k^2. \]
+      </h4>
+      <p>Therefore</p>
+      <h4 class="mathJax">
+        \[ \Delta V_k \le -\alpha e_k^2+\beta\overline\zeta^2, \]
+      </h4>
+      <p>with</p>
+      <h4 class="mathJax">
+        \[ \alpha=1-a_c^2-\epsilon&gt;0, \qquad \beta=1+\frac{a_c^2}{\epsilon}.
+        \]
+      </h4>
+      <p>
+        Outside the set
+        <strong>\( e_k^2\le(\beta/\alpha)\overline\zeta^2 \)</strong>, the
+        Lyapunov difference is negative. This establishes uniform ultimate
+        boundedness of the tracking error under the stated bounded-perturbation
+        model.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Finite-Precision Arithmetic and Covariance Safeguards</h2>
+    <div class="down-content">
+      <p>
+        Converter quantization is only one source of finite precision.
+        Fixed-point or floating-point arithmetic also affects the parameter
+        update, covariance matrix, predictor, and command. For a signed
+        fixed-point representation with <strong>\( F \)</strong> fractional
+        bits, the numerical step is
+      </p>
+      <h4 class="mathJax">\[ \Delta_{\mathrm{fxp} }=2^{-F}. \]</h4>
+      <p>
+        The word length must cover worst-case transients in
+        <strong>\( P_k \)</strong>, not only nominal plant signals. The
+        following protections are recommended:
+      </p>
+      <p>
+        <strong>Covariance symmetry:</strong> replace
+        <strong>\( P \)</strong> by <strong>\( (P+P^T)/2 \)</strong> after each
+        update.
+      </p>
+      <p>
+        <strong>Positive diagonal floor:</strong> add a very small
+        <strong>\( \epsilon_PI \)</strong> in floating-point simulation, or use
+        a square-root RLS implementation when numerical conditioning is
+        critical.
+      </p>
+      <p>
+        <strong>Parameter projection:</strong> enforce a physically meaningful
+        compact set <strong>\( \Theta \)</strong>, including a lower bound on
+        <strong>\( |\widehat b| \)</strong>.
+      </p>
+      <p>
+        <strong>Innovation gating:</strong> suspend or reduce adaptation when
+        the regressor energy is below a threshold or when the actuator is
+        saturated for a prolonged interval. Otherwise the estimator may learn
+        the saturation nonlinearity rather than the plant.
+      </p>
+      <p>
+        <strong>Use of applied input:</strong> read back the held actuator
+        command whenever possible. A command calculated by software is not
+        necessarily the command delivered by a rate limiter, safety interlock,
+        or lower-level drive.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Real-Time Execution Sequence</h2>
+    <div class="down-content">
+      <p>
+        A deterministic sample should preserve a fixed order so that the model
+        indices are unambiguous. The estimator update uses the new measurement
+        and the input applied over the preceding interval. The new control
+        command is then calculated, quantized, queued, and committed before the
+        deadline.
+      </p>
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  A["Timer interrupt at sample k"] --> B["Latch sensor and actuator readback"]
+  B --> C["Quantize or convert to engineering units"]
+  C --> D["Update estimator with y(k) and applied u(k-1)"]
+  D --> E["Project parameters and condition covariance"]
+  E --> F["Predict through queued delayed commands"]
+  F --> G["Compute command c(k)"]
+  G --> H["Apply saturation and actuator quantization"]
+  H --> I["Append command to delay queue"]
+  I --> J["Log timing, estimates, saturation, and deadline status"]
+  J --> K["Commit output before next sample"]
+        </pre>
+      </div>
+      <p>
+        The software log should include the nominal and actual sampling
+        interval, task execution time, deadline misses, raw and quantized
+        measurements, commanded and applied inputs, parameter estimates,
+        covariance diagnostics, and saturation flags. Without these signals, a
+        delay or quantization fault can be misdiagnosed as poor adaptive-law
+        tuning.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. Python Implementation</h2>
+    <div class="down-content">
+      <p>
+        This implementation uses <code>numpy</code> for matrix operations and
+        optionally <code>matplotlib</code> for plots. It performs exact
+        zero-order-hold discretization of a first-order continuous plant, models
+        sensor and actuator quantization, maintains an integer command queue,
+        and identifies the sampled coefficients by RLS.
+      </p>
+      <h3>Chapter14_Lesson4.py</h3>
+      <pre><code class="language-python">
+# Chapter14_Lesson4.py
+&quot;&quot;&quot;
+Discrete-time adaptive control with sampling, quantization, and integer-sample delay.
+
+Dependencies:
+    numpy
+    matplotlib (optional, only for plotting)
+
+The estimator identifies y[k+1] = a*y[k] + b*u_applied[k].
+The controller predicts through the queued delayed commands and computes a
+certainty-equivalent command with projection, saturation, and quantization.
+&quot;&quot;&quot;
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import List, Tuple
+import math
+import numpy as np
+
+
+@dataclass
+class Config:
+    sample_time: float = 0.05
+    duration: float = 30.0
+    plant_time_constant: float = 0.8
+    plant_dc_gain: float = 1.25
+    delay_samples: int = 2
+    sensor_step: float = 0.01
+    actuator_step: float = 0.01
+    actuator_limit: float = 3.0
+    forgetting_factor: float = 0.995
+    desired_pole: float = 0.65
+    seed: int = 7
+
+
+def quantize(value: float, step: float) -&gt; float:
+    if step &lt;= 0.0:
+        return value
+    return step * round(value / step)
+
+
+def saturate(value: float, limit: float) -&gt; float:
+    return max(-limit, min(limit, value))
+
+
+def project_parameters(theta: np.ndarray) -&gt; np.ndarray:
+    # Stable first-order model and known-positive input direction.
+    projected = theta.copy()
+    projected[0] = np.clip(projected[0], -0.98, 0.999)
+    projected[1] = np.clip(projected[1], 0.05, 2.50)
+    return projected
+
+
+def reference_signal(time_value: float) -&gt; float:
+    if time_value &lt; 3.0:
+        return 0.0
+    if time_value &lt; 12.0:
+        return 1.0
+    if time_value &lt; 20.0:
+        return -0.6
+    return 0.8
+
+
+def simulate(config: Config) -&gt; Tuple[np.ndarray, ...]:
+    rng = np.random.default_rng(config.seed)
+    steps = int(round(config.duration / config.sample_time))
+
+    # Exact zero-order-hold discretization of K/(tau*s + 1).
+    a_true = math.exp(-config.sample_time / config.plant_time_constant)
+    b_true = config.plant_dc_gain * (1.0 - a_true)
+
+    time = np.arange(steps + 1, dtype=float) * config.sample_time
+    y = np.zeros(steps + 1)
+    y_measured = np.zeros(steps + 1)
+    reference = np.array([reference_signal(t) for t in time])
+    applied_input = np.zeros(steps)
+    command = np.zeros(steps)
+    theta_history = np.zeros((steps + 1, 2))
+
+    theta = np.array([0.70, 0.30], dtype=float)
+    covariance = 100.0 * np.eye(2)
+    theta_history[0] = theta
+
+    # queue[0] is the command applied now; a new command is appended at the end.
+    queue: List[float] = [0.0] * max(config.delay_samples, 1)
+
+    y_measured[0] = quantize(y[0], config.sensor_step)
+
+    for k in range(steps):
+        u_now = queue.pop(0) if config.delay_samples &gt; 0 else 0.0
+        applied_input[k] = u_now
+
+        # Predict the state to the instant when the new command will be applied.
+        predicted = y_measured[k]
+        if config.delay_samples &gt; 0:
+            predicted = theta[0] * predicted + theta[1] * u_now
+            for queued_input in queue:
+                predicted = theta[0] * predicted + theta[1] * queued_input
+
+        target_next = (
+            config.desired_pole * predicted
+            + (1.0 - config.desired_pole) * reference[k]
+        )
+        raw_command = (target_next - theta[0] * predicted) / theta[1]
+        new_command = quantize(
+            saturate(raw_command, config.actuator_limit),
+            config.actuator_step,
+        )
+        command[k] = new_command
+
+        if config.delay_samples &gt; 0:
+            queue.append(new_command)
+        else:
+            # Zero-delay implementation: the command is applied in this interval.
+            applied_input[k] = new_command
+            u_now = new_command
+
+        disturbance = 0.004 * rng.standard_normal()
+        y[k + 1] = a_true * y[k] + b_true * u_now + disturbance
+        y_measured[k + 1] = quantize(y[k + 1], config.sensor_step)
+
+        # RLS uses the input that actually acted on the plant, not the command.
+        phi = np.array([y_measured[k], u_now])
+        prediction_error = y_measured[k + 1] - float(phi @ theta)
+        denominator = config.forgetting_factor + float(phi @ covariance @ phi)
+        gain = (covariance @ phi) / denominator
+
+        theta = project_parameters(theta + gain * prediction_error)
+        covariance = (
+            covariance - np.outer(gain, phi) @ covariance
+        ) / config.forgetting_factor
+        covariance = 0.5 * (covariance + covariance.T)
+        covariance += 1.0e-10 * np.eye(2)
+        theta_history[k + 1] = theta
+
+    return (
+        time,
+        reference,
+        y,
+        y_measured,
+        applied_input,
+        command,
+        theta_history,
+        np.array([a_true, b_true]),
+    )
+
+
+def main() -&gt; None:
+    config = Config()
+    (
+        time,
+        reference,
+        y,
+        y_measured,
+        applied_input,
+        command,
+        theta_history,
+        true_parameters,
+    ) = simulate(config)
+
+    start = int(5.0 / config.sample_time)
+    rmse = math.sqrt(np.mean((reference[start:] - y[start:]) ** 2))
+
+    print(f&quot;Sampling period: {config.sample_time:.4f} s&quot;)
+    print(f&quot;Delay: {config.delay_samples} samples&quot;)
+    print(f&quot;Tracking RMSE after 5 s: {rmse:.6f}&quot;)
+    print(f&quot;True [a, b]: {true_parameters}&quot;)
+    print(f&quot;Estimated [a, b]: {theta_history[-1]}&quot;)
+
+    data = np.column_stack(
+        (
+            time,
+            reference,
+            y,
+            y_measured,
+            np.r_[applied_input, np.nan],
+            np.r_[command, np.nan],
+            theta_history[:, 0],
+            theta_history[:, 1],
+        )
+    )
+    np.savetxt(
+        &quot;Chapter14_Lesson4_results.csv&quot;,
+        data,
+        delimiter=&quot;,&quot;,
+        header=&quot;time,reference,y,y_quantized,u_applied,u_command,a_hat,b_hat&quot;,
+        comments=&quot;&quot;,
+    )
+
+    try:
+        import matplotlib.pyplot as plt
+
+        plt.figure()
+        plt.plot(time, reference, &quot;--&quot;, label=&quot;reference&quot;)
+        plt.plot(time, y, label=&quot;plant output&quot;)
+        plt.step(time, y_measured, where=&quot;post&quot;, label=&quot;quantized measurement&quot;)
+        plt.xlabel(&quot;time (s)&quot;)
+        plt.ylabel(&quot;output&quot;)
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(&quot;Chapter14_Lesson4_tracking.png&quot;, dpi=180)
+
+        plt.figure()
+        plt.plot(time, theta_history[:, 0], label=&quot;a_hat&quot;)
+        plt.plot(time, theta_history[:, 1], label=&quot;b_hat&quot;)
+        plt.axhline(true_parameters[0], linestyle=&quot;--&quot;, label=&quot;a true&quot;)
+        plt.axhline(true_parameters[1], linestyle=&quot;--&quot;, label=&quot;b true&quot;)
+        plt.xlabel(&quot;time (s)&quot;)
+        plt.ylabel(&quot;parameter&quot;)
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(&quot;Chapter14_Lesson4_parameters.png&quot;, dpi=180)
+        plt.show()
+    except ImportError:
+        print(&quot;matplotlib is not installed; CSV output was still generated.&quot;)
+
+
+if __name__ == &quot;__main__&quot;:
+    main()
+      </code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. C++17 Implementation</h2>
+    <div class="down-content">
+      <p>
+        The C++ version uses only the standard library. Fixed-size arrays are
+        used for the two-parameter RLS update, while
+        <code>std::deque</code> represents the delayed command queue. The code
+        writes a CSV file suitable for plotting or hardware-in-the-loop
+        comparison.
+      </p>
+      <h3>Chapter14_Lesson4.cpp</h3>
+      <pre><code class="language-cpp">
+// Chapter14_Lesson4.cpp
+// Discrete-time adaptive control with sampling, quantization, and delay.
+// Build: g++ -std=c++17 -O2 Chapter14_Lesson4.cpp -o Chapter14_Lesson4
+
+#include &lt;algorithm&gt;
+#include &lt;array&gt;
+#include &lt;cmath&gt;
+#include &lt;deque&gt;
+#include &lt;fstream&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;random&gt;
+#include &lt;stdexcept&gt;
+#include &lt;vector&gt;
+
+struct Config {
+    double sampleTime = 0.05;
+    double duration = 30.0;
+    double plantTimeConstant = 0.8;
+    double plantDcGain = 1.25;
+    int delaySamples = 2;
+    double sensorStep = 0.01;
+    double actuatorStep = 0.01;
+    double actuatorLimit = 3.0;
+    double forgettingFactor = 0.995;
+    double desiredPole = 0.65;
+    unsigned int seed = 7;
+};
+
+double quantize(double value, double step) {
+    return (step &lt;= 0.0) ? value : step * std::round(value / step);
+}
+
+double saturate(double value, double limit) {
+    return std::max(-limit, std::min(limit, value));
+}
+
+double referenceSignal(double timeValue) {
+    if (timeValue &lt; 3.0) return 0.0;
+    if (timeValue &lt; 12.0) return 1.0;
+    if (timeValue &lt; 20.0) return -0.6;
+    return 0.8;
+}
+
+std::array&lt;double, 2&gt; projectParameters(std::array&lt;double, 2&gt; theta) {
+    theta[0] = std::clamp(theta[0], -0.98, 0.999);
+    theta[1] = std::clamp(theta[1], 0.05, 2.50);
+    return theta;
+}
+
+int main() {
+    const Config cfg;
+    if (cfg.delaySamples &lt; 0) {
+        throw std::invalid_argument(&quot;delaySamples must be nonnegative&quot;);
+    }
+
+    const int steps = static_cast&lt;int&gt;(std::llround(cfg.duration / cfg.sampleTime));
+    const double aTrue = std::exp(-cfg.sampleTime / cfg.plantTimeConstant);
+    const double bTrue = cfg.plantDcGain * (1.0 - aTrue);
+
+    std::vector&lt;double&gt; time(steps + 1, 0.0);
+    std::vector&lt;double&gt; reference(steps + 1, 0.0);
+    std::vector&lt;double&gt; y(steps + 1, 0.0);
+    std::vector&lt;double&gt; yMeasured(steps + 1, 0.0);
+    std::vector&lt;double&gt; uApplied(steps, 0.0);
+    std::vector&lt;double&gt; command(steps, 0.0);
+    std::vector&lt;std::array&lt;double, 2&gt;&gt; thetaHistory(steps + 1);
+
+    for (int k = 0; k &lt;= steps; ++k) {
+        time[k] = k * cfg.sampleTime;
+        reference[k] = referenceSignal(time[k]);
+    }
+
+    std::array&lt;double, 2&gt; theta{0.70, 0.30};
+    std::array&lt;std::array&lt;double, 2&gt;, 2&gt; P{ {
+        { {100.0, 0.0} },
+        { {0.0, 100.0} }
+    } };
+    thetaHistory[0] = theta;
+    yMeasured[0] = quantize(y[0], cfg.sensorStep);
+
+    std::deque&lt;double&gt; queue;
+    for (int i = 0; i &lt; cfg.delaySamples; ++i) {
+        queue.push_back(0.0);
+    }
+
+    std::mt19937 generator(cfg.seed);
+    std::normal_distribution&lt;double&gt; normal(0.0, 1.0);
+
+    for (int k = 0; k &lt; steps; ++k) {
+        double uNow = 0.0;
+        if (cfg.delaySamples &gt; 0) {
+            uNow = queue.front();
+            queue.pop_front();
+        }
+
+        double predicted = yMeasured[k];
+        if (cfg.delaySamples &gt; 0) {
+            predicted = theta[0] * predicted + theta[1] * uNow;
+            for (double queuedInput : queue) {
+                predicted = theta[0] * predicted + theta[1] * queuedInput;
+            }
+        }
+
+        const double targetNext =
+            cfg.desiredPole * predicted
+            + (1.0 - cfg.desiredPole) * reference[k];
+        const double rawCommand =
+            (targetNext - theta[0] * predicted) / theta[1];
+        const double newCommand = quantize(
+            saturate(rawCommand, cfg.actuatorLimit),
+            cfg.actuatorStep
+        );
+        command[k] = newCommand;
+
+        if (cfg.delaySamples &gt; 0) {
+            queue.push_back(newCommand);
+        } else {
+            uNow = newCommand;
+        }
+        uApplied[k] = uNow;
+
+        const double disturbance = 0.004 * normal(generator);
+        y[k + 1] = aTrue * y[k] + bTrue * uNow + disturbance;
+        yMeasured[k + 1] = quantize(y[k + 1], cfg.sensorStep);
+
+        const std::array&lt;double, 2&gt; phi{yMeasured[k], uNow};
+        const double predictedOutput = phi[0] * theta[0] + phi[1] * theta[1];
+        const double error = yMeasured[k + 1] - predictedOutput;
+
+        const std::array&lt;double, 2&gt; Pphi{
+            P[0][0] * phi[0] + P[0][1] * phi[1],
+            P[1][0] * phi[0] + P[1][1] * phi[1]
+        };
+        const double denominator =
+            cfg.forgettingFactor + phi[0] * Pphi[0] + phi[1] * Pphi[1];
+        const std::array&lt;double, 2&gt; gain{
+            Pphi[0] / denominator,
+            Pphi[1] / denominator
+        };
+
+        theta[0] += gain[0] * error;
+        theta[1] += gain[1] * error;
+        theta = projectParameters(theta);
+
+        std::array&lt;std::array&lt;double, 2&gt;, 2&gt; updatedP{};
+        for (int i = 0; i &lt; 2; ++i) {
+            for (int j = 0; j &lt; 2; ++j) {
+                const double phiTPj = phi[0] * P[0][j] + phi[1] * P[1][j];
+                updatedP[i][j] =
+                    (P[i][j] - gain[i] * phiTPj) / cfg.forgettingFactor;
+            }
+        }
+        const double offDiagonal =
+            0.5 * (updatedP[0][1] + updatedP[1][0]);
+        updatedP[0][1] = offDiagonal;
+        updatedP[1][0] = offDiagonal;
+        updatedP[0][0] += 1.0e-10;
+        updatedP[1][1] += 1.0e-10;
+        P = updatedP;
+        thetaHistory[k + 1] = theta;
+    }
+
+    const int start = static_cast&lt;int&gt;(5.0 / cfg.sampleTime);
+    double squaredErrorSum = 0.0;
+    int count = 0;
+    for (int k = start; k &lt;= steps; ++k) {
+        const double error = reference[k] - y[k];
+        squaredErrorSum += error * error;
+        ++count;
+    }
+    const double rmse = std::sqrt(squaredErrorSum / count);
+
+    std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(6);
+    std::cout &lt;&lt; &quot;Sampling period: &quot; &lt;&lt; cfg.sampleTime &lt;&lt; &quot; s\n&quot;;
+    std::cout &lt;&lt; &quot;Delay: &quot; &lt;&lt; cfg.delaySamples &lt;&lt; &quot; samples\n&quot;;
+    std::cout &lt;&lt; &quot;Tracking RMSE after 5 s: &quot; &lt;&lt; rmse &lt;&lt; &quot;\n&quot;;
+    std::cout &lt;&lt; &quot;True [a, b]: [&quot; &lt;&lt; aTrue &lt;&lt; &quot;, &quot; &lt;&lt; bTrue &lt;&lt; &quot;]\n&quot;;
+    std::cout &lt;&lt; &quot;Estimated [a, b]: [&quot;
+              &lt;&lt; thetaHistory.back()[0] &lt;&lt; &quot;, &quot;
+              &lt;&lt; thetaHistory.back()[1] &lt;&lt; &quot;]\n&quot;;
+
+    std::ofstream csv(&quot;Chapter14_Lesson4_results_cpp.csv&quot;);
+    csv &lt;&lt; &quot;time,reference,y,y_quantized,u_applied,u_command,a_hat,b_hat\n&quot;;
+    csv &lt;&lt; std::setprecision(12);
+    for (int k = 0; k &lt;= steps; ++k) {
+        csv &lt;&lt; time[k] &lt;&lt; &#x27;,&#x27; &lt;&lt; reference[k] &lt;&lt; &#x27;,&#x27; &lt;&lt; y[k] &lt;&lt; &#x27;,&#x27;
+            &lt;&lt; yMeasured[k] &lt;&lt; &#x27;,&#x27;;
+        if (k &lt; steps) {
+            csv &lt;&lt; uApplied[k] &lt;&lt; &#x27;,&#x27; &lt;&lt; command[k] &lt;&lt; &#x27;,&#x27;;
+        } else {
+            csv &lt;&lt; &quot;,,&quot;;
+        }
+        csv &lt;&lt; thetaHistory[k][0] &lt;&lt; &#x27;,&#x27; &lt;&lt; thetaHistory[k][1] &lt;&lt; &#x27;\n&#x27;;
+    }
+
+    return 0;
+}
+      </code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. Java Implementation</h2>
+    <div class="down-content">
+      <p>
+        The Java version uses Java SE classes only. It mirrors the C++ timing
+        and indexing so numerical differences arise primarily from the
+        random-number generator rather than from a different control algorithm.
+      </p>
+      <h3>Chapter14_Lesson4.java</h3>
+      <pre><code class="language-java">
+// Chapter14_Lesson4.java
+// Discrete-time adaptive control with sampling, quantization, and delay.
+// Build and run:
+//   javac Chapter14_Lesson4.java
+//   java Chapter14_Lesson4
+
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.Locale;
+import java.util.Random;
+
+public final class Chapter14_Lesson4 {
+    private static final class Config {
+        final double sampleTime = 0.05;
+        final double duration = 30.0;
+        final double plantTimeConstant = 0.8;
+        final double plantDcGain = 1.25;
+        final int delaySamples = 2;
+        final double sensorStep = 0.01;
+        final double actuatorStep = 0.01;
+        final double actuatorLimit = 3.0;
+        final double forgettingFactor = 0.995;
+        final double desiredPole = 0.65;
+        final long seed = 7L;
+    }
+
+    private static double quantize(double value, double step) {
+        return step &lt;= 0.0 ? value : step * Math.rint(value / step);
+    }
+
+    private static double saturate(double value, double limit) {
+        return Math.max(-limit, Math.min(limit, value));
+    }
+
+    private static double referenceSignal(double timeValue) {
+        if (timeValue &lt; 3.0) {
+            return 0.0;
+        }
+        if (timeValue &lt; 12.0) {
+            return 1.0;
+        }
+        if (timeValue &lt; 20.0) {
+            return -0.6;
+        }
+        return 0.8;
+    }
+
+    private static void projectParameters(double[] theta) {
+        theta[0] = Math.max(-0.98, Math.min(0.999, theta[0]));
+        theta[1] = Math.max(0.05, Math.min(2.50, theta[1]));
+    }
+
+    public static void main(String[] args) throws IOException {
+        Locale.setDefault(Locale.US);
+        Config cfg = new Config();
+        if (cfg.delaySamples &lt; 0) {
+            throw new IllegalArgumentException(&quot;delaySamples must be nonnegative&quot;);
+        }
+
+        int steps = (int) Math.round(cfg.duration / cfg.sampleTime);
+        double aTrue = Math.exp(-cfg.sampleTime / cfg.plantTimeConstant);
+        double bTrue = cfg.plantDcGain * (1.0 - aTrue);
+
+        double[] time = new double[steps + 1];
+        double[] reference = new double[steps + 1];
+        double[] y = new double[steps + 1];
+        double[] yMeasured = new double[steps + 1];
+        double[] uApplied = new double[steps];
+        double[] command = new double[steps];
+        double[][] thetaHistory = new double[steps + 1][2];
+
+        for (int k = 0; k &lt;= steps; ++k) {
+            time[k] = k * cfg.sampleTime;
+            reference[k] = referenceSignal(time[k]);
+        }
+
+        double[] theta = {0.70, 0.30};
+        double[][] covariance = {
+            {100.0, 0.0},
+            {0.0, 100.0}
+        };
+        thetaHistory[0][0] = theta[0];
+        thetaHistory[0][1] = theta[1];
+        yMeasured[0] = quantize(y[0], cfg.sensorStep);
+
+        Deque&lt;Double&gt; queue = new ArrayDeque&lt;&gt;();
+        for (int i = 0; i &lt; cfg.delaySamples; ++i) {
+            queue.addLast(0.0);
+        }
+
+        Random random = new Random(cfg.seed);
+
+        for (int k = 0; k &lt; steps; ++k) {
+            double uNow = 0.0;
+            if (cfg.delaySamples &gt; 0) {
+                uNow = queue.removeFirst();
+            }
+
+            double predicted = yMeasured[k];
+            if (cfg.delaySamples &gt; 0) {
+                predicted = theta[0] * predicted + theta[1] * uNow;
+                List&lt;Double&gt; queuedValues = new ArrayList&lt;&gt;(queue);
+                for (double queuedInput : queuedValues) {
+                    predicted = theta[0] * predicted + theta[1] * queuedInput;
+                }
+            }
+
+            double targetNext =
+                cfg.desiredPole * predicted
+                + (1.0 - cfg.desiredPole) * reference[k];
+            double rawCommand =
+                (targetNext - theta[0] * predicted) / theta[1];
+            double newCommand = quantize(
+                saturate(rawCommand, cfg.actuatorLimit),
+                cfg.actuatorStep
+            );
+            command[k] = newCommand;
+
+            if (cfg.delaySamples &gt; 0) {
+                queue.addLast(newCommand);
+            } else {
+                uNow = newCommand;
+            }
+            uApplied[k] = uNow;
+
+            double disturbance = 0.004 * random.nextGaussian();
+            y[k + 1] = aTrue * y[k] + bTrue * uNow + disturbance;
+            yMeasured[k + 1] = quantize(y[k + 1], cfg.sensorStep);
+
+            double[] phi = {yMeasured[k], uNow};
+            double prediction = phi[0] * theta[0] + phi[1] * theta[1];
+            double error = yMeasured[k + 1] - prediction;
+
+            double[] pPhi = {
+                covariance[0][0] * phi[0] + covariance[0][1] * phi[1],
+                covariance[1][0] * phi[0] + covariance[1][1] * phi[1]
+            };
+            double denominator =
+                cfg.forgettingFactor + phi[0] * pPhi[0] + phi[1] * pPhi[1];
+            double[] gain = {
+                pPhi[0] / denominator,
+                pPhi[1] / denominator
+            };
+
+            theta[0] += gain[0] * error;
+            theta[1] += gain[1] * error;
+            projectParameters(theta);
+
+            double[][] updated = new double[2][2];
+            for (int i = 0; i &lt; 2; ++i) {
+                for (int j = 0; j &lt; 2; ++j) {
+                    double phiTPj =
+                        phi[0] * covariance[0][j]
+                        + phi[1] * covariance[1][j];
+                    updated[i][j] =
+                        (covariance[i][j] - gain[i] * phiTPj)
+                        / cfg.forgettingFactor;
+                }
+            }
+            double offDiagonal = 0.5 * (updated[0][1] + updated[1][0]);
+            updated[0][1] = offDiagonal;
+            updated[1][0] = offDiagonal;
+            updated[0][0] += 1.0e-10;
+            updated[1][1] += 1.0e-10;
+            covariance = updated;
+
+            thetaHistory[k + 1][0] = theta[0];
+            thetaHistory[k + 1][1] = theta[1];
+        }
+
+        int start = (int) (5.0 / cfg.sampleTime);
+        double sumSquaredError = 0.0;
+        int count = 0;
+        for (int k = start; k &lt;= steps; ++k) {
+            double error = reference[k] - y[k];
+            sumSquaredError += error * error;
+            ++count;
+        }
+        double rmse = Math.sqrt(sumSquaredError / count);
+
+        System.out.printf(&quot;Sampling period: %.6f s%n&quot;, cfg.sampleTime);
+        System.out.printf(&quot;Delay: %d samples%n&quot;, cfg.delaySamples);
+        System.out.printf(&quot;Tracking RMSE after 5 s: %.6f%n&quot;, rmse);
+        System.out.printf(&quot;True [a, b]: [%.6f, %.6f]%n&quot;, aTrue, bTrue);
+        System.out.printf(
+            &quot;Estimated [a, b]: [%.6f, %.6f]%n&quot;,
+            thetaHistory[steps][0],
+            thetaHistory[steps][1]
+        );
+
+        try (BufferedWriter writer = new BufferedWriter(
+                new FileWriter(&quot;Chapter14_Lesson4_results_java.csv&quot;))) {
+            writer.write(
+                &quot;time,reference,y,y_quantized,u_applied,u_command,a_hat,b_hat\n&quot;
+            );
+            for (int k = 0; k &lt;= steps; ++k) {
+                writer.write(String.format(
+                    Locale.US,
+                    &quot;%.12f,%.12f,%.12f,%.12f,&quot;,
+                    time[k],
+                    reference[k],
+                    y[k],
+                    yMeasured[k]
+                ));
+                if (k &lt; steps) {
+                    writer.write(String.format(
+                        Locale.US,
+                        &quot;%.12f,%.12f,&quot;,
+                        uApplied[k],
+                        command[k]
+                    ));
+                } else {
+                    writer.write(&quot;,,&quot;);
+                }
+                writer.write(String.format(
+                    Locale.US,
+                    &quot;%.12f,%.12f%n&quot;,
+                    thetaHistory[k][0],
+                    thetaHistory[k][1]
+                ));
+            }
+        }
+    }
+}
+      </code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. MATLAB and Simulink Implementation</h2>
+    <div class="down-content">
+      <p>
+        The MATLAB portion is a complete numerical simulation using base MATLAB.
+        Setting <code>buildSimulinkModel = true</code> programmatically creates
+        a fixed-step Simulink model whose MATLAB Function block contains the
+        plant, RLS estimator, quantizers, delay queue, projection, and
+        controller. The model requires Simulink; fixed-point conversion can
+        later be investigated with Fixed-Point Designer when that product is
+        available.
+      </p>
+      <h3>Chapter14_Lesson4.m</h3>
+      <pre><code class="language-matlab">
+% Chapter14_Lesson4.m
+% Discrete-time adaptive control with sampling, quantization, and delay.
+% The first part is a base-MATLAB simulation. If Simulink is installed,
+% set buildSimulinkModel = true to create Chapter14_Lesson4_Simulink.slx.
+
+clear; clc; close all;
+
+cfg.sampleTime = 0.05;
+cfg.duration = 30.0;
+cfg.plantTimeConstant = 0.8;
+cfg.plantDcGain = 1.25;
+cfg.delaySamples = 2;
+cfg.sensorStep = 0.01;
+cfg.actuatorStep = 0.01;
+cfg.actuatorLimit = 3.0;
+cfg.forgettingFactor = 0.995;
+cfg.desiredPole = 0.65;
+cfg.seed = 7;
+buildSimulinkModel = false;
+
+rng(cfg.seed);
+steps = round(cfg.duration / cfg.sampleTime);
+aTrue = exp(-cfg.sampleTime / cfg.plantTimeConstant);
+bTrue = cfg.plantDcGain * (1 - aTrue);
+
+time = (0:steps)&#x27; * cfg.sampleTime;
+reference = arrayfun(@referenceSignal, time);
+y = zeros(steps + 1, 1);
+yMeasured = zeros(steps + 1, 1);
+uApplied = zeros(steps, 1);
+command = zeros(steps, 1);
+thetaHistory = zeros(steps + 1, 2);
+
+theta = [0.70; 0.30];
+P = 100 * eye(2);
+thetaHistory(1, :) = theta.&#x27;;
+yMeasured(1) = quantizeValue(y(1), cfg.sensorStep);
+queue = zeros(cfg.delaySamples, 1);
+
+for k = 1:steps
+    if cfg.delaySamples &gt; 0
+        uNow = queue(1);
+        queue(1) = [];
+    else
+        uNow = 0;
+    end
+
+    predicted = yMeasured(k);
+    if cfg.delaySamples &gt; 0
+        predicted = theta(1) * predicted + theta(2) * uNow;
+        for j = 1:numel(queue)
+            predicted = theta(1) * predicted + theta(2) * queue(j);
+        end
+    end
+
+    targetNext = cfg.desiredPole * predicted ...
+        + (1 - cfg.desiredPole) * reference(k);
+    rawCommand = (targetNext - theta(1) * predicted) / theta(2);
+    newCommand = quantizeValue( ...
+        saturateValue(rawCommand, cfg.actuatorLimit), ...
+        cfg.actuatorStep);
+    command(k) = newCommand;
+
+    if cfg.delaySamples &gt; 0
+        queue(end + 1, 1) = newCommand;
+    else
+        uNow = newCommand;
+    end
+    uApplied(k) = uNow;
+
+    disturbance = 0.004 * randn();
+    y(k + 1) = aTrue * y(k) + bTrue * uNow + disturbance;
+    yMeasured(k + 1) = quantizeValue(y(k + 1), cfg.sensorStep);
+
+    phi = [yMeasured(k); uNow];
+    predictionError = yMeasured(k + 1) - phi.&#x27; * theta;
+    denominator = cfg.forgettingFactor + phi.&#x27; * P * phi;
+    gain = P * phi / denominator;
+
+    theta = projectParameters(theta + gain * predictionError);
+    P = (P - gain * phi.&#x27; * P) / cfg.forgettingFactor;
+    P = 0.5 * (P + P.&#x27;) + 1.0e-10 * eye(2);
+    thetaHistory(k + 1, :) = theta.&#x27;;
+end
+
+startIndex = floor(5.0 / cfg.sampleTime) + 1;
+rmse = sqrt(mean((reference(startIndex:end) - y(startIndex:end)).^2));
+
+fprintf(&#x27;Sampling period: %.6f s\n&#x27;, cfg.sampleTime);
+fprintf(&#x27;Delay: %d samples\n&#x27;, cfg.delaySamples);
+fprintf(&#x27;Tracking RMSE after 5 s: %.6f\n&#x27;, rmse);
+fprintf(&#x27;True [a, b]: [%.6f, %.6f]\n&#x27;, aTrue, bTrue);
+fprintf(&#x27;Estimated [a, b]: [%.6f, %.6f]\n&#x27;, ...
+    thetaHistory(end, 1), thetaHistory(end, 2));
+
+resultTable = table( ...
+    time, reference, y, yMeasured, ...
+    [uApplied; NaN], [command; NaN], ...
+    thetaHistory(:, 1), thetaHistory(:, 2), ...
+    &#x27;VariableNames&#x27;, {&#x27;time&#x27;, &#x27;reference&#x27;, &#x27;y&#x27;, &#x27;yQuantized&#x27;, ...
+    &#x27;uApplied&#x27;, &#x27;uCommand&#x27;, &#x27;aHat&#x27;, &#x27;bHat&#x27;});
+writetable(resultTable, &#x27;Chapter14_Lesson4_results_matlab.csv&#x27;);
+
+figure;
+plot(time, reference, &#x27;--&#x27;, &#x27;DisplayName&#x27;, &#x27;reference&#x27;); hold on;
+plot(time, y, &#x27;DisplayName&#x27;, &#x27;plant output&#x27;);
+stairs(time, yMeasured, &#x27;DisplayName&#x27;, &#x27;quantized measurement&#x27;);
+grid on; xlabel(&#x27;time (s)&#x27;); ylabel(&#x27;output&#x27;); legend(&#x27;Location&#x27;, &#x27;best&#x27;);
+title(&#x27;Sampling, quantization, and delayed adaptive control&#x27;);
+
+figure;
+plot(time, thetaHistory(:, 1), &#x27;DisplayName&#x27;, &#x27;a hat&#x27;); hold on;
+plot(time, thetaHistory(:, 2), &#x27;DisplayName&#x27;, &#x27;b hat&#x27;);
+yline(aTrue, &#x27;--&#x27;, &#x27;DisplayName&#x27;, &#x27;a true&#x27;);
+yline(bTrue, &#x27;--&#x27;, &#x27;DisplayName&#x27;, &#x27;b true&#x27;);
+grid on; xlabel(&#x27;time (s)&#x27;); ylabel(&#x27;parameter&#x27;); legend(&#x27;Location&#x27;, &#x27;best&#x27;);
+title(&#x27;RLS parameter estimates&#x27;);
+
+if buildSimulinkModel
+    if license(&#x27;test&#x27;, &#x27;Simulink&#x27;)
+        buildAdaptiveSimulinkModel(cfg);
+    else
+        warning(&#x27;Simulink is not licensed; the MATLAB simulation completed.&#x27;);
+    end
+end
+
+function value = quantizeValue(value, step)
+    if step &gt; 0
+        value = step * round(value / step);
+    end
+end
+
+function value = saturateValue(value, limit)
+    value = max(-limit, min(limit, value));
+end
+
+function theta = projectParameters(theta)
+    theta(1) = max(-0.98, min(0.999, theta(1)));
+    theta(2) = max(0.05, min(2.50, theta(2)));
+end
+
+function r = referenceSignal(t)
+    if t &lt; 3.0
+        r = 0.0;
+    elseif t &lt; 12.0
+        r = 1.0;
+    elseif t &lt; 20.0
+        r = -0.6;
+    else
+        r = 0.8;
+    end
+end
+
+function buildAdaptiveSimulinkModel(cfg)
+    model = &#x27;Chapter14_Lesson4_Simulink&#x27;;
+    if bdIsLoaded(model)
+        close_system(model, 0);
+    end
+    new_system(model);
+    open_system(model);
+
+    add_block(&#x27;simulink/Sources/Step&#x27;, [model &#x27;/Reference&#x27;], ...
+        &#x27;Time&#x27;, &#x27;3&#x27;, &#x27;Before&#x27;, &#x27;0&#x27;, &#x27;After&#x27;, &#x27;1&#x27;, ...
+        &#x27;Position&#x27;, [40 90 80 120]);
+
+    adaptiveBlock = add_block( ...
+        &#x27;simulink/User-Defined Functions/MATLAB Function&#x27;, ...
+        [model &#x27;/AdaptiveLoop&#x27;], ...
+        &#x27;Position&#x27;, [160 55 360 155]);
+
+    add_block(&#x27;simulink/Sinks/Scope&#x27;, [model &#x27;/OutputScope&#x27;], ...
+        &#x27;Position&#x27;, [455 40 485 70]);
+    add_block(&#x27;simulink/Sinks/Scope&#x27;, [model &#x27;/InputScope&#x27;], ...
+        &#x27;Position&#x27;, [455 85 485 115]);
+    add_block(&#x27;simulink/Sinks/Scope&#x27;, [model &#x27;/ParameterScope&#x27;], ...
+        &#x27;NumInputPorts&#x27;, &#x27;2&#x27;, ...
+        &#x27;Position&#x27;, [455 130 485 190]);
+
+    add_line(model, &#x27;Reference/1&#x27;, &#x27;AdaptiveLoop/1&#x27;);
+    add_line(model, &#x27;AdaptiveLoop/1&#x27;, &#x27;OutputScope/1&#x27;);
+    add_line(model, &#x27;AdaptiveLoop/2&#x27;, &#x27;InputScope/1&#x27;);
+    add_line(model, &#x27;AdaptiveLoop/3&#x27;, &#x27;ParameterScope/1&#x27;);
+    add_line(model, &#x27;AdaptiveLoop/4&#x27;, &#x27;ParameterScope/2&#x27;);
+
+    chart = find(sfroot, &#x27;-isa&#x27;, &#x27;Stateflow.EMChart&#x27;, ...
+        &#x27;Path&#x27;, [model &#x27;/AdaptiveLoop&#x27;]);
+
+    nl = newline;
+    script = [ ...
+        &#x27;function [yOut,uOut,aHat,bHat] = fcn(r)&#x27; nl ...
+        &#x27;%#codegen&#x27; nl ...
+        &#x27;persistent yState theta P queue initialized&#x27; nl ...
+        &#x27;Ts = &#x27; num2str(cfg.sampleTime, 17) &#x27;;&#x27; nl ...
+        &#x27;tau = &#x27; num2str(cfg.plantTimeConstant, 17) &#x27;;&#x27; nl ...
+        &#x27;Kp = &#x27; num2str(cfg.plantDcGain, 17) &#x27;;&#x27; nl ...
+        &#x27;d = &#x27; num2str(cfg.delaySamples) &#x27;;&#x27; nl ...
+        &#x27;dy = &#x27; num2str(cfg.sensorStep, 17) &#x27;;&#x27; nl ...
+        &#x27;du = &#x27; num2str(cfg.actuatorStep, 17) &#x27;;&#x27; nl ...
+        &#x27;uMax = &#x27; num2str(cfg.actuatorLimit, 17) &#x27;;&#x27; nl ...
+        &#x27;lambda = &#x27; num2str(cfg.forgettingFactor, 17) &#x27;;&#x27; nl ...
+        &#x27;ac = &#x27; num2str(cfg.desiredPole, 17) &#x27;;&#x27; nl ...
+        &#x27;aTrue = exp(-Ts/tau); bTrue = Kp*(1-aTrue);&#x27; nl ...
+        &#x27;if isempty(initialized)&#x27; nl ...
+        &#x27;  yState = 0; theta = [0.70;0.30]; P = 100*eye(2);&#x27; nl ...
+        &#x27;  queue = zeros(max(d,1),1); initialized = true;&#x27; nl ...
+        &#x27;end&#x27; nl ...
+        &#x27;yq = dy*round(yState/dy);&#x27; nl ...
+        &#x27;if d &gt; 0&#x27; nl ...
+        &#x27;  uNow = queue(1); remaining = queue(2:end);&#x27; nl ...
+        &#x27;else&#x27; nl ...
+        &#x27;  uNow = 0; remaining = zeros(0,1);&#x27; nl ...
+        &#x27;end&#x27; nl ...
+        &#x27;predicted = yq;&#x27; nl ...
+        &#x27;if d &gt; 0&#x27; nl ...
+        &#x27;  predicted = theta(1)*predicted + theta(2)*uNow;&#x27; nl ...
+        &#x27;end&#x27; nl ...
+        &#x27;for i = 1:numel(remaining)&#x27; nl ...
+        &#x27;  predicted = theta(1)*predicted + theta(2)*remaining(i);&#x27; nl ...
+        &#x27;end&#x27; nl ...
+        &#x27;target = ac*predicted + (1-ac)*r;&#x27; nl ...
+        &#x27;cmd = (target-theta(1)*predicted)/theta(2);&#x27; nl ...
+        &#x27;cmd = max(-uMax,min(uMax,cmd)); cmd = du*round(cmd/du);&#x27; nl ...
+        &#x27;if d &gt; 0&#x27; nl ...
+        &#x27;  queue = [remaining;cmd];&#x27; nl ...
+        &#x27;else&#x27; nl ...
+        &#x27;  uNow = cmd;&#x27; nl ...
+        &#x27;end&#x27; nl ...
+        &#x27;yNext = aTrue*yState + bTrue*uNow;&#x27; nl ...
+        &#x27;yqNext = dy*round(yNext/dy); phi = [yq;uNow];&#x27; nl ...
+        &#x27;err = yqNext-phi&#x27;&#x27;*theta;&#x27; nl ...
+        &#x27;gain = P*phi/(lambda+phi&#x27;&#x27;*P*phi);&#x27; nl ...
+        &#x27;theta = theta+gain*err;&#x27; nl ...
+        &#x27;theta(1)=max(-0.98,min(0.999,theta(1)));&#x27; nl ...
+        &#x27;theta(2)=max(0.05,min(2.50,theta(2)));&#x27; nl ...
+        &#x27;P=(P-gain*phi&#x27;&#x27;*P)/lambda; P=0.5*(P+P&#x27;&#x27;)+1e-10*eye(2);&#x27; nl ...
+        &#x27;yState=yNext; yOut=yNext; uOut=uNow;&#x27; nl ...
+        &#x27;aHat=theta(1); bHat=theta(2);&#x27; nl ...
+        &#x27;end&#x27; ...
+    ];
+    chart.Script = script;
+
+    set_param(model, ...
+        &#x27;Solver&#x27;, &#x27;FixedStepDiscrete&#x27;, ...
+        &#x27;FixedStep&#x27;, num2str(cfg.sampleTime, 17), ...
+        &#x27;StopTime&#x27;, num2str(cfg.duration, 17));
+    save_system(model, [model &#x27;.slx&#x27;]);
+    open_system(model);
+end
+      </code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 14 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>14. Wolfram Mathematica Implementation</h2>
+    <div class="down-content">
+      <p>
+        The notebook uses built-in Wolfram Language matrix, probability,
+        plotting, and export functions. The downloadable file is a textual
+        <code>Notebook[...]</code> expression containing one executable input
+        cell.
+      </p>
+      <h3>Chapter14_Lesson4.nb</h3>
+      <pre><code class="language-mathematica">
+Notebook[{
+  Cell[&quot;Chapter 14, Lesson 4: Sampling, Quantization, and Delay&quot;, &quot;Title&quot;],
+  Cell[BoxData[&quot;(* Chapter14_Lesson4.nb *)
+ClearAll[\&quot;Global`*\&quot;];
+
+config = &lt;|
+   \&quot;SampleTime\&quot; -&gt; 0.05,
+   \&quot;Duration\&quot; -&gt; 30.0,
+   \&quot;PlantTimeConstant\&quot; -&gt; 0.8,
+   \&quot;PlantDcGain\&quot; -&gt; 1.25,
+   \&quot;DelaySamples\&quot; -&gt; 2,
+   \&quot;SensorStep\&quot; -&gt; 0.01,
+   \&quot;ActuatorStep\&quot; -&gt; 0.01,
+   \&quot;ActuatorLimit\&quot; -&gt; 3.0,
+   \&quot;ForgettingFactor\&quot; -&gt; 0.995,
+   \&quot;DesiredPole\&quot; -&gt; 0.65,
+   \&quot;Seed\&quot; -&gt; 7
+|&gt;;
+
+quantizeValue[value_, step_] :=
+  If[step &lt;= 0.0, value, step Round[value/step]];
+
+saturateValue[value_, limit_] := Clip[value, {-limit, limit}];
+
+projectParameters[theta_] := {
+   Clip[theta[[1]], {-0.98, 0.999}],
+   Clip[theta[[2]], {0.05, 2.50}]
+};
+
+referenceSignal[t_] := Piecewise[{
+    {0.0, t &lt; 3.0},
+    {1.0, t &lt; 12.0},
+    {-0.6, t &lt; 20.0}
+  }, 0.8];
+
+SeedRandom[config[\&quot;Seed\&quot;]];
+
+steps = Round[config[\&quot;Duration\&quot;]/config[\&quot;SampleTime\&quot;]];
+aTrue = Exp[-config[\&quot;SampleTime\&quot;]/config[\&quot;PlantTimeConstant\&quot;]];
+bTrue = config[\&quot;PlantDcGain\&quot;] (1.0 - aTrue);
+
+time = N[Range[0, steps] config[\&quot;SampleTime\&quot;]];
+reference = referenceSignal /@ time;
+y = ConstantArray[0.0, steps + 1];
+yMeasured = ConstantArray[0.0, steps + 1];
+uApplied = ConstantArray[0.0, steps];
+command = ConstantArray[0.0, steps];
+thetaHistory = ConstantArray[{0.0, 0.0}, steps + 1];
+
+theta = {0.70, 0.30};
+covariance = 100.0 IdentityMatrix[2];
+thetaHistory[[1]] = theta;
+yMeasured[[1]] = quantizeValue[y[[1]], config[\&quot;SensorStep\&quot;]];
+queue = ConstantArray[0.0, config[\&quot;DelaySamples\&quot;]];
+
+Do[
+  If[config[\&quot;DelaySamples\&quot;] &gt; 0,
+    uNow = First[queue];
+    queue = Rest[queue],
+    uNow = 0.0
+  ];
+
+  predicted = yMeasured[[k]];
+  If[config[\&quot;DelaySamples\&quot;] &gt; 0,
+    predicted = theta[[1]] predicted + theta[[2]] uNow;
+    Do[
+      predicted = theta[[1]] predicted + theta[[2]] queuedInput,
+      {queuedInput, queue}
+    ];
+  ];
+
+  targetNext =
+    config[\&quot;DesiredPole\&quot;] predicted +
+    (1.0 - config[\&quot;DesiredPole\&quot;]) reference[[k]];
+  rawCommand = (targetNext - theta[[1]] predicted)/theta[[2]];
+  newCommand = quantizeValue[
+    saturateValue[rawCommand, config[\&quot;ActuatorLimit\&quot;]],
+    config[\&quot;ActuatorStep\&quot;]
+  ];
+  command[[k]] = newCommand;
+
+  If[config[\&quot;DelaySamples\&quot;] &gt; 0,
+    queue = Append[queue, newCommand],
+    uNow = newCommand
+  ];
+  uApplied[[k]] = uNow;
+
+  disturbance = 0.004 RandomVariate[NormalDistribution[0.0, 1.0]];
+  y[[k + 1]] = aTrue y[[k]] + bTrue uNow + disturbance;
+  yMeasured[[k + 1]] =
+    quantizeValue[y[[k + 1]], config[\&quot;SensorStep\&quot;]];
+
+  phi = {yMeasured[[k]], uNow};
+  predictionError = yMeasured[[k + 1]] - phi.theta;
+  denominator =
+    config[\&quot;ForgettingFactor\&quot;] + phi.covariance.phi;
+  gain = covariance.phi/denominator;
+
+  theta = projectParameters[theta + gain predictionError];
+  covariance =
+    (covariance - Outer[Times, gain, phi].covariance)/
+      config[\&quot;ForgettingFactor\&quot;];
+  covariance =
+    0.5 (covariance + Transpose[covariance]) +
+    1.0*^-10 IdentityMatrix[2];
+  thetaHistory[[k + 1]] = theta,
+  {k, 1, steps}
+];
+
+startIndex = Floor[5.0/config[\&quot;SampleTime\&quot;]] + 1;
+rmse = Sqrt[
+   Mean[(reference[[startIndex ;;]] - y[[startIndex ;;]])^2]
+];
+
+Print[\&quot;Sampling period: \&quot;, NumberForm[config[\&quot;SampleTime\&quot;], {6, 4}], \&quot; s\&quot;];
+Print[\&quot;Delay: \&quot;, config[\&quot;DelaySamples\&quot;], \&quot; samples\&quot;];
+Print[\&quot;Tracking RMSE after 5 s: \&quot;, NumberForm[rmse, {8, 6}]];
+Print[\&quot;True [a, b]: \&quot;, N[{aTrue, bTrue}, 8]];
+Print[\&quot;Estimated [a, b]: \&quot;, N[Last[thetaHistory], 8]];
+
+resultRows = Prepend[
+   Table[{
+     time[[k]],
+     reference[[k]],
+     y[[k]],
+     yMeasured[[k]],
+     If[k &lt;= steps, uApplied[[k]], Missing[\&quot;NotAvailable\&quot;]],
+     If[k &lt;= steps, command[[k]], Missing[\&quot;NotAvailable\&quot;]],
+     thetaHistory[[k, 1]],
+     thetaHistory[[k, 2]]
+   }, {k, 1, steps + 1}],
+   {\&quot;time\&quot;, \&quot;reference\&quot;, \&quot;y\&quot;, \&quot;y_quantized\&quot;, \&quot;u_applied\&quot;,
+    \&quot;u_command\&quot;, \&quot;a_hat\&quot;, \&quot;b_hat\&quot;}
+];
+Export[\&quot;Chapter14_Lesson4_results_mathematica.csv\&quot;, resultRows];
+
+trackingPlot = ListLinePlot[
+   {
+     Transpose[{time, reference}],
+     Transpose[{time, y}],
+     Transpose[{time, yMeasured}]
+   },
+   PlotLegends -&gt; {\&quot;reference\&quot;, \&quot;plant output\&quot;, \&quot;quantized measurement\&quot;},
+   Frame -&gt; True,
+   FrameLabel -&gt; {\&quot;time (s)\&quot;, \&quot;output\&quot;},
+   PlotRange -&gt; All,
+   ImageSize -&gt; Large
+];
+
+parameterPlot = ListLinePlot[
+   {
+     Transpose[{time, thetaHistory[[All, 1]]}],
+     Transpose[{time, thetaHistory[[All, 2]]}],
+     Transpose[{time, ConstantArray[aTrue, steps + 1]}],
+     Transpose[{time, ConstantArray[bTrue, steps + 1]}]
+   },
+   PlotLegends -&gt; {\&quot;a hat\&quot;, \&quot;b hat\&quot;, \&quot;a true\&quot;, \&quot;b true\&quot;},
+   Frame -&gt; True,
+   FrameLabel -&gt; {\&quot;time (s)\&quot;, \&quot;parameter\&quot;},
+   PlotRange -&gt; All,
+   ImageSize -&gt; Large
+];
+
+Column[{trackingPlot, parameterPlot}]
+&quot;], &quot;Input&quot;]
+}, WindowTitle -&gt; &quot;Chapter14_Lesson4&quot;]
+      </code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 15 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>15. Problems and Solutions</h2>
+    <div class="down-content">
+      <p>
+        <strong>Problem 1 (Exact sampled parameters):</strong>
+        A process satisfies
+        <strong>\( 0.5\dot y+y=2u \)</strong>. Find the exact discrete-time
+        coefficients for zero-order-hold sampling at
+        <strong>\( T_s=0.1 \)</strong> s.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ a=e^{-T_s/\tau_p}=e^{-0.1/0.5}=e^{-0.2}\approx0.81873, \]
+      </h4>
+      <h4 class="mathJax">\[ b=K_p(1-a)=2(1-0.81873)\approx0.36254. \]</h4>
+      <p>
+        The exact model is
+        <strong>\( y_{k+1}=0.81873y_k+0.36254u_k \)</strong>. Using the
+        continuous coefficients directly in an RLS regression would estimate the
+        wrong parameterization.
+      </p>
+
+      <p>
+        <strong>Problem 2 (Quantization disturbance):</strong>
+        For <strong>\( a=0.9 \)</strong>, <strong>\( b=0.2 \)</strong>,
+        <strong>\( \Delta_y=0.01 \)</strong>, and
+        <strong>\( \Delta_u=0.02 \)</strong>, compute an upper bound on
+        <strong>\( |d_k^q| \)</strong>.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ |d_k^q| \le \frac{1+0.9}{2}(0.01) +\frac{0.2}{2}(0.02)
+        =0.0095+0.002=0.0115. \]
+      </h4>
+      <p>
+        The result is a deterministic worst-case bound before converter
+        saturation. It should not be interpreted as a standard deviation.
+      </p>
+
+      <p>
+        <strong>Problem 3 (Delay phase budget):</strong>
+        A controller has desired bandwidth
+        <strong>\( \omega_b=12 \)</strong> rad/s and a two-sample total delay.
+        Restrict delay phase to 20 degrees. Find the maximum sampling period.
+      </p>
+      <p><strong>Solution:</strong> Convert 20 degrees to radians:</p>
+      <h4 class="mathJax">
+        \[ \phi_{\mathrm{allow} }=20\frac{\pi}{180} \approx0.3491. \]
+      </h4>
+      <h4 class="mathJax">
+        \[ T_s\le \frac{0.3491}{2(12)} \approx0.01455\;\text{s}. \]
+      </h4>
+      <p>
+        Thus a nominal choice such as 10 ms leaves additional margin for model
+        uncertainty and adaptive transients.
+      </p>
+
+      <p>
+        <strong>Problem 4 (Ultimate tracking bound):</strong>
+        Suppose <strong>\( a_c=0.6 \)</strong> and the combined implementation
+        perturbation satisfies <strong>\( |\zeta_k|\le0.02 \)</strong>. Find the
+        asymptotic geometric bound.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ \limsup_{k&rarr;\infty}|e_k| \le \frac{0.02}{1-0.6} =0.05. \]
+      </h4>
+      <p>
+        Exact convergence cannot be guaranteed from this bounded-disturbance
+        model; the result is convergence to a neighborhood of radius 0.05.
+      </p>
+
+      <p>
+        <strong>Problem 5 (Regressor alignment):</strong>
+        A command computed at sample <strong>\( k \)</strong> is applied two
+        samples later. A programmer forms
+        <strong>\( \varphi_k=[y_k^q,c_k]^T \)</strong> for estimating
+        <strong>\( y_{k+1} \)</strong>. Explain the error and give the correct
+        regressor.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <p>
+        During interval <strong>\( [kT_s,(k+1)T_s) \)</strong>, the plant
+        receives <strong>\( u_k=c_{k-2} \)</strong>, not
+        <strong>\( c_k \)</strong>. The correct regression is
+      </p>
+      <h4 class="mathJax">
+        \[ y_{k+1}^q = \begin{bmatrix}y_k^q &amp; u_k\end{bmatrix}
+        \begin{bmatrix}a\\b\end{bmatrix} +\text{disturbance}, \qquad
+        u_k=c_{k-2}. \]
+      </h4>
+      <p>
+        Using <strong>\( c_k \)</strong> introduces a deterministic input-output
+        misalignment. RLS then attempts to fit delay error as though it were a
+        change in <strong>\( a \)</strong> or <strong>\( b \)</strong>.
+      </p>
+
+      <p>
+        <strong>Problem 6 (Jitter-induced coefficient variation):</strong>
+        For <strong>\( \tau_p=0.4 \)</strong> s,
+        <strong>\( T_s=0.02 \)</strong> s, and <strong>\( J=0.001 \)</strong> s,
+        bound the variation in <strong>\( a_k=e^{-T_k/\tau_p} \)</strong>.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ |a_k-a(T_s)| \le \frac{0.001}{0.4} e^{-(0.02-0.001)/0.4}
+        \approx0.00238. \]
+      </h4>
+      <p>
+        Even though the physical time constant is constant, the sampled
+        coefficient can fluctuate by approximately 0.00238 under this jitter
+        bound.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 16 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>16. Summary</h2>
+    <div class="down-content">
+      <p>
+        Sampling determines the plant parameterization seen by the adaptive law,
+        and exact zero-order-hold discretization separates physical uncertainty
+        from numerical approximation. Quantization enters the regression as a
+        bounded, signal-dependent disturbance and commonly changes asymptotic
+        convergence into practical convergence. Computation and transport delay
+        require command-queue modeling, use of the actually applied input in the
+        estimator, and prediction to the command-application instant.
+        Projection, covariance conditioning, saturation handling, deadline
+        monitoring, and deterministic indexing are essential parts of the
+        adaptive controller, not optional software refinements.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 17 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>17. References</h2>
+    <ol>
+      <li>
+        Goodwin, G.C., Ramadge, P.J., &amp; Caines, P.E. (1980). Discrete-time
+        multivariable adaptive control.
+        <em>IEEE Transactions on Automatic Control</em>, 25(3), 449–456.
+      </li>
+      <li>
+        Goodwin, G.C., Ramadge, P.J., &amp; Caines, P.E. (1981). Discrete time
+        stochastic adaptive control.
+        <em>SIAM Journal on Control and Optimization</em>, 19(6), 829–853.
+      </li>
+      <li>
+        Åström, K.J. (1983). Theory and applications of adaptive control—A
+        survey.
+        <em>Automatica</em>, 19(5), 471–486.
+      </li>
+      <li>
+        Delchamps, D.F. (1990). Stabilizing a linear system with quantized state
+        feedback.
+        <em>IEEE Transactions on Automatic Control</em>, 35(8), 916–924.
+      </li>
+      <li>
+        Wong, W.S., &amp; Brockett, R.W. (1999). Systems with finite
+        communication bandwidth constraints—II: Stabilization with limited
+        information feedback.
+        <em>IEEE Transactions on Automatic Control</em>, 44(5), 1049–1053.
+      </li>
+      <li>
+        Brockett, R.W., &amp; Liberzon, D. (2000). Quantized feedback
+        stabilization of linear systems.
+        <em>IEEE Transactions on Automatic Control</em>, 45(7), 1279–1289.
+      </li>
+      <li>
+        Ishii, H., &amp; Francis, B.A. (2003). Quadratic stabilization of
+        sampled-data systems with quantization.
+        <em>Automatica</em>, 39(10), 1793–1800.
+      </li>
+      <li>
+        Nešić, D., &amp; Teel, A.R. (2004). A framework for stabilization of
+        nonlinear sampled-data systems based on their approximate discrete-time
+        models.
+        <em>IEEE Transactions on Automatic Control</em>, 49(7), 1103–1122.
+      </li>
+      <li>
+        Nair, G.N., &amp; Evans, R.J. (2004). Stabilizability of stochastic
+        linear systems with finite feedback data rates.
+        <em>SIAM Journal on Control and Optimization</em>, 43(2), 413–436.
+      </li>
+      <li>
+        Fagnani, F., &amp; Zampieri, S. (2003). Stability analysis and synthesis
+        for scalar linear systems with a quantized feedback.
+        <em>IEEE Transactions on Automatic Control</em>, 48(9), 1569–1584.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter14/Lesson3.html">
+          Lesson 3: Discrete-Time RLS and Gradient Laws
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter14/Lesson5.html">
+          Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#" role="search" onsubmit="return false;">
+              <label for="sidebar-search-input" class="sr-only">Search course lessons</label>
+              <input
+                type="text"
+                name="search"
+                id="sidebar-search-input"
+                placeholder="Search..."
+              / aria-label="Search course lessons">
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu" class="tex2jax_ignore">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: theta^Tphi(x,u) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression phi^T(t)theta
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="active-lesson" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank" rel="noopener noreferrer"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+              <a href="https://mohammadijoo.github.io/DevOps_Academy" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/DevOps_Academy.jpg"
+                    alt="DevOps Tutorials"
+                  />
+                  <p>DevOps Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank" rel="noopener noreferrer">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]],
+          processEscapes: true,
+          ignoreClass: "tex2jax_ignore"
+        },
+        messageStyle: "none",
+        showMathMenu: false
+      });
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/sidebar_search.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>

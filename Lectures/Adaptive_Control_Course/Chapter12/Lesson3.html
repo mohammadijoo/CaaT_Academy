@@ -1,0 +1,2652 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation - Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank" rel="noopener noreferrer">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>
+      Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation
+    </h1>
+    <h3>
+      <strong
+        >Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning</strong
+      >
+    </h3>
+    <p>
+      This lesson develops the mathematical and numerical meaning of the RLS
+      covariance matrix. We connect the covariance update to the inverse
+      information matrix, interpret its eigenstructure as a
+      parameter-uncertainty ellipsoid, explain why weak or collinear excitation
+      creates ill-conditioning, and derive diagnostics and safeguards suitable
+      for an online adaptive-control implementation.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1: Learning Objectives and Context -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>1. Learning Objectives and Context</h2>
+    <div class="down-content">
+      <p>After completing this lesson, students should be able to:</p>
+      <ul>
+        <li>
+          distinguish the RLS covariance matrix from the physical covariance of
+          plant disturbances;
+        </li>
+        <li>
+          derive the covariance recursion from the information-matrix recursion;
+        </li>
+        <li>
+          interpret covariance eigenvectors and eigenvalues as uncertain
+          parameter directions and uncertainty magnitudes;
+        </li>
+        <li>
+          diagnose poor excitation, near-collinearity, covariance windup,
+          symmetry loss, and loss of positive definiteness;
+        </li>
+        <li>
+          select numerically appropriate remedies without confusing numerical
+          stabilization with genuine parameter identifiability.
+        </li>
+      </ul>
+      <p>
+        Lessons 1 and 2 introduced the linear regression model and the standard
+        RLS update. Chapter 10 introduced persistent excitation. We now examine
+        the matrix <strong>\( \mathbf{P}_k \)</strong> that determines the
+        direction and magnitude of each RLS parameter correction.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2: Weighted Least Squares and the Information Matrix -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. Weighted Least Squares and the Information Matrix</h2>
+    <div class="down-content">
+      <p>Consider the scalar-output, linearly parameterized model</p>
+      <h4 class="mathJax">
+        \[ y_i = \boldsymbol{\phi}_i^{\mathsf T}\boldsymbol{\theta} + v_i,
+        \qquad \boldsymbol{\phi}_i \in \mathbb{R}^{n_\theta}. \]
+      </h4>
+      <p>
+        With forgetting factor <strong>\( \lambda \)</strong> and a
+        positive-definite initial information matrix
+        <strong>\( \mathbf{R}_0 \)</strong>, exponentially weighted least
+        squares minimizes
+      </p>
+      <h4 class="mathJax">
+        \[ J_k(\boldsymbol{\vartheta}) =
+        (\boldsymbol{\vartheta}-\hat{\boldsymbol{\theta} }_0)^{\mathsf T}
+        \mathbf{R}_0 (\boldsymbol{\vartheta}-\hat{\boldsymbol{\theta} }_0) +
+        \sum_{i=1}^{k}\lambda^{k-i} \left(y_i-\boldsymbol{\phi}_i^{\mathsf
+        T}\boldsymbol{\vartheta}\right)^2. \]
+      </h4>
+      <p>
+        The Hessian, apart from the constant factor two, is the information
+        matrix
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{R}_k = \lambda^k\mathbf{R}_0 + \sum_{i=1}^{k}\lambda^{k-i}
+        \boldsymbol{\phi}_i\boldsymbol{\phi}_i^{\mathsf T}. \]
+      </h4>
+      <p>Therefore,</p>
+      <h4 class="mathJax">
+        \[ \mathbf{R}_k = \lambda\mathbf{R}_{k-1} +
+        \boldsymbol{\phi}_k\boldsymbol{\phi}_k^{\mathsf T}, \qquad \mathbf{P}_k
+        = \mathbf{R}_k^{-1}. \]
+      </h4>
+      <p>
+        The matrix <strong>\( \mathbf{R}_k \)</strong> measures accumulated
+        information. Its inverse <strong>\( \mathbf{P}_k \)</strong> measures
+        how strongly a new prediction error can alter the parameter estimate.
+        Large information in one direction corresponds to small covariance in
+        that direction, and conversely.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3: Derivation of the Covariance Recursion -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. Derivation of the Covariance Recursion</h2>
+    <div class="down-content">
+      <p>
+        Apply the Sherman&ndash;Morrison matrix inversion identity to
+        <strong
+          >\( \lambda\mathbf{R}_{k-1} +
+          \boldsymbol{\phi}_k\boldsymbol{\phi}_k^{\mathsf T} \)</strong
+        >. Since <strong>\( \mathbf{P}_{k-1}=\mathbf{R}_{k-1}^{-1} \)</strong>,
+      </p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \mathbf{P}_k &= \left(\lambda\mathbf{R}_{k-1}
+        +\boldsymbol{\phi}_k\boldsymbol{\phi}_k^{\mathsf T}\right)^{-1} \\ &=
+        \lambda^{-1}\mathbf{P}_{k-1}
+        -\frac{\lambda^{-1}\mathbf{P}_{k-1}\boldsymbol{\phi}_k
+        \boldsymbol{\phi}_k^{\mathsf T}\mathbf{P}_{k-1} }
+        {\lambda+\boldsymbol{\phi}_k^{\mathsf T}
+        \mathbf{P}_{k-1}\boldsymbol{\phi}_k}. \end{aligned} \]
+      </h4>
+      <p>Define the RLS gain</p>
+      <h4 class="mathJax">
+        \[ \mathbf{K}_k = \frac{\mathbf{P}_{k-1}\boldsymbol{\phi}_k}
+        {\lambda+\boldsymbol{\phi}_k^{\mathsf T}
+        \mathbf{P}_{k-1}\boldsymbol{\phi}_k}. \]
+      </h4>
+      <p>The familiar parameter and covariance updates are then</p>
+      <h4 class="mathJax">
+        \[ \hat{\boldsymbol{\theta} }_k = \hat{\boldsymbol{\theta} }_{k-1}
+        +\mathbf{K}_k\left(y_k- \boldsymbol{\phi}_k^{\mathsf
+        T}\hat{\boldsymbol{\theta} }_{k-1}\right), \]
+      </h4>
+      <h4 class="mathJax">
+        \[ \mathbf{P}_k = \lambda^{-1}
+        \left(\mathbf{I}-\mathbf{K}_k\boldsymbol{\phi}_k^{\mathsf T}\right)
+        \mathbf{P}_{k-1}. \]
+      </h4>
+      <p>
+        In exact arithmetic, a symmetric positive-definite
+        <strong>\( \mathbf{P}_{k-1} \)</strong> and
+        <strong>\( \lambda &gt; 0 \)</strong> produce a symmetric
+        positive-definite <strong>\( \mathbf{P}_k \)</strong>. Floating-point
+        arithmetic, however, may gradually violate symmetry or positive
+        definiteness when the matrix becomes badly conditioned.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4: Statistical and Geometric Interpretation -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Statistical and Geometric Interpretation of \( \mathbf{P}_k \)</h2>
+    <div class="down-content">
+      <h3>4.1 Approximate estimation-error covariance</h3>
+      <p>
+        Under a correctly specified linear regression model, independent
+        zero-mean measurement noise with variance
+        <strong>\( \sigma_v^2 \)</strong>, and suitable excitation, the local
+        covariance of the parameter estimation error is approximately
+      </p>
+      <h4 class="mathJax">
+        \[ \operatorname{Cov}\!\left( \hat{\boldsymbol{\theta}
+        }_k-\boldsymbol{\theta}\right) \approx \sigma_v^2\mathbf{P}_k. \]
+      </h4>
+      <p>
+        Thus, <strong>\( \mathbf{P}_k \)</strong> is a normalized covariance or
+        inverse-information matrix. It is not automatically a calibrated
+        probabilistic covariance when the noise is colored, the plant model is
+        biased, the parameters vary, or the forgetting factor is introduced only
+        as an engineering tracking device.
+      </p>
+
+      <h3>4.2 Eigenstructure and uncertainty ellipsoids</h3>
+      <p>Let</p>
+      <h4 class="mathJax">
+        \[ \mathbf{P}_k =
+        \mathbf{Q}_k\boldsymbol{\Lambda}_k\mathbf{Q}_k^{\mathsf T}, \qquad
+        \boldsymbol{\Lambda}_k = \operatorname{diag}
+        (p_{1,k},\ldots,p_{n_\theta,k}). \]
+      </h4>
+      <p>
+        The columns <strong>\( \mathbf{q}_{i,k} \)</strong> of
+        <strong>\( \mathbf{Q}_k \)</strong> are parameter-space directions. A
+        confidence-like ellipsoid has the form
+      </p>
+      <h4 class="mathJax">
+        \[ \mathcal{E}_k(c)=\left\{\widetilde{\boldsymbol{\theta} }:
+        \widetilde{\boldsymbol{\theta} }^{\mathsf T}
+        \mathbf{P}_k^{-1}\widetilde{\boldsymbol{\theta} } \le c\right\}. \]
+      </h4>
+      <p>
+        Its semi-axis in direction <strong>\( \mathbf{q}_{i,k} \)</strong> has
+        length <strong>\( \sqrt{c\,p_{i,k} } \)</strong>. Hence:
+      </p>
+      <ul>
+        <li>
+          a small covariance eigenvalue means strong information in that
+          direction;
+        </li>
+        <li>
+          a large covariance eigenvalue means weak information and high
+          estimator sensitivity;
+        </li>
+        <li>
+          the eigenvectors, not the coordinate axes, reveal which combinations
+          of physical parameters are identifiable.
+        </li>
+      </ul>
+
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  A["Regressor samples phi(k)"] --> B["Information matrix R(k)"]
+  B --> C["Eigen-directions in parameter space"]
+  C --> D["Strongly excited direction: \nlarge information"]
+  C --> E["Weakly excited direction: \nsmall information"]
+  B --> F["Inverse matrix P(k)"]
+  F --> G["Small covariance axis \nin strong direction"]
+  F --> H["Large covariance axis \nin weak direction"]
+  G --> I["Narrow uncertainty ellipsoid"]
+  H --> J["Elongated uncertainty \nellipsoid"]
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5: Ill-Conditioning and Identifiability -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Ill-Conditioning, Collinearity, and Identifiability</h2>
+    <div class="down-content">
+      <p>
+        For a symmetric positive-definite covariance matrix, the spectral
+        condition number is
+      </p>
+      <h4 class="mathJax">
+        \[ \kappa_2(\mathbf{P}_k)= \frac{\lambda_{\max}(\mathbf{P}_k)}
+        {\lambda_{\min}(\mathbf{P}_k)} =\kappa_2(\mathbf{R}_k). \]
+      </h4>
+      <p>
+        A large condition number means that the estimator has very different
+        sensitivity scales in different parameter directions. Roundoff errors in
+        a weak direction can then be amplified by many orders of magnitude.
+      </p>
+
+      <h3>5.1 Nearly collinear regressors</h3>
+      <p>
+        Suppose every regressor is approximately a scalar multiple of one
+        vector,
+      </p>
+      <h4 class="mathJax">\[ \boldsymbol{\phi}_i \approx a_i\mathbf{s}. \]</h4>
+      <p>Then the accumulated data contribution is approximately rank one:</p>
+      <h4 class="mathJax">
+        \[ \sum_i w_i\boldsymbol{\phi}_i\boldsymbol{\phi}_i^{\mathsf T} \approx
+        \left(\sum_i w_i a_i^2\right)\mathbf{s}\mathbf{s}^{\mathsf T}. \]
+      </h4>
+      <p>
+        For any direction <strong>\( \mathbf{z} \)</strong> satisfying
+        <strong>\( \mathbf{z}^{\mathsf T}\mathbf{s}=0 \)</strong>, the data add
+        almost no information:
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{z}^{\mathsf T}\mathbf{R}_k\mathbf{z} \approx
+        \lambda^k\mathbf{z}^{\mathsf T}\mathbf{R}_0\mathbf{z}. \]
+      </h4>
+      <p>
+        The output may still be predicted accurately because the identifiable
+        combination
+        <strong>\( \mathbf{s}^{\mathsf T}\boldsymbol{\theta} \)</strong> is
+        learned. Individual parameters can nevertheless vary substantially along
+        the nearly unobservable direction <strong>\( \mathbf{z} \)</strong>.
+      </p>
+
+      <h3>5.2 Link to persistent excitation</h3>
+      <p>
+        A finite-window persistent-excitation condition introduced in Chapter 10
+        is
+      </p>
+      <h4 class="mathJax">
+        \[ \alpha\mathbf{I}\preceq
+        \sum_{i=k}^{k+N-1}\boldsymbol{\phi}_i\boldsymbol{\phi}_i^{\mathsf T}
+        \preceq\beta\mathbf{I}, \qquad \alpha &gt; 0. \]
+      </h4>
+      <p>
+        The lower bound prevents an unexcited parameter direction. Without it,
+        one or more information eigenvalues can become very small relative to
+        the others, and the covariance matrix becomes ill-conditioned.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6: Forgetting Factor and Covariance Windup -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. Forgetting Factor and Covariance Windup</h2>
+    <div class="down-content">
+      <p>
+        Exponential forgetting enables tracking of slowly changing parameters,
+        but it also removes old information in every direction. If the new
+        regressors fail to excite a direction, the corresponding information
+        eigenvalue decays while its covariance eigenvalue grows.
+      </p>
+      <p>
+        In the extreme case
+        <strong>\( \boldsymbol{\phi}_{k+j}=\mathbf{0} \)</strong> for
+        <strong>\( j=1,\ldots,m \)</strong>, the recursion becomes
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{R}_{k+m}=\lambda^m\mathbf{R}_k, \qquad
+        \mathbf{P}_{k+m}=\lambda^{-m}\mathbf{P}_k. \]
+      </h4>
+      <p>
+        Therefore, when <strong>\( \lambda &lt; 1 \)</strong>, covariance grows
+        geometrically during loss of excitation. This is called
+        <strong>covariance windup</strong>. Once excitation returns, the large
+        gain can produce a violent parameter transient or amplify noise.
+      </p>
+      <p>
+        Windup is distinct from covariance collapse. Collapse means one or more
+        covariance eigenvalues have become extremely small, so the estimator is
+        numerically overconfident and adapts too slowly in those directions. A
+        practical implementation may encounter both at the same time: a tiny
+        eigenvalue in one direction and a huge eigenvalue in another.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7: Numerical Failure Modes and Diagnostics -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Numerical Failure Modes and Online Diagnostics</h2>
+    <div class="down-content">
+      <h3>7.1 Common numerical failure modes</h3>
+      <ul>
+        <li>
+          <strong>Loss of symmetry:</strong> algebraically equivalent products
+          are rounded differently, so
+          <strong>\( \mathbf{P}_k\ne\mathbf{P}_k^{\mathsf T} \)</strong>
+          numerically.
+        </li>
+        <li>
+          <strong>Loss of positive definiteness:</strong> cancellation in the
+          covariance downdate can produce a nonpositive eigenvalue.
+        </li>
+        <li>
+          <strong>Extreme anisotropy:</strong> a large condition number
+          amplifies roundoff and makes gain computations directionally
+          unreliable.
+        </li>
+        <li>
+          <strong>Gain bursts after poor excitation:</strong> covariance windup
+          causes an excessively large correction when a new informative sample
+          arrives.
+        </li>
+        <li>
+          <strong>False confidence:</strong> a tiny covariance matrix may
+          reflect repeated, redundant data rather than independent information
+          about every parameter.
+        </li>
+      </ul>
+
+      <h3>7.2 Quantities to monitor</h3>
+      <p>A minimal online diagnostic set includes:</p>
+      <h4 class="mathJax">
+        \[ \eta_{\mathrm{sym},k}=
+        \frac{\left\|\mathbf{P}_k-\mathbf{P}_k^{\mathsf T}\right\|_{F} }
+        {\max\!\left(1,\left\|\mathbf{P}_k\right\|_{F}\right)}, \]
+      </h4>
+      <h4 class="mathJax">
+        \[ p_{\min,k}=\lambda_{\min}(\mathbf{P}_k), \qquad
+        p_{\max,k}=\lambda_{\max}(\mathbf{P}_k), \qquad
+        \kappa_k=\frac{p_{\max,k} }{p_{\min,k} }, \]
+      </h4>
+      <h4 class="mathJax">
+        \[ d_k=\lambda+ \boldsymbol{\phi}_k^{\mathsf
+        T}\mathbf{P}_{k-1}\boldsymbol{\phi}_k, \qquad \bar
+        e_k=\frac{e_k}{\sqrt{d_k} }. \]
+      </h4>
+      <p>
+        A Cholesky factorization is often a better online positive-definiteness
+        test than explicitly forming all eigenvalues. Eigenvalues or singular
+        values can be computed less frequently for detailed diagnostics.
+      </p>
+
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  A["Receive phi(k) and y(k)"] --> B["Compute RLS gain and prediction error"]
+  B --> C["Update theta and P"]
+  C --> D["Symmetrize P"]
+  D --> E["Check finite values and \nCholesky factorization"]
+  E -->|"pass"| F["Estimate condition number \nand eigenvalue bounds"]
+  E -->|"fail"| G["Restore positive definiteness \nor reset safely"]
+  F --> H["Condition acceptable?"]
+  H -->|"yes"| I["Use estimate in controller update"]
+  H -->|"no"| J["Scale, regularize, bound, \nor freeze weak directions"]
+  J --> K["Log diagnostic event"]
+  G --> K
+  K --> I
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8: Stabilization Methods -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Stabilization Methods and Their Meaning</h2>
+    <div class="down-content">
+      <h3>8.1 Regressor scaling</h3>
+      <p>
+        Poorly scaled coordinates can create numerical ill-conditioning even
+        when the experiment is informative. Define
+        <strong
+          >\( \boldsymbol{\phi}_k=\mathbf{D}\bar{\boldsymbol{\phi} }_k
+          \)</strong
+        >
+        with a diagonal scaling matrix <strong>\( \mathbf{D} \)</strong> chosen
+        so the normalized regressors have comparable magnitudes. The transformed
+        parameter is
+        <strong
+          >\( \bar{\boldsymbol{\theta} }=\mathbf{D}^{\mathsf
+          T}\boldsymbol{\theta} \)</strong
+        >.
+      </p>
+
+      <h3>8.2 Explicit symmetrization</h3>
+      <h4 class="mathJax">
+        \[ \mathbf{P}_k \;\text{is replaced by}\;
+        \frac{1}{2}\left(\mathbf{P}_k+\mathbf{P}_k^{\mathsf T}\right). \]
+      </h4>
+      <p>
+        This removes the antisymmetric roundoff component, but it does not
+        repair a negative eigenvalue or create missing information.
+      </p>
+
+      <h3>8.3 Joseph-form covariance update</h3>
+      <p>
+        Treating RLS as a fading-memory Kalman parameter estimator gives the
+        prior covariance
+        <strong>\( \mathbf{P}_k^-=\lambda^{-1}\mathbf{P}_{k-1} \)</strong>. A
+        numerically safer covariance expression is
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{P}_k =
+        \left(\mathbf{I}-\mathbf{K}_k\boldsymbol{\phi}_k^{\mathsf T}\right)
+        \mathbf{P}_k^- \left(\mathbf{I}-\mathbf{K}_k\boldsymbol{\phi}_k^{\mathsf
+        T}\right)^{\mathsf T} +\mathbf{K}_k\mathbf{K}_k^{\mathsf T}. \]
+      </h4>
+      <p>
+        The sum-of-positive-semidefinite-terms structure better preserves
+        positive semidefiniteness in finite precision, although it requires more
+        arithmetic.
+      </p>
+
+      <h3>8.4 Square-root and QR implementations</h3>
+      <p>
+        Instead of updating <strong>\( \mathbf{P}_k \)</strong> directly, a
+        square-root method updates a triangular factor of the covariance or
+        information matrix. Orthogonal transformations avoid the subtractive
+        covariance downdate and are preferred in long-running or safety-critical
+        implementations. The price is greater implementation complexity.
+      </p>
+
+      <h3>8.5 Regularization</h3>
+      <p>Ridge regularization modifies the information matrix:</p>
+      <h4 class="mathJax">
+        \[ \mathbf{P}_{k,\delta}=
+        \left(\mathbf{R}_k+\delta\mathbf{I}\right)^{-1}, \qquad \delta &gt; 0.
+        \]
+      </h4>
+      <p>
+        Regularization bounds sensitivity but introduces bias. It must therefore
+        be documented as a modeling choice, not presented as evidence that the
+        data identify every parameter.
+      </p>
+
+      <h3>8.6 Eigenvalue bounding and covariance resetting</h3>
+      <p>
+        If
+        <strong
+          >\( \mathbf{P}=\mathbf{Q}\operatorname{diag}(p_i)\mathbf{Q}^{\mathsf
+          T} \)</strong
+        >, an emergency safeguard can replace
+      </p>
+      <h4 class="mathJax">
+        \[ p_i \;\text{by}\; \min\!\left(p_{\max},
+        \max\!\left(p_{\min},p_i\right)\right). \]
+      </h4>
+      <p>
+        A reset replaces the covariance with a prescribed matrix, commonly when
+        a verified operating-mode change occurs. Both approaches alter estimator
+        memory. They should be triggered by explicit logic, logged, and
+        separated from the nominal mathematical RLS algorithm.
+      </p>
+
+      <h3>8.7 Directional forgetting</h3>
+      <p>
+        Standard forgetting removes information in every direction, including
+        directions not represented by the current regressor. Directional
+        forgetting removes information mainly in newly excited subspaces and is
+        designed to reduce windup in unexcited directions. Its detailed design
+        is beyond the standard RLS equations of Lesson 2, but its motivation
+        follows directly from the eigen-direction interpretation developed here.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9: Consequences for Adaptive Control -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Consequences for an RLS-Based Adaptive Controller</h2>
+    <div class="down-content">
+      <p>
+        In an indirect adaptive controller or self-tuning regulator, the
+        estimated parameters are mapped into controller coefficients.
+        Ill-conditioned estimation can therefore become a control problem even
+        when the one-step prediction error is small.
+      </p>
+      <ul>
+        <li>
+          Controller coefficients should not be updated solely because RLS
+          produced a finite parameter vector.
+        </li>
+        <li>
+          A controller update should be inhibited or projected when the
+          covariance diagnostics show weak identifiability in safety-critical
+          directions.
+        </li>
+        <li>
+          Prediction performance and parameter plausibility should be monitored
+          separately.
+        </li>
+        <li>
+          Covariance resets, eigenvalue clipping, and regularization must be
+          included in validation tests because they change transient controller
+          behavior.
+        </li>
+        <li>
+          Input design or reference-command variation may be necessary to
+          restore excitation; numerical stabilization alone cannot create
+          information.
+        </li>
+      </ul>
+      <p>
+        The central engineering principle is:
+        <strong
+          >a numerically valid covariance matrix is necessary, but it is not
+          sufficient for parameter identifiability or closed-loop
+          safety.</strong
+        >
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10: Multilanguage Computational Laboratory -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. Multilanguage Computational Laboratory</h2>
+    <div class="down-content">
+      <p>
+        The following implementations use two nearly collinear regressors. They
+        monitor covariance eigenvalues and the condition number, restore
+        symmetry, and apply a bounded-eigenvalue safeguard when the condition
+        number exceeds a prescribed threshold. The experiment intentionally
+        demonstrates that
+        <strong>\( \theta_1+\theta_2 \)</strong> can be estimated accurately
+        while <strong>\( \theta_1 \)</strong> and
+        <strong>\( \theta_2 \)</strong>
+        separately remain weakly identifiable.
+      </p>
+
+      <h3>Python</h3>
+      <h4><code>Chapter12_Lesson3.py</code></h4>
+      <pre><code class="language-python">"""Chapter 12, Lesson 3: covariance interpretation and ill-conditioning in RLS.
+
+The experiment deliberately uses nearly collinear regressors. The individual
+parameters are therefore weakly identifiable even when the predicted output is
+accurate. The implementation monitors covariance eigenvalues and applies a
+simple eigenvalue-bounding safeguard for teaching purposes.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+
+import numpy as np
+
+
+@dataclass
+class Diagnostics:
+    minimum_eigenvalue: float
+    maximum_eigenvalue: float
+    condition_number: float
+    symmetry_error: float
+
+
+def covariance_diagnostics(P: np.ndarray) -&gt; Diagnostics:
+    """Return spectral and symmetry diagnostics for a covariance matrix."""
+    Ps = 0.5 * (P + P.T)
+    eigenvalues = np.linalg.eigvalsh(Ps)
+    minimum = float(eigenvalues[0])
+    maximum = float(eigenvalues[-1])
+    condition = math.inf if minimum &lt;= 0.0 else maximum / minimum
+    symmetry_error = float(np.linalg.norm(P - P.T, ord="fro"))
+    return Diagnostics(minimum, maximum, condition, symmetry_error)
+
+
+def bound_covariance_eigenvalues(
+    P: np.ndarray,
+    minimum_eigenvalue: float = 1.0e-8,
+    maximum_eigenvalue: float = 1.0e6,
+    condition_limit: float = 1.0e7,
+) -&gt; np.ndarray:
+    """Symmetrize P and clip its eigenvalues to a positive interval."""
+    Ps = 0.5 * (P + P.T)
+    eigenvalues, eigenvectors = np.linalg.eigh(Ps)
+    bounded = np.clip(eigenvalues, minimum_eigenvalue, maximum_eigenvalue)
+    spectral_floor = max(minimum_eigenvalue, float(bounded[-1]) / condition_limit)
+    bounded = np.maximum(bounded, spectral_floor)
+    return eigenvectors @ np.diag(bounded) @ eigenvectors.T
+
+
+def run_rls(number_of_samples: int = 1200) -&gt; None:
+    rng = np.random.default_rng(12)
+
+    theta_true = np.array([1.50, -0.75], dtype=float)
+    theta_hat = np.zeros(2, dtype=float)
+    P = 1.0e3 * np.eye(2)
+
+    forgetting_factor = 0.995
+    condition_limit = 1.0e7
+    regularization_count = 0
+
+    print(" k       theta_1       theta_2       cond(P)       min_eig(P)")
+    print("-" * 69)
+
+    for k in range(1, number_of_samples + 1):
+        base = math.sin(0.035 * k) + 0.25 * math.sin(0.009 * k)
+
+        # The second regressor is almost a copy of the first. This is the source
+        # of weak directional information and a large covariance condition number.
+        phi = np.array([base, base + 1.0e-4 * rng.normal()], dtype=float)
+        y = float(phi @ theta_true + 0.02 * rng.normal())
+
+        prediction_error = y - float(phi @ theta_hat)
+        P_phi = P @ phi
+        denominator = forgetting_factor + float(phi @ P_phi)
+        gain = P_phi / denominator
+
+        theta_hat = theta_hat + gain * prediction_error
+        P = (P - np.outer(gain, phi @ P)) / forgetting_factor
+
+        # Floating-point arithmetic can destroy exact symmetry. Restore it before
+        # eigenvalue tests and before any Cholesky-based downstream computation.
+        P = 0.5 * (P + P.T)
+        diagnostics = covariance_diagnostics(P)
+
+        if (
+            diagnostics.minimum_eigenvalue &lt;= 0.0
+            or diagnostics.maximum_eigenvalue &gt; 1.0e6
+            or diagnostics.condition_number &gt; condition_limit
+        ):
+            P = bound_covariance_eigenvalues(P)
+            regularization_count += 1
+            diagnostics = covariance_diagnostics(P)
+
+        if k % 100 == 0 or k == 1:
+            print(
+                f"{k:4d}  {theta_hat[0]:12.6f}  {theta_hat[1]:12.6f}  "
+                f"{diagnostics.condition_number:12.4e}  "
+                f"{diagnostics.minimum_eigenvalue:12.4e}"
+            )
+
+    identified_sum = float(theta_hat.sum())
+    true_sum = float(theta_true.sum())
+
+    print("\nFinal diagnostics")
+    print("-----------------")
+    print(f"True parameters:       {theta_true}")
+    print(f"Estimated parameters:  {theta_hat}")
+    print(f"True identifiable sum: {true_sum:.6f}")
+    print(f"Estimated sum:         {identified_sum:.6f}")
+    print(f"Covariance safeguards: {regularization_count}")
+    print(
+        "Interpretation: the output-relevant combination theta_1 + theta_2 is "
+        "identified much better than the two parameters separately because the "
+        "regressors are nearly collinear."
+    )
+
+
+if __name__ == "__main__":
+    run_rls()
+</code></pre>
+
+      <h3>C++</h3>
+      <h4><code>Chapter12_Lesson3.cpp</code></h4>
+      <pre><code class="language-cpp">// Chapter 12, Lesson 3: covariance interpretation and ill-conditioning in RLS.
+// Standard-library-only, two-parameter demonstration with nearly collinear regressors.
+
+#include &lt;algorithm&gt;
+#include &lt;array&gt;
+#include &lt;cmath&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;limits&gt;
+#include &lt;random&gt;
+
+struct Matrix2 {
+    double a11{0.0};
+    double a12{0.0};
+    double a21{0.0};
+    double a22{0.0};
+};
+
+struct EigenData {
+    double minimum{0.0};
+    double maximum{0.0};
+    double condition{std::numeric_limits&lt;double&gt;::infinity()};
+};
+
+Matrix2 symmetrize(const Matrix2&amp; P) {
+    const double off = 0.5 * (P.a12 + P.a21);
+    return {P.a11, off, off, P.a22};
+}
+
+EigenData eigen_data(const Matrix2&amp; input) {
+    const Matrix2 P = symmetrize(input);
+    const double trace = P.a11 + P.a22;
+    const double difference = P.a11 - P.a22;
+    const double discriminant = std::sqrt(difference * difference + 4.0 * P.a12 * P.a12);
+    const double maximum = 0.5 * (trace + discriminant);
+    const double minimum = 0.5 * (trace - discriminant);
+    const double condition = minimum &gt; 0.0
+        ? maximum / minimum
+        : std::numeric_limits&lt;double&gt;::infinity();
+    return {minimum, maximum, condition};
+}
+
+Matrix2 bound_eigenvalues(const Matrix2&amp; input, double floor_value, double ceiling_value, double condition_limit) {
+    const Matrix2 P = symmetrize(input);
+    const double angle = 0.5 * std::atan2(2.0 * P.a12, P.a11 - P.a22);
+    const double c = std::cos(angle);
+    const double s = std::sin(angle);
+
+    const EigenData values = eigen_data(P);
+    const double lambda_max = std::clamp(values.maximum, floor_value, ceiling_value);
+    const double spectral_floor = std::max(floor_value, lambda_max / condition_limit);
+    const double lambda_min = std::clamp(values.minimum, spectral_floor, ceiling_value);
+
+    // Q diag(lambda_max, lambda_min) Q^T, where Q = [[c,-s],[s,c]].
+    return {
+        c * c * lambda_max + s * s * lambda_min,
+        c * s * (lambda_max - lambda_min),
+        c * s * (lambda_max - lambda_min),
+        s * s * lambda_max + c * c * lambda_min
+    };
+}
+
+int main() {
+    constexpr int number_of_samples = 1200;
+    constexpr double forgetting_factor = 0.995;
+    constexpr double condition_limit = 1.0e7;
+
+    const std::array&lt;double, 2&gt; theta_true{1.50, -0.75};
+    std::array&lt;double, 2&gt; theta_hat{0.0, 0.0};
+    Matrix2 P{1000.0, 0.0, 0.0, 1000.0};
+
+    std::mt19937 generator(12);
+    std::normal_distribution&lt;double&gt; normal(0.0, 1.0);
+    int safeguard_count = 0;
+
+    std::cout &lt;&lt; " k       theta_1       theta_2       cond(P)       min_eig(P)\n";
+    std::cout &lt;&lt; std::string(69, '-') &lt;&lt; '\n';
+
+    for (int k = 1; k &lt;= number_of_samples; ++k) {
+        const double base = std::sin(0.035 * k) + 0.25 * std::sin(0.009 * k);
+        const std::array&lt;double, 2&gt; phi{base, base + 1.0e-4 * normal(generator)};
+        const double y = phi[0] * theta_true[0] + phi[1] * theta_true[1]
+            + 0.02 * normal(generator);
+
+        const double prediction = phi[0] * theta_hat[0] + phi[1] * theta_hat[1];
+        const double error = y - prediction;
+
+        const std::array&lt;double, 2&gt; P_phi{
+            P.a11 * phi[0] + P.a12 * phi[1],
+            P.a21 * phi[0] + P.a22 * phi[1]
+        };
+        const double denominator = forgetting_factor
+            + phi[0] * P_phi[0] + phi[1] * P_phi[1];
+        const std::array&lt;double, 2&gt; gain{
+            P_phi[0] / denominator,
+            P_phi[1] / denominator
+        };
+
+        theta_hat[0] += gain[0] * error;
+        theta_hat[1] += gain[1] * error;
+
+        const std::array&lt;double, 2&gt; phi_transpose_P{
+            phi[0] * P.a11 + phi[1] * P.a21,
+            phi[0] * P.a12 + phi[1] * P.a22
+        };
+
+        Matrix2 updated{
+            (P.a11 - gain[0] * phi_transpose_P[0]) / forgetting_factor,
+            (P.a12 - gain[0] * phi_transpose_P[1]) / forgetting_factor,
+            (P.a21 - gain[1] * phi_transpose_P[0]) / forgetting_factor,
+            (P.a22 - gain[1] * phi_transpose_P[1]) / forgetting_factor
+        };
+        P = symmetrize(updated);
+
+        EigenData values = eigen_data(P);
+        if (values.minimum &lt;= 0.0 || values.maximum &gt; 1.0e6
+            || values.condition &gt; condition_limit) {
+            P = bound_eigenvalues(P, 1.0e-8, 1.0e6, condition_limit);
+            ++safeguard_count;
+            values = eigen_data(P);
+        }
+
+        if (k == 1 || k % 100 == 0) {
+            std::cout &lt;&lt; std::setw(4) &lt;&lt; k &lt;&lt; "  "
+                      &lt;&lt; std::setw(12) &lt;&lt; std::fixed &lt;&lt; std::setprecision(6) &lt;&lt; theta_hat[0] &lt;&lt; "  "
+                      &lt;&lt; std::setw(12) &lt;&lt; theta_hat[1] &lt;&lt; "  "
+                      &lt;&lt; std::setw(12) &lt;&lt; std::scientific &lt;&lt; std::setprecision(4) &lt;&lt; values.condition &lt;&lt; "  "
+                      &lt;&lt; std::setw(12) &lt;&lt; values.minimum &lt;&lt; '\n';
+        }
+    }
+
+    std::cout &lt;&lt; "\nFinal diagnostics\n-----------------\n";
+    std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(6);
+    std::cout &lt;&lt; "True parameters:       [" &lt;&lt; theta_true[0] &lt;&lt; ", " &lt;&lt; theta_true[1] &lt;&lt; "]\n";
+    std::cout &lt;&lt; "Estimated parameters:  [" &lt;&lt; theta_hat[0] &lt;&lt; ", " &lt;&lt; theta_hat[1] &lt;&lt; "]\n";
+    std::cout &lt;&lt; "True identifiable sum: " &lt;&lt; theta_true[0] + theta_true[1] &lt;&lt; '\n';
+    std::cout &lt;&lt; "Estimated sum:         " &lt;&lt; theta_hat[0] + theta_hat[1] &lt;&lt; '\n';
+    std::cout &lt;&lt; "Covariance safeguards: " &lt;&lt; safeguard_count &lt;&lt; '\n';
+    std::cout &lt;&lt; "Interpretation: near-collinearity identifies theta_1 + theta_2 much more "
+                 "reliably than either parameter separately.\n";
+
+    return 0;
+}
+</code></pre>
+
+      <h3>Java</h3>
+      <h4><code>Chapter12_Lesson3.java</code></h4>
+      <pre><code class="language-java">// Chapter 12, Lesson 3: covariance interpretation and ill-conditioning in RLS.
+// No external libraries are required.
+
+import java.util.Locale;
+import java.util.Random;
+
+public final class Chapter12_Lesson3 {
+    private static final double FORGETTING_FACTOR = 0.995;
+    private static final double CONDITION_LIMIT = 1.0e7;
+
+    private record EigenData(double minimum, double maximum, double condition) {}
+
+    private static double[][] symmetrize(double[][] matrix) {
+        double offDiagonal = 0.5 * (matrix[0][1] + matrix[1][0]);
+        return new double[][] {
+            {matrix[0][0], offDiagonal},
+            {offDiagonal, matrix[1][1]}
+        };
+    }
+
+    private static EigenData eigenData(double[][] input) {
+        double[][] p = symmetrize(input);
+        double trace = p[0][0] + p[1][1];
+        double difference = p[0][0] - p[1][1];
+        double discriminant = Math.sqrt(
+            difference * difference + 4.0 * p[0][1] * p[0][1]
+        );
+        double maximum = 0.5 * (trace + discriminant);
+        double minimum = 0.5 * (trace - discriminant);
+        double condition = minimum &gt; 0.0
+            ? maximum / minimum
+            : Double.POSITIVE_INFINITY;
+        return new EigenData(minimum, maximum, condition);
+    }
+
+    private static double[][] boundEigenvalues(
+        double[][] input,
+        double floorValue,
+        double ceilingValue,
+        double conditionLimit
+    ) {
+        double[][] p = symmetrize(input);
+        double angle = 0.5 * Math.atan2(
+            2.0 * p[0][1],
+            p[0][0] - p[1][1]
+        );
+        double cosine = Math.cos(angle);
+        double sine = Math.sin(angle);
+
+        EigenData values = eigenData(p);
+        double maximum = Math.min(Math.max(values.maximum(), floorValue), ceilingValue);
+        double spectralFloor = Math.max(floorValue, maximum / conditionLimit);
+        double minimum = Math.min(Math.max(values.minimum(), spectralFloor), ceilingValue);
+
+        return new double[][] {
+            {
+                cosine * cosine * maximum + sine * sine * minimum,
+                cosine * sine * (maximum - minimum)
+            },
+            {
+                cosine * sine * (maximum - minimum),
+                sine * sine * maximum + cosine * cosine * minimum
+            }
+        };
+    }
+
+    public static void main(String[] args) {
+        Locale.setDefault(Locale.US);
+        final int numberOfSamples = 1200;
+        final double[] thetaTrue = {1.50, -0.75};
+        final double[] thetaHat = {0.0, 0.0};
+        double[][] p = { {1000.0, 0.0}, {0.0, 1000.0} };
+
+        Random random = new Random(12L);
+        int safeguardCount = 0;
+
+        System.out.println(" k       theta_1       theta_2       cond(P)       min_eig(P)");
+        System.out.println("-".repeat(69));
+
+        for (int k = 1; k &lt;= numberOfSamples; k++) {
+            double base = Math.sin(0.035 * k) + 0.25 * Math.sin(0.009 * k);
+            double[] phi = {base, base + 1.0e-4 * random.nextGaussian()};
+            double y = phi[0] * thetaTrue[0] + phi[1] * thetaTrue[1]
+                + 0.02 * random.nextGaussian();
+
+            double prediction = phi[0] * thetaHat[0] + phi[1] * thetaHat[1];
+            double error = y - prediction;
+
+            double[] pPhi = {
+                p[0][0] * phi[0] + p[0][1] * phi[1],
+                p[1][0] * phi[0] + p[1][1] * phi[1]
+            };
+            double denominator = FORGETTING_FACTOR
+                + phi[0] * pPhi[0] + phi[1] * pPhi[1];
+            double[] gain = {pPhi[0] / denominator, pPhi[1] / denominator};
+
+            thetaHat[0] += gain[0] * error;
+            thetaHat[1] += gain[1] * error;
+
+            double[] phiTransposeP = {
+                phi[0] * p[0][0] + phi[1] * p[1][0],
+                phi[0] * p[0][1] + phi[1] * p[1][1]
+            };
+
+            double[][] updated = {
+                {
+                    (p[0][0] - gain[0] * phiTransposeP[0]) / FORGETTING_FACTOR,
+                    (p[0][1] - gain[0] * phiTransposeP[1]) / FORGETTING_FACTOR
+                },
+                {
+                    (p[1][0] - gain[1] * phiTransposeP[0]) / FORGETTING_FACTOR,
+                    (p[1][1] - gain[1] * phiTransposeP[1]) / FORGETTING_FACTOR
+                }
+            };
+            p = symmetrize(updated);
+
+            EigenData values = eigenData(p);
+            if (values.minimum() &lt;= 0.0
+                || values.maximum() &gt; 1.0e6
+                || values.condition() &gt; CONDITION_LIMIT) {
+                p = boundEigenvalues(p, 1.0e-8, 1.0e6, CONDITION_LIMIT);
+                safeguardCount++;
+                values = eigenData(p);
+            }
+
+            if (k == 1 || k % 100 == 0) {
+                System.out.printf(
+                    "%4d  %12.6f  %12.6f  %12.4e  %12.4e%n",
+                    k,
+                    thetaHat[0],
+                    thetaHat[1],
+                    values.condition(),
+                    values.minimum()
+                );
+            }
+        }
+
+        System.out.println("\nFinal diagnostics");
+        System.out.println("-----------------");
+        System.out.printf("True parameters:       [%.6f, %.6f]%n", thetaTrue[0], thetaTrue[1]);
+        System.out.printf("Estimated parameters:  [%.6f, %.6f]%n", thetaHat[0], thetaHat[1]);
+        System.out.printf("True identifiable sum: %.6f%n", thetaTrue[0] + thetaTrue[1]);
+        System.out.printf("Estimated sum:         %.6f%n", thetaHat[0] + thetaHat[1]);
+        System.out.printf("Covariance safeguards: %d%n", safeguardCount);
+        System.out.println(
+            "Interpretation: near-collinearity identifies theta_1 + theta_2 much "
+            + "more reliably than either parameter separately."
+        );
+    }
+}
+</code></pre>
+
+      <h3>MATLAB</h3>
+      <h4><code>Chapter12_Lesson3.m</code></h4>
+      <pre><code class="language-matlab">%% Chapter12_Lesson3.m
+% Covariance interpretation and ill-conditioning in recursive least squares.
+% The regressors are deliberately nearly collinear. The script monitors the
+% covariance eigenvalues, condition number, and prediction-relevant parameter sum.
+
+clear; clc; close all;
+rng(12, "twister");
+
+numberOfSamples = 1200;
+thetaTrue = [1.50; -0.75];
+thetaHat = zeros(2, 1);
+P = 1.0e3 * eye(2);
+lambda = 0.995;
+conditionLimit = 1.0e7;
+
+conditionHistory = zeros(numberOfSamples, 1);
+minimumEigenvalueHistory = zeros(numberOfSamples, 1);
+thetaHistory = zeros(2, numberOfSamples);
+safeguardCount = 0;
+
+fprintf(' k       theta_1       theta_2       cond(P)       min_eig(P)\n');
+fprintf('%s\n', repmat('-', 1, 69));
+
+for k = 1:numberOfSamples
+    base = sin(0.035 * k) + 0.25 * sin(0.009 * k);
+    phi = [base; base + 1.0e-4 * randn];
+    y = phi.' * thetaTrue + 0.02 * randn;
+
+    predictionError = y - phi.' * thetaHat;
+    Pphi = P * phi;
+    denominator = lambda + phi.' * Pphi;
+    gain = Pphi / denominator;
+
+    thetaHat = thetaHat + gain * predictionError;
+    P = (P - gain * (phi.' * P)) / lambda;
+
+    % Restore symmetry before eigendecomposition or Cholesky-based use.
+    P = 0.5 * (P + P.');
+    eigenvalues = eig(P);
+    minimumEigenvalue = min(eigenvalues);
+    maximumEigenvalue = max(eigenvalues);
+    conditionNumber = maximumEigenvalue / minimumEigenvalue;
+
+    if minimumEigenvalue &lt;= 0 || maximumEigenvalue &gt; 1.0e6 || ...
+            conditionNumber &gt; conditionLimit
+        [V, D] = eig(P);
+        boundedEigenvalues = min(max(diag(D), 1.0e-8), 1.0e6);
+        spectralFloor = max(1.0e-8, max(boundedEigenvalues) / conditionLimit);
+        boundedEigenvalues = max(boundedEigenvalues, spectralFloor);
+        P = V * diag(boundedEigenvalues) * V.';
+        P = 0.5 * (P + P.');
+        safeguardCount = safeguardCount + 1;
+
+        eigenvalues = eig(P);
+        minimumEigenvalue = min(eigenvalues);
+        maximumEigenvalue = max(eigenvalues);
+        conditionNumber = maximumEigenvalue / minimumEigenvalue;
+    end
+
+    conditionHistory(k) = conditionNumber;
+    minimumEigenvalueHistory(k) = minimumEigenvalue;
+    thetaHistory(:, k) = thetaHat;
+
+    if k == 1 || mod(k, 100) == 0
+        fprintf('%4d  %12.6f  %12.6f  %12.4e  %12.4e\n', ...
+            k, thetaHat(1), thetaHat(2), conditionNumber, minimumEigenvalue);
+    end
+end
+
+fprintf('\nFinal diagnostics\n');
+fprintf('-----------------\n');
+fprintf('True parameters:       [%.6f, %.6f]\n', thetaTrue(1), thetaTrue(2));
+fprintf('Estimated parameters:  [%.6f, %.6f]\n', thetaHat(1), thetaHat(2));
+fprintf('True identifiable sum: %.6f\n', sum(thetaTrue));
+fprintf('Estimated sum:         %.6f\n', sum(thetaHat));
+fprintf('Covariance safeguards: %d\n', safeguardCount);
+
+figure('Name', 'RLS covariance diagnostics');
+semilogy(1:numberOfSamples, conditionHistory, 'LineWidth', 1.2);
+grid on;
+xlabel('Sample k');
+ylabel('cond(P_k)');
+title('Covariance condition number under nearly collinear regressors');
+
+figure('Name', 'RLS parameter estimates');
+plot(1:numberOfSamples, thetaHistory(1, :), 'LineWidth', 1.2); hold on;
+plot(1:numberOfSamples, thetaHistory(2, :), 'LineWidth', 1.2);
+yline(thetaTrue(1), '--');
+yline(thetaTrue(2), '--');
+grid on;
+xlabel('Sample k');
+ylabel('Parameter estimate');
+legend('\theta_1 estimate', '\theta_2 estimate', '\theta_1 true', '\theta_2 true', ...
+    'Location', 'best');
+title('Individual estimates can remain uncertain under collinearity');
+</code></pre>
+
+      <h3>MATLAB/Simulink model builder</h3>
+      <h4><code>Chapter12_Lesson3_Simulink.m</code></h4>
+      <pre><code class="language-matlab">%% Chapter12_Lesson3_Simulink.m
+% Programmatically creates a discrete Simulink subsystem for two-parameter RLS
+% with covariance diagnostics and eigenvalue bounding.
+%
+% Requirements: Simulink and Stateflow (the MATLAB Function block uses the
+% Stateflow API to receive its script). Run this file once to create and open
+% Chapter12_Lesson3_RLS_Diagnostics.slx.
+
+clear; clc;
+modelName = 'Chapter12_Lesson3_RLS_Diagnostics';
+
+if bdIsLoaded(modelName)
+    close_system(modelName, 0);
+end
+if isfile(modelName + ".slx")
+    delete(modelName + ".slx");
+end
+
+new_system(modelName);
+open_system(modelName);
+set_param(modelName, ...
+    'SolverType', 'Fixed-step', ...
+    'Solver', 'FixedStepDiscrete', ...
+    'FixedStep', '0.01', ...
+    'StopTime', '20');
+
+add_block('simulink/Sources/In1', modelName + "/phi1", ...
+    'Position', [40 60 70 80]);
+add_block('simulink/Sources/In1', modelName + "/phi2", ...
+    'Position', [40 120 70 140]);
+add_block('simulink/Sources/In1', modelName + "/y", ...
+    'Position', [40 180 70 200]);
+
+functionBlockPath = modelName + "/RLS_Diagnostics";
+add_block('simulink/User-Defined Functions/MATLAB Function', functionBlockPath, ...
+    'Position', [150 55 355 210]);
+
+add_block('simulink/Sinks/Out1', modelName + "/theta1", ...
+    'Position', [445 70 475 90]);
+add_block('simulink/Sinks/Out1', modelName + "/theta2", ...
+    'Position', [445 120 475 140]);
+add_block('simulink/Sinks/Out1', modelName + "/conditionP", ...
+    'Position', [445 170 475 190]);
+
+add_line(modelName, 'phi1/1', 'RLS_Diagnostics/1');
+add_line(modelName, 'phi2/1', 'RLS_Diagnostics/2');
+add_line(modelName, 'y/1', 'RLS_Diagnostics/3');
+add_line(modelName, 'RLS_Diagnostics/1', 'theta1/1');
+add_line(modelName, 'RLS_Diagnostics/2', 'theta2/1');
+add_line(modelName, 'RLS_Diagnostics/3', 'conditionP/1');
+
+blockCode = [
+"function [theta1, theta2, conditionP] = fcn(phi1, phi2, y)" newline ...
+"%#codegen" newline ...
+"persistent theta P" newline ...
+"if isempty(theta)" newline ...
+"    theta = zeros(2,1);" newline ...
+"    P = 1000.0 * eye(2);" newline ...
+"end" newline ...
+"lambda = 0.995;" newline ...
+"phi = [phi1; phi2];" newline ...
+"predictionError = y - phi.' * theta;" newline ...
+"Pphi = P * phi;" newline ...
+"gain = Pphi / (lambda + phi.' * Pphi);" newline ...
+"theta = theta + gain * predictionError;" newline ...
+"P = (P - gain * (phi.' * P)) / lambda;" newline ...
+"P = 0.5 * (P + P.');" newline ...
+"[V,D] = eig(P);" newline ...
+"d = diag(D);" newline ...
+"d = min(max(d, 1.0e-8), 1.0e6);" newline ...
+"spectralFloor = max(1.0e-8, max(d) / 1.0e7);" newline ...
+"d = max(d, spectralFloor);" newline ...
+"P = V * diag(d) * V.';" newline ...
+"P = 0.5 * (P + P.');" newline ...
+"theta1 = theta(1);" newline ...
+"theta2 = theta(2);" newline ...
+"conditionP = max(d) / min(d);" newline ...
+"end" ...
+];
+
+rootObject = sfroot;
+chartObject = rootObject.find('-isa', 'Stateflow.EMChart', 'Path', functionBlockPath);
+if isempty(chartObject)
+    error('Could not locate the MATLAB Function block through the Stateflow API.');
+end
+chartObject.Script = char(blockCode);
+
+save_system(modelName);
+open_system(modelName);
+disp("Created " + modelName + ".slx");
+disp("Connect sampled regressors phi1, phi2 and measured output y to the inports.");
+</code></pre>
+
+      <h3>Wolfram Mathematica notebook</h3>
+      <h4><code>Chapter12_Lesson3.nb</code></h4>
+      <pre><code class="language-mathematica">
+Notebook[{Cell["Chapter 12, Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning", "Title"],
+  Cell["This notebook simulates two-parameter RLS with nearly collinear regressors, monitors the covariance spectrum, and clips covariance eigenvalues when numerical safeguards are triggered.", "Text"],
+  Cell[BoxData["ClearAll[\"Global`*\"];
+SeedRandom[12]; numberOfSamples = 1200;
+thetaTrue = {1.50, -0.75}; thetaHat = {0., 0.};
+P = 1000. IdentityMatrix[2];
+lambda = 0.995;
+conditionLimit = 10.^7;
+conditionHistory = {};
+minimumEigenvalueHistory = {};
+thetaHistory = {};
+safeguardCount = 0;
+
+Do[
+  base = Sin[0.035 k] + 0.25 Sin[0.009 k];
+  phi = {base, base + 10.^-4 RandomVariate[NormalDistribution[0, 1]]};
+  y = phi.thetaTrue + 0.02 RandomVariate[NormalDistribution[0, 1]];
+  predictionError = y - phi.thetaHat;
+  pPhi = P.phi;
+  gain = pPhi/(lambda + phi.pPhi);
+  thetaHat = thetaHat + gain predictionError;
+  P = (P - Outer[Times, gain, phi.P])/lambda;
+  P = (P + Transpose[P])/2.;
+  eigenvalues = Eigenvalues[P];
+  minimumEigenvalue = Min[eigenvalues];
+  maximumEigenvalue = Max[eigenvalues];
+  conditionNumber = maximumEigenvalue/minimumEigenvalue;
+  If[minimumEigenvalue <= 0. || maximumEigenvalue > 10.^6 || conditionNumber > conditionLimit,
+    {eigenvalues, eigenvectors} = Eigensystem[P];
+    bounded = Clip[eigenvalues, {10.^-8, 10.^6}];
+    spectralFloor = Max[10.^-8, Max[bounded]/conditionLimit];
+    bounded = Map[Max[#, spectralFloor] &, bounded];
+    P = Transpose[eigenvectors].DiagonalMatrix[bounded].eigenvectors;
+    P = (P + Transpose[P])/2.;
+    safeguardCount++;
+    eigenvalues = Eigenvalues[P];
+    minimumEigenvalue = Min[eigenvalues];
+    maximumEigenvalue = Max[eigenvalues];
+    conditionNumber = maximumEigenvalue/minimumEigenvalue;
+  ];
+  AppendTo[conditionHistory, conditionNumber];
+  AppendTo[minimumEigenvalueHistory, minimumEigenvalue];
+  AppendTo[thetaHistory, thetaHat];
+, {k, 1, numberOfSamples}];
+
+Print[\"True parameters: \", thetaTrue];
+Print[\"Estimated parameters: \", N[thetaHat, 8]];
+Print[\"True identifiable sum: \", Total[thetaTrue]];
+Print[\"Estimated sum: \", Total[thetaHat]];
+Print[\"Covariance safeguards: \", safeguardCount];
+
+ListLogPlot[conditionHistory, Frame -> True, Joined -> True,
+ FrameLabel -> {\"Sample k\", \"cond(P_k)\"},
+ PlotLabel -> \"Covariance condition number under nearly collinear regressors\"]
+
+ListLinePlot[Transpose[thetaHistory], Frame -> True,
+ FrameLabel -> {\"Sample k\", \"Parameter estimate\"},
+ PlotLegends -> {\"theta1 estimate\", \"theta2 estimate\"},
+ PlotLabel -> \"Individual estimates remain weakly identifiable\"]"], "Input"]
+}, WindowTitle -> "Chapter12_Lesson3", Saveable -> True]        
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11: Problems and Solutions -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. Problems and Solutions</h2>
+    <div class="down-content">
+      <p>
+        <strong>Problem 1 (Matrix-inversion derivation):</strong> Starting from
+        <strong
+          >\( \mathbf{R}_k=\lambda\mathbf{R}_{k-1}+
+          \boldsymbol{\phi}_k\boldsymbol{\phi}_k^{\mathsf T} \)</strong
+        >, derive the covariance recursion and the RLS gain.
+      </p>
+      <p><strong>Solution:</strong> Use the matrix inversion lemma</p>
+      <h4 class="mathJax">
+        \[ (\mathbf{A}+\mathbf{u}\mathbf{v}^{\mathsf T})^{-1} =\mathbf{A}^{-1}-
+        \frac{\mathbf{A}^{-1}\mathbf{u}\mathbf{v}^{\mathsf T}\mathbf{A}^{-1} }
+        {1+\mathbf{v}^{\mathsf T}\mathbf{A}^{-1}\mathbf{u} }. \]
+      </h4>
+      <p>
+        Set <strong>\( \mathbf{A}=\lambda\mathbf{R}_{k-1} \)</strong> and
+        <strong>\( \mathbf{u}=\mathbf{v}=\boldsymbol{\phi}_k \)</strong>. Since
+        <strong>\( \mathbf{A}^{-1}=\lambda^{-1}\mathbf{P}_{k-1} \)</strong>,
+      </p>
+      <h4 class="mathJax">
+        \[ \mathbf{P}_k=\lambda^{-1}\mathbf{P}_{k-1}
+        -\frac{\lambda^{-1}\mathbf{P}_{k-1}\boldsymbol{\phi}_k
+        \boldsymbol{\phi}_k^{\mathsf T}\mathbf{P}_{k-1} }
+        {\lambda+\boldsymbol{\phi}_k^{\mathsf
+        T}\mathbf{P}_{k-1}\boldsymbol{\phi}_k}. \]
+      </h4>
+      <p>
+        The vector multiplying the prediction error is therefore
+        <strong
+          >\( \mathbf{K}_k=\mathbf{P}_{k-1}\boldsymbol{\phi}_k/
+          (\lambda+\boldsymbol{\phi}_k^{\mathsf
+          T}\mathbf{P}_{k-1}\boldsymbol{\phi}_k) \)</strong
+        >.
+      </p>
+
+      <p>
+        <strong>Problem 2 (Uncertainty ellipse):</strong> Let
+        <strong>\( \mathbf{P}=\operatorname{diag}(0.01,100) \)</strong> and
+        <strong>\( c=5.99 \)</strong>. Find the ellipse semi-axis lengths and
+        the condition number. Interpret the result.
+      </p>
+      <p><strong>Solution:</strong> The semi-axis lengths are</p>
+      <h4 class="mathJax">
+        \[ a_1=\sqrt{5.99(0.01)}\approx0.245, \qquad
+        a_2=\sqrt{5.99(100)}\approx24.475. \]
+      </h4>
+      <p>The condition number is</p>
+      <h4 class="mathJax">\[ \kappa_2(\mathbf{P})=\frac{100}{0.01}=10^4. \]</h4>
+      <p>
+        Parameter direction two is approximately one hundred times wider in
+        standard-deviation scale than direction one. The estimator is highly
+        anisotropic and parameter corrections along the second direction are
+        much more sensitive to noise and roundoff.
+      </p>
+
+      <p>
+        <strong>Problem 3 (Identifiable parameter combination):</strong> Suppose
+        all regressors have the form
+        <strong>\( \boldsymbol{\phi}_k=u_k[1\;\;2]^{\mathsf T} \)</strong>.
+        Which parameter combination is identifiable, and give one unidentifiable
+        direction.
+      </p>
+      <p><strong>Solution:</strong> The model output is</p>
+      <h4 class="mathJax">\[ y_k=u_k(\theta_1+2\theta_2)+v_k. \]</h4>
+      <p>
+        Therefore only <strong>\( \theta_1+2\theta_2 \)</strong> is identified
+        by the data. Any parameter displacement orthogonal to
+        <strong>\( [1\;\;2]^{\mathsf T} \)</strong> leaves the prediction
+        unchanged. One such direction is
+        <strong>\( \mathbf{z}=[-2\;\;1]^{\mathsf T} \)</strong>, because
+        <strong>\( [1\;\;2]\mathbf{z}=0 \)</strong>.
+      </p>
+
+      <p>
+        <strong>Problem 4 (Windup during loss of excitation):</strong> Let
+        <strong>\( \lambda=0.98 \)</strong>. If the regressor is zero for 100
+        samples, by what factor does the covariance grow?
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ \mathbf{P}_{k+100}=0.98^{-100}\mathbf{P}_k \approx7.54\mathbf{P}_k.
+        \]
+      </h4>
+      <p>
+        Thus, even though no new information arrives, the estimator becomes more
+        sensitive by a factor of approximately 7.54 in every direction. Repeated
+        or longer excitation losses can create a severe gain burst.
+      </p>
+
+      <p>
+        <strong>Problem 5 (Stabilization is not identification):</strong> An
+        engineer clips all covariance eigenvalues to the interval
+        <strong>\( [10^{-6},10^4] \)</strong>. Does this prove that every
+        parameter is identifiable? Explain.
+      </p>
+      <p>
+        <strong>Solution:</strong> No. Eigenvalue clipping guarantees only a
+        chosen numerical range for the stored covariance matrix. It modifies
+        estimator sensitivity and can prevent overflow, underflow, or extreme
+        gains, but it does not alter the rank or directional richness of the
+        measured regressors. Identifiability must be assessed from the
+        information supplied by the data, for example through the regressor Gram
+        matrix, persistent-excitation tests, or physically justified parameter
+        combinations.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12: Summary -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. Summary</h2>
+    <div class="down-content">
+      <p>
+        The RLS covariance matrix is the inverse of an exponentially weighted
+        information matrix. Its eigenvectors identify parameter combinations,
+        and its eigenvalues quantify estimator sensitivity in those directions.
+        Poorly scaled or nearly collinear regressors create a large condition
+        number; insufficient excitation combined with forgetting can create
+        covariance windup. Symmetrization, Joseph-form updates, square-root
+        methods, regularization, eigenvalue bounds, and controlled resets
+        improve numerical behavior, but none can manufacture missing
+        information. In an adaptive controller, covariance diagnostics must
+        therefore be combined with excitation assessment, parameter constraints,
+        and safe controller-update logic.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13: References -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. References</h2>
+    <ol>
+      <li>
+        Plackett, R.L. (1950). Some theorems in least squares.
+        <em>Biometrika</em>, 37(1&ndash;2), 149&ndash;157.
+        https://doi.org/10.1093/biomet/37.1-2.149
+      </li>
+      <li>
+        Ljung, L. (1977). Analysis of recursive stochastic algorithms.
+        <em>IEEE Transactions on Automatic Control</em>, 22(4), 551&ndash;575.
+        https://doi.org/10.1109/TAC.1977.1101561
+      </li>
+      <li>
+        Johnstone, R.M., Johnson, C.R., Bitmead, R.R., &amp; Anderson, B.D.O.
+        (1982). Exponential convergence of recursive least squares with
+        exponential forgetting factor. <em>Systems &amp; Control Letters</em>,
+        2(2), 77&ndash;82. https://doi.org/10.1016/S0167-6911(82)80014-5
+      </li>
+      <li>
+        Salgado, M.E., Goodwin, G.C., &amp; Middleton, R.H. (1988). Modified
+        least squares algorithm incorporating exponential resetting and
+        forgetting.
+        <em>International Journal of Control</em>, 47(2), 477&ndash;491.
+        https://doi.org/10.1080/00207178808906026
+      </li>
+      <li>
+        Bittanti, S., Bolzern, P., &amp; Campi, M. (1990). Convergence and
+        exponential convergence of identification algorithms with directional
+        forgetting factor. <em>Automatica</em>, 26(5), 929&ndash;932.
+        https://doi.org/10.1016/0005-1098(90)90012-7
+      </li>
+      <li>
+        Parkum, J., Poulsen, N.K., &amp; Holst, J. (1992). Recursive forgetting
+        algorithms. <em>International Journal of Control</em>, 55(1),
+        109&ndash;128. https://doi.org/10.1080/00207179208934228
+      </li>
+      <li>
+        Cao, L., &amp; Schwartz, H.M. (2000). A directional forgetting algorithm
+        based on the decomposition of the information matrix.
+        <em>Automatica</em>, 36(11), 1725&ndash;1731.
+        https://doi.org/10.1016/S0005-1098(00)00093-5
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter12/Lesson2.html">
+          Lesson 2: RLS Update Equations and Forgetting Factors
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter12/Lesson4.html">
+          Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#" role="search" onsubmit="return false;">
+              <label for="sidebar-search-input" class="sr-only">Search course lessons</label>
+              <input
+                type="text"
+                name="search"
+                id="sidebar-search-input"
+                placeholder="Search..."
+              / aria-label="Search course lessons">
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu" class="tex2jax_ignore">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: theta^Tphi(x,u) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression phi^T(t)theta
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="active-lesson" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank" rel="noopener noreferrer"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+              <a href="https://mohammadijoo.github.io/DevOps_Academy" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/DevOps_Academy.jpg"
+                    alt="DevOps Tutorials"
+                  />
+                  <p>DevOps Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank" rel="noopener noreferrer">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]],
+          processEscapes: true,
+          ignoreClass: "tex2jax_ignore"
+        },
+        messageStyle: "none",
+        showMathMenu: false
+      });
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/sidebar_search.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>

@@ -1,0 +1,2669 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="author" content="Abolfazl Mohammadijoo" />
+    <title>Chapter 21: Composite Adaptive Control - Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View | Adaptive Control</title>
+
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="../../../assets/images/cat.png" />
+
+    <!-- CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.carousel.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/assets/owl.theme.default.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" />
+
+    <!-- Project CSS -->
+    <link rel="stylesheet" href="../../../assets/css/main.css" />
+    <link rel="stylesheet" href="../../../assets/css/owl.css" />
+    <link rel="stylesheet" href="../../../assets/css/styles.css" />
+    <link rel="stylesheet" href="../../../assets/css/theme.css" />
+    <link rel="stylesheet" href="../../../assets/css/mermaid_export.css" />
+    <link rel="stylesheet" href="../../../assets/css/support_section.css" />
+    <script src="../../../assets/js/theme.js"></script>
+    <script src="../../../assets/js/mermaid_export.js"></script>
+    <script defer src="../../../assets/js/support_section.js"></script>
+  </head>
+
+  <body class="is-preload">
+    <!-- Wrapper -->
+    <div id="wrapper">
+      <div id="main">
+        <div class="inner">
+            <!-- Header -->
+            <header id="header">
+              <div class="logo">
+                <img
+                  src="../../../assets/images/cat.png"
+                  style="width: 50px; margin-top: -20px"
+                  alt="CaaT Academy"
+                />
+                <a href="https://mohammadijoo.github.io/CaaT_Academy" target="_blank" rel="noopener noreferrer">CaaT Academy</a>
+              </div>
+            </header>
+<!-- Header -->
+<!-- Page Heading -->
+<div class="page-heading">
+  <div class="container-fluid text-center">
+    <h1>Chapter 21: Composite Adaptive Control</h1>
+    <h3>
+      <strong
+        >Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual
+        View</strong
+      >
+    </h3>
+    <p>
+      This lesson develops the mathematical idea of Dynamic Regressor Extension
+      and Mixing (DREM) and explains how it can strengthen the prediction-error
+      channel of a composite adaptive controller. Starting from a linear
+      regression, we construct additional filtered regressions, stack them into
+      a square extended regressor, apply determinant-adjugate mixing, and obtain
+      decoupled scalar estimation errors. The emphasis is conceptual but
+      university-level: the derivations, convergence conditions, Lyapunov
+      interpretation, implementation limitations, and multi-language numerical
+      realization are all made explicit.
+    </p>
+  </div>
+</div>
+
+<!-- Section 1 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>1. Position of DREM Inside Composite Adaptive Control</h2>
+    <div class="down-content">
+      <p>
+        In Lessons 1–3 of this chapter, composite adaptation combined two kinds
+        of information: a <strong>tracking-error channel</strong>, which
+        corrects parameters because the controlled state is not following its
+        reference, and a <strong>prediction-error channel</strong>, which
+        corrects parameters because the uncertain model does not reproduce
+        measured data. DREM is best viewed as a signal-processing and
+        regression-restructuring tool for the second channel. It is not, by
+        itself, a complete feedback controller.
+      </p>
+      <p>
+        The starting point is a measurable regression that is linear in an
+        unknown constant parameter vector:
+      </p>
+      <h4 class="mathJax">
+        \[ y(t)=\boldsymbol{\phi}^{\top}(t)\boldsymbol{\theta}, \qquad
+        y(t)\in\mathbb{R},\quad \boldsymbol{\phi}(t)\in\mathbb{R}^{q},\quad
+        \boldsymbol{\theta}\in\mathbb{R}^{q}. \]
+      </h4>
+      <p>
+        DREM transforms this one scalar equation with a vector regressor into
+        <strong>q scalar equations</strong>, each containing only one unknown
+        parameter. This decoupling is the central structural result of the
+        method.
+      </p>
+
+      <h3>Learning objectives</h3>
+      <p>After this lesson, a student should be able to:</p>
+      <ul>
+        <li>construct an extended regression with stable dynamic operators;</li>
+        <li>
+          derive determinant-adjugate mixing for a general parameter dimension;
+        </li>
+        <li>
+          prove elementwise monotonicity of the ideal DREM estimation errors;
+        </li>
+        <li>
+          distinguish vector persistent excitation from the DREM scalar
+          condition;
+        </li>
+        <li>embed a DREM prediction term into a composite adaptive law;</li>
+        <li>
+          recognize filter-transient, noise, conditioning, and discretization
+          issues.
+        </li>
+      </ul>
+
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  A["Measured plant signals"] --> B["Linear regression: y = phi^T theta"]
+  B --> C["Dynamic extension: original plus filtered regressions"]
+  C --> D["Square extended regressor matrix"]
+  D --> E["Mixing: determinant and adjugate"]
+  E --> F["q scalar regressions"]
+  F --> G["Scalar parameter update laws"]
+  G --> H["Prediction term for composite adaptation"]
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>2. Why Restructure the Classical Vector Regression?</h2>
+    <div class="down-content">
+      <p>For the regression above, a classical gradient estimator is</p>
+      <h4 class="mathJax">
+        \[ \dot{\hat{\boldsymbol{\theta}}} =\boldsymbol{\Gamma}\boldsymbol{\phi}
+        \left(y-\boldsymbol{\phi}^{\top}\hat{\boldsymbol{\theta}}\right), \qquad
+        \boldsymbol{\Gamma}=\boldsymbol{\Gamma}^{\top}&gt;0. \]
+      </h4>
+      <p>
+        Define the parameter error using the convention
+        <strong
+          >\( \tilde{\boldsymbol{\theta}}
+          =\hat{\boldsymbol{\theta}}-\boldsymbol{\theta} \)</strong
+        >. Since
+        <strong
+          >\( y-\boldsymbol{\phi}^{\top}\hat{\boldsymbol{\theta}}
+          =-\boldsymbol{\phi}^{\top}\tilde{\boldsymbol{\theta}} \)</strong
+        >, its dynamics are
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\tilde{\boldsymbol{\theta}}}
+        =-\boldsymbol{\Gamma}\boldsymbol{\phi}\boldsymbol{\phi}^{\top}
+        \tilde{\boldsymbol{\theta}}. \]
+      </h4>
+      <p>
+        With
+        <strong
+          >\( V_{\theta}=\tfrac{1}{2}
+          \tilde{\boldsymbol{\theta}}^{\top}\boldsymbol{\Gamma}^{-1}
+          \tilde{\boldsymbol{\theta}} \)</strong
+        >,
+      </p>
+      <h4 class="mathJax">
+        \[ \dot V_{\theta} =-\left(\boldsymbol{\phi}^{\top}
+        \tilde{\boldsymbol{\theta}}\right)^2\leq 0. \]
+      </h4>
+      <p>
+        Thus a weighted norm of the vector error is nonincreasing. However, the
+        individual coordinates are coupled by
+        <strong>\( \boldsymbol{\phi}\boldsymbol{\phi}^{\top} \)</strong>. A
+        component such as <strong>\( |\tilde\theta_1| \)</strong> can increase
+        temporarily even while the total Lyapunov function decreases. Moreover,
+        standard exponential convergence is normally associated with a vector
+        persistent-excitation inequality:
+      </p>
+      <h4 class="mathJax">
+        \[ \exists T&gt;0,\ \alpha&gt;0:\qquad \int_{t}^{t+T}
+        \boldsymbol{\phi}(\tau)\boldsymbol{\phi}^{\top}(\tau)\,d\tau \geq
+        \alpha\mathbf{I}_{q} \quad \forall t\geq 0. \]
+      </h4>
+      <p>
+        DREM changes the geometry of the estimation problem. It does not merely
+        retune <strong>\( \boldsymbol{\Gamma} \)</strong>; it constructs a new
+        regression whose parameter channels are scalar and decoupled.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 3 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>3. Stage I — Dynamic Regressor Extension</h2>
+    <div class="down-content">
+      <p>
+        Select <strong>\( q-1 \)</strong> linear, bounded-input bounded-output
+        stable operators
+        <strong>\( \mathcal{H}_1,\ldots,\mathcal{H}_{q-1} \)</strong>. Typical
+        choices are stable first-order filters or time-delay operators. Apply
+        every operator to both the scalar output and every component of the
+        regressor:
+      </p>
+      <h4 class="mathJax">
+        \[ y_i(t)=\mathcal{H}_i[y](t), \qquad
+        \boldsymbol{\phi}_i(t)=\mathcal{H}_i[\boldsymbol{\phi}](t), \qquad
+        i=1,\ldots,q-1. \]
+      </h4>
+      <p>
+        Because <strong>\( \boldsymbol{\theta} \)</strong> is constant, an ideal
+        operator with compatible initial conditions preserves the regression:
+      </p>
+      <h4 class="mathJax">
+        \[ y_i(t)=\boldsymbol{\phi}_i^{\top}(t)\boldsymbol{\theta}. \]
+      </h4>
+      <p>
+        With ordinary filter initialization, an exponentially decaying transient
+        is generally present:
+      </p>
+      <h4 class="mathJax">
+        \[ y_i(t)=\boldsymbol{\phi}_i^{\top}(t)\boldsymbol{\theta}
+        +\varepsilon_i(t), \qquad |\varepsilon_i(t)|\leq c_i e^{-a_i t}. \]
+      </h4>
+      <p>Stack the original and generated equations:</p>
+      <h4 class="mathJax">
+        \[ \mathbf{Y}_{e}(t)= \begin{bmatrix} y(t)\\ y_1(t)\\ \vdots\\
+        y_{q-1}(t) \end{bmatrix}, \qquad \mathbf{M}_{e}(t)= \begin{bmatrix}
+        \boldsymbol{\phi}^{\top}(t)\\ \boldsymbol{\phi}_1^{\top}(t)\\ \vdots\\
+        \boldsymbol{\phi}_{q-1}^{\top}(t) \end{bmatrix}. \]
+      </h4>
+      <p>The extended vector regression becomes</p>
+      <h4 class="mathJax">
+        \[ \mathbf{Y}_{e}(t)=\mathbf{M}_{e}(t)\boldsymbol{\theta}
+        +\boldsymbol{\varepsilon}_{e}(t). \]
+      </h4>
+
+      <h3>First-order filter realization</h3>
+      <p>
+        A common operator is
+        <strong>\( \mathcal{H}(s)=\lambda/(s+\lambda) \)</strong>, with
+        <strong>\( \lambda&gt;0 \)</strong>. It is implemented without signal
+        differentiation:
+      </p>
+      <h4 class="mathJax">
+        \[ \dot z_y=-\lambda z_y+\lambda y, \qquad
+        \dot{\mathbf{z}}_{\phi}=-\lambda\mathbf{z}_{\phi}
+        +\lambda\boldsymbol{\phi}, \]
+      </h4>
+      <p>
+        where <strong>\( y_f=z_y \)</strong> and
+        <strong>\( \boldsymbol{\phi}_f=\mathbf{z}_{\phi} \)</strong>. For a
+        <strong>q</strong>-parameter regression, enough distinct operators must
+        be used to form a square <strong>\( q\times q \)</strong> matrix.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 4 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>4. Stage II — Mixing by the Determinant and Adjugate</h2>
+    <div class="down-content">
+      <p>Define the scalar extended regressor</p>
+      <h4 class="mathJax">
+        \[ \Delta(t)=\det\!\left(\mathbf{M}_{e}(t)\right). \]
+      </h4>
+      <p>Premultiply the extended regression by the adjugate matrix:</p>
+      <h4 class="mathJax">
+        \[ \boldsymbol{\mathcal{Y}}(t)
+        =\operatorname{adj}\!\left(\mathbf{M}_{e}(t)\right) \mathbf{Y}_{e}(t).
+        \]
+      </h4>
+      <p>
+        The algebraic identity
+        <strong
+          >\( \operatorname{adj}(\mathbf{M})\mathbf{M}
+          =\det(\mathbf{M})\mathbf{I} \)</strong
+        >
+        gives
+      </p>
+      <h4 class="mathJax">
+        \[ \boldsymbol{\mathcal{Y}}(t) =\Delta(t)\boldsymbol{\theta}
+        +\operatorname{adj}\!\left(\mathbf{M}_{e}(t)\right)
+        \boldsymbol{\varepsilon}_{e}(t). \]
+      </h4>
+      <p>
+        Ignoring the decaying filter transient for the moment, the vector
+        equation is equivalent to <strong>q scalar regressions</strong>:
+      </p>
+      <h4 class="mathJax">
+        \[ \mathcal{Y}_i(t)=\Delta(t)\theta_i, \qquad i=1,\ldots,q. \]
+      </h4>
+      <p>
+        This is the mixing step. Every parameter now appears in its own scalar
+        equation, while all excitation information is concentrated into the one
+        scalar signal <strong>\( \Delta(t) \)</strong>.
+      </p>
+
+      <h3>No matrix inverse is required</h3>
+      <p>
+        Although the determinant and adjugate resemble the inverse formula
+        <strong
+          >\( \mathbf{M}^{-1}=\operatorname{adj}(\mathbf{M})/\det(\mathbf{M})
+          \)</strong
+        >, the standard DREM gradient law does <em>not</em> divide by
+        <strong>\( \Delta \)</strong>. Therefore isolated determinant zeros do
+        not create algebraic singularities. They merely suspend or slow
+        parameter adaptation at those instants.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 5 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>5. Scalar Estimators and Elementwise Convergence Proof</h2>
+    <div class="down-content">
+      <p>For each scalar regression, use</p>
+      <h4 class="mathJax">
+        \[ \dot{\hat\theta}_i =\gamma_i\Delta
+        \left(\mathcal{Y}_i-\Delta\hat\theta_i\right), \qquad \gamma_i&gt;0. \]
+      </h4>
+      <p>
+        With <strong>\( \tilde\theta_i=\hat\theta_i-\theta_i \)</strong> and the
+        ideal relation <strong>\( \mathcal{Y}_i=\Delta\theta_i \)</strong>,
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\tilde\theta}_i =-\gamma_i\Delta^2(t)\tilde\theta_i. \]
+      </h4>
+
+      <h3>Closed-form solution</h3>
+      <p>Separating variables gives</p>
+      <h4 class="mathJax">
+        \[ \frac{d\tilde\theta_i}{\tilde\theta_i} =-\gamma_i\Delta^2(t)dt. \]
+      </h4>
+      <p>Hence, for any initial time <strong>\( t_0 \)</strong>,</p>
+      <h4 class="mathJax">
+        \[ \tilde\theta_i(t) =\exp\!\left[-\gamma_i
+        \int_{t_0}^{t}\Delta^2(\tau)d\tau\right] \tilde\theta_i(t_0). \]
+      </h4>
+      <p>This identity immediately establishes three properties.</p>
+
+      <h3>Property 1 — sign preservation</h3>
+      <h4 class="mathJax">
+        \[ \operatorname{sign}\!\left(\tilde\theta_i(t)\right)
+        =\operatorname{sign}\!\left(\tilde\theta_i(t_0)\right) \]
+      </h4>
+      <p>
+        unless the initial error is zero. The ideal scalar error approaches zero
+        without crossing it.
+      </p>
+
+      <h3>Property 2 — elementwise monotonicity</h3>
+      <h4 class="mathJax">
+        \[ |\tilde\theta_i(t)| \leq |\tilde\theta_i(t_0)|, \qquad t\geq t_0. \]
+      </h4>
+      <p>
+        This is stronger than merely proving that a norm of the full parameter
+        error vector is nonincreasing.
+      </p>
+
+      <h3>Property 3 — asymptotic convergence under a scalar condition</h3>
+      <h4 class="mathJax">
+        \[ \int_{t_0}^{\infty}\Delta^2(\tau)d\tau=\infty \quad \Longrightarrow
+        \quad \lim_{t\rightarrow\infty}\tilde\theta_i(t)=0. \]
+      </h4>
+      <p>
+        Equivalently, the basic ideal DREM estimator converges when
+        <strong>\( \Delta\notin\mathcal{L}_2 \)</strong>. This scalar
+        non-square-integrability condition is the signature convergence test of
+        the basic construction.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 6 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>6. Excitation Conditions: What DREM Does and Does Not Claim</h2>
+    <div class="down-content">
+      <p>
+        Excitation statements must be made carefully. DREM does not imply that
+        every weakly varying input identifies every parameter. The chosen
+        operators and the original regressor must produce a determinant carrying
+        sufficient energy.
+      </p>
+
+      <h3>6.1 Asymptotic convergence of basic DREM</h3>
+      <h4 class="mathJax">
+        \[ \Delta\notin\mathcal{L}_2 \quad \Longleftrightarrow \quad
+        \int_{0}^{\infty}\Delta^2(\tau)d\tau=\infty. \]
+      </h4>
+      <p>
+        This condition is scalar and may hold even when the original vector
+        regressor is not persistently exciting in the classical uniform sense.
+        However, it is a condition on the <em>constructed</em> determinant, not
+        an automatic consequence of filtering.
+      </p>
+
+      <h3>6.2 Exponential convergence</h3>
+      <p>A sufficient scalar persistent-excitation condition is</p>
+      <h4 class="mathJax">
+        \[ \exists T&gt;0,\ \alpha_{\Delta}&gt;0:\qquad
+        \int_{t}^{t+T}\Delta^2(\tau)d\tau \geq \alpha_{\Delta} \quad \forall
+        t\geq 0. \]
+      </h4>
+      <p>
+        Under this condition, the integral in the error solution grows at least
+        linearly with time, and each scalar error converges exponentially.
+      </p>
+
+      <h3>6.3 Interval excitation and finite-time variants</h3>
+      <p>
+        Some later DREM variants add memory, resetting, or modified mixing and
+        can obtain finite-time recovery after excitation over a finite interval.
+        That result should not be attributed automatically to the elementary
+        gradient estimator derived in Section 5. For the basic estimator, a
+        finite burst with finite
+        <strong>\( \int_0^{\infty}\Delta^2 d\tau \)</strong> reduces the error
+        by a finite factor but does not force exact asymptotic convergence.
+      </p>
+
+      <h3>6.4 A simple failure case</h3>
+      <p>
+        If every row of <strong>\( \mathbf{M}_e(t) \)</strong> remains linearly
+        dependent, then <strong>\( \Delta(t)\equiv 0 \)</strong>. The mixed
+        regressions contain no adaptation signal and
+        <strong>\( \dot{\hat\theta}_i=0 \)</strong>. Filter diversity is
+        therefore essential.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 7 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>7. Embedding DREM in a Composite Adaptive Law</h2>
+    <div class="down-content">
+      <p>
+        Consider a tracking-error model of the familiar linearly parameterized
+        form
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\mathbf{e}} =\mathbf{A}_{m}\mathbf{e}
+        +\mathbf{B}\boldsymbol{\psi}^{\top}(t) \tilde{\boldsymbol{\theta}},
+        \qquad \mathbf{A}_{m}\ \text{Hurwitz}. \]
+      </h4>
+      <p>Let <strong>\( \mathbf{P}=\mathbf{P}^{\top}&gt;0 \)</strong> solve</p>
+      <h4 class="mathJax">
+        \[ \mathbf{A}_{m}^{\top}\mathbf{P}
+        +\mathbf{P}\mathbf{A}_{m}=-\mathbf{Q}, \qquad
+        \mathbf{Q}=\mathbf{Q}^{\top}&gt;0. \]
+      </h4>
+      <p>
+        A composite parameter update can combine the tracking term and a DREM
+        prediction term:
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\hat{\boldsymbol{\theta}}}
+        =-\boldsymbol{\Gamma}\boldsymbol{\psi}
+        \mathbf{e}^{\top}\mathbf{P}\mathbf{B}
+        +\boldsymbol{\Gamma}\mathbf{K}_{D}\Delta \left(\boldsymbol{\mathcal{Y}}
+        -\Delta\hat{\boldsymbol{\theta}}\right), \]
+      </h4>
+      <p>
+        where
+        <strong
+          >\( \mathbf{K}_{D}=\operatorname{diag}(k_{D1},\ldots,k_{Dq})
+          \)</strong
+        >
+        and <strong>\( k_{Di}\geq 0 \)</strong>. Use the composite Lyapunov
+        function
+      </p>
+      <h4 class="mathJax">
+        \[ V=\mathbf{e}^{\top}\mathbf{P}\mathbf{e}
+        +\tilde{\boldsymbol{\theta}}^{\top} \boldsymbol{\Gamma}^{-1}
+        \tilde{\boldsymbol{\theta}}. \]
+      </h4>
+      <p>
+        In the ideal regression case, the tracking update cancels the
+        state-parameter cross term and the DREM term contributes a negative
+        semidefinite parameter-error term:
+      </p>
+      <h4 class="mathJax">
+        \[ \dot V =-\mathbf{e}^{\top}\mathbf{Q}\mathbf{e} -2\Delta^2
+        \tilde{\boldsymbol{\theta}}^{\top}
+        \mathbf{K}_{D}\tilde{\boldsymbol{\theta}} \leq 0. \]
+      </h4>
+      <p>
+        Conceptually, tracking error protects closed-loop behavior, while the
+        mixed prediction regressions inject direct parameter information. The
+        channels reinforce each other but play different roles.
+      </p>
+
+      <div class="diagram-wrapper">
+        <pre class="mermaid">
+flowchart TD
+  R["Reference model"] --> E["Tracking error"]
+  P["Uncertain plant"] --> E
+  E --> T["Tracking-error adaptation term"]
+  P --> L["Measured-data regression"]
+  L --> X["Extension filters"]
+  X --> M["Determinant-adjugate mixing"]
+  M --> D["DREM prediction term"]
+  T --> U["Composite parameter update"]
+  D --> U
+  U --> C["Adaptive controller parameters"]
+  C --> P
+        </pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Section 8 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>8. Complete Two-Parameter Derivation</h2>
+    <div class="down-content">
+      <p>Let</p>
+      <h4 class="mathJax">\[ y=\phi_1\theta_1+\phi_2\theta_2. \]</h4>
+      <p>
+        Apply one stable filter to obtain
+        <strong>\( y_f=\phi_{1f}\theta_1+\phi_{2f}\theta_2 \)</strong>. The
+        extended regression is
+      </p>
+      <h4 class="mathJax">
+        \[ \underbrace{ \begin{bmatrix}y\\y_f\end{bmatrix}}_{\mathbf{Y}_e} =
+        \underbrace{ \begin{bmatrix} \phi_1 &amp; \phi_2\\ \phi_{1f} &amp;
+        \phi_{2f} \end{bmatrix}}_{\mathbf{M}_e}
+        \begin{bmatrix}\theta_1\\\theta_2\end{bmatrix}. \]
+      </h4>
+      <p>The determinant is</p>
+      <h4 class="mathJax">\[ \Delta=\phi_1\phi_{2f}-\phi_2\phi_{1f}. \]</h4>
+      <p>For a two-by-two matrix,</p>
+      <h4 class="mathJax">
+        \[ \operatorname{adj}(\mathbf{M}_e) = \begin{bmatrix} \phi_{2f} &amp;
+        -\phi_2\\ -\phi_{1f} &amp; \phi_1 \end{bmatrix}. \]
+      </h4>
+      <p>Therefore,</p>
+      <h4 class="mathJax">
+        \[ \begin{aligned}
+        \mathcal{Y}_1&amp;=\phi_{2f}y-\phi_2y_f=\Delta\theta_1,\\
+        \mathcal{Y}_2&amp;=-\phi_{1f}y+\phi_1y_f=\Delta\theta_2. \end{aligned}
+        \]
+      </h4>
+      <p>The two update laws are</p>
+      <h4 class="mathJax">
+        \[ \begin{aligned} \dot{\hat\theta}_1 &amp;=\gamma_1\Delta
+        \left(\mathcal{Y}_1-\Delta\hat\theta_1\right),\\ \dot{\hat\theta}_2
+        &amp;=\gamma_2\Delta \left(\mathcal{Y}_2-\Delta\hat\theta_2\right).
+        \end{aligned} \]
+      </h4>
+      <p>
+        Observe that neither equation contains the other parameter estimate.
+        Their only shared time-varying quantity is
+        <strong>\( \Delta \)</strong>.
+      </p>
+
+      <h3>Geometric interpretation</h3>
+      <p>
+        The two rows of <strong>\( \mathbf{M}_e \)</strong> are two regressor
+        directions in the parameter plane. The magnitude
+        <strong>\( |\Delta| \)</strong> equals the area of the parallelogram
+        generated by these rows. If the rows are nearly parallel, the area is
+        small and adaptation is slow. If they remain exactly parallel, the area
+        is zero and the two parameters cannot be separated by this extension.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 9 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>9. Operator Selection, Conditioning, and Normalization</h2>
+    <div class="down-content">
+      <h3>9.1 Distinct dynamics are required</h3>
+      <p>
+        Repeating identical filters creates duplicate rows and may force the
+        determinant to zero. Common choices include different first-order poles,
+        different delays, or combinations of stable filters and delays.
+      </p>
+      <h4 class="mathJax">
+        \[ \mathcal{H}_i(s)=\frac{\lambda_i}{s+\lambda_i}, \qquad
+        \lambda_i&gt;0, \qquad \lambda_i\neq\lambda_j\ \text{for selected
+        channels}. \]
+      </h4>
+
+      <h3>9.2 Fast versus slow filters</h3>
+      <p>
+        Very fast filters make filtered regressors closely resemble the original
+        regressor, which can reduce row diversity. Very slow filters create
+        stronger phase separation but increase transient duration and lag. Pole
+        selection is therefore an excitation-conditioning trade-off rather than
+        a purely bandwidth-based choice.
+      </p>
+
+      <h3>9.3 Determinant scaling</h3>
+      <p>
+        For large parameter dimension, determinants and cofactors may become
+        very large or very small. A normalized scalar update can be used:
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\hat\theta}_i =\gamma_i\frac{\Delta}{1+\nu\Delta^2}
+        \left(\mathcal{Y}_i-\Delta\hat\theta_i\right), \qquad \nu&gt;0. \]
+      </h4>
+      <p>In the ideal case, this gives</p>
+      <h4 class="mathJax">
+        \[ \dot{\tilde\theta}_i =-\gamma_i\frac{\Delta^2}{1+\nu\Delta^2}
+        \tilde\theta_i, \]
+      </h4>
+      <p>
+        preserving the scalar sign and monotonicity properties while limiting
+        effective adaptation gain for very large
+        <strong>\( |\Delta| \)</strong>.
+      </p>
+
+      <h3>9.4 Monitoring an excitation certificate</h3>
+      <p>A practical implementation can accumulate</p>
+      <h4 class="mathJax">
+        \[ S_{\Delta}(t)=\int_{0}^{t}\Delta^2(\tau)d\tau, \qquad \dot
+        S_{\Delta}=\Delta^2, \]
+      </h4>
+      <p>
+        which measures the total determinant energy observed so far. Growth of
+        <strong>\( S_{\Delta} \)</strong> is informative, but it is not by
+        itself a proof of future excitation.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 10 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>10. Filter Transients, Noise, and Robustification</h2>
+    <div class="down-content">
+      <h3>10.1 Filter initialization error</h3>
+      <p>With nonzero transient terms, the mixed scalar regression is</p>
+      <h4 class="mathJax">
+        \[ \mathcal{Y}_i =\Delta\theta_i+d_i(t), \qquad
+        \mathbf{d}(t)=\operatorname{adj}(\mathbf{M}_e)
+        \boldsymbol{\varepsilon}_e(t). \]
+      </h4>
+      <p>The parameter error then satisfies</p>
+      <h4 class="mathJax">
+        \[ \dot{\tilde\theta}_i =-\gamma_i\Delta^2\tilde\theta_i +\gamma_i\Delta
+        d_i(t). \]
+      </h4>
+      <p>
+        The perfect sign-preservation statement belongs to the unperturbed
+        model. A decaying or noisy <strong>\( d_i \)</strong> can cause small
+        crossings or residual fluctuations.
+      </p>
+
+      <h3>10.2 Measurement noise</h3>
+      <p>
+        Filtering attenuates some high-frequency noise, but the adjugate
+        contains cofactors formed from products of regressor entries.
+        Consequently, mixing can amplify noise when the extended matrix is
+        poorly scaled. Implementations should log <strong>\( \Delta \)</strong>,
+        cofactor magnitudes, residuals, and parameter-update rates.
+      </p>
+
+      <h3>10.3 Leakage, dead zone, and projection</h3>
+      <p>
+        The robust modifications introduced earlier in the course remain
+        applicable. One possible scalar robust law is
+      </p>
+      <h4 class="mathJax">
+        \[ \dot{\hat\theta}_i =\gamma_i\Delta \operatorname{dz}_{\epsilon_i}
+        \left(\mathcal{Y}_i-\Delta\hat\theta_i\right) -\sigma_i\hat\theta_i, \]
+      </h4>
+      <p>
+        followed by projection when known parameter bounds exist. Leakage and a
+        dead zone improve robustness but generally replace exact convergence
+        with an ultimate bound.
+      </p>
+
+      <h3>10.4 Discrete-time implementation</h3>
+      <p>
+        With sampling period <strong>\( h \)</strong>, a forward-Euler scalar
+        update is
+      </p>
+      <h4 class="mathJax">
+        \[ \hat\theta_i[k+1] =\hat\theta_i[k] +h\gamma_i\Delta[k]
+        \left(\mathcal{Y}_i[k]-\Delta[k]\hat\theta_i[k]\right). \]
+      </h4>
+      <p>
+        For a frozen value of <strong>\( \Delta[k] \)</strong>, the scalar error
+        multiplier is <strong>\( 1-h\gamma_i\Delta^2[k] \)</strong>. A
+        conservative numerical requirement is
+      </p>
+      <h4 class="mathJax">\[ 0\leq h\gamma_i\Delta^2[k]\leq 1 \]</h4>
+      <p>
+        when discrete elementwise non-overshoot is desired. The wider linear
+        stability interval is
+        <strong>\( 0&lt;h\gamma_i\Delta^2[k]&lt;2 \)</strong>, but values above
+        one permit sign alternation of the discrete error.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 11 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>11. Numerical Experiment Used in All Implementations</h2>
+    <div class="down-content">
+      <p>The downloadable programs use</p>
+      <h4 class="mathJax">
+        \[ \boldsymbol{\theta} =\begin{bmatrix}2\\-1.5\end{bmatrix}, \qquad
+        \phi_1(t)=1+0.5\sin(0.7t), \]
+      </h4>
+      <h4 class="mathJax">
+        \[ \phi_2(t)=0.7\cos(1.3t)+0.2\sin(2.4t), \qquad
+        y(t)=\boldsymbol{\phi}^{\top}(t)\boldsymbol{\theta}. \]
+      </h4>
+      <p>
+        One first-order extension filter is used because the parameter dimension
+        is two:
+      </p>
+      <h4 class="mathJax">\[ \mathcal{H}(s)=\frac{1.5}{s+1.5}. \]</h4>
+      <p>
+        The adaptation gains are
+        <strong>\( \gamma_1=\gamma_2=30 \)</strong>, the simulation interval is
+        <strong>\( 0\leq t\leq25 \)</strong> seconds, and the Euler step is
+        <strong>\( h=0.002 \)</strong> seconds. Each program exports the
+        original and filtered regressors, <strong>\( \Delta \)</strong>, mixed
+        outputs, parameter estimates, errors, and accumulated determinant energy
+        to CSV.
+      </p>
+
+      <h3>Algorithm</h3>
+      <ol>
+        <li>
+          sample <strong>\( \boldsymbol{\phi}(t) \)</strong> and compute
+          <strong>\( y(t) \)</strong>;
+        </li>
+        <li>
+          update filters for <strong>\( y_f \)</strong> and
+          <strong>\( \boldsymbol{\phi}_f \)</strong>;
+        </li>
+        <li>
+          compute <strong>\( \Delta=\phi_1\phi_{2f}-\phi_2\phi_{1f} \)</strong>;
+        </li>
+        <li>
+          compute <strong>\( \mathcal{Y}_1,\mathcal{Y}_2 \)</strong> with the
+          adjugate formulas;
+        </li>
+        <li>integrate the two scalar update laws;</li>
+        <li>log errors and <strong>\( \int\Delta^2 \)</strong>.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- Section 12 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>12. Python Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter21_Lesson4.py</h3>
+      <pre><code class="language-python">"""Chapter 21, Lesson 4: Dynamic Regressor Extension and Mixing.
+
+A dependency-free NumPy demonstration of a two-parameter DREM estimator.
+The original scalar regression is y(t) = phi(t)^T theta. A stable first-order
+filter creates a second regression. The 2 x 2 extended regressor is then mixed
+with its adjugate to produce two scalar regressions.
+"""
+
+from __future__ import annotations
+
+import csv
+import math
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+
+
+@dataclass(frozen=True)
+class Configuration:
+    dt: float = 0.002
+    final_time: float = 25.0
+    filter_rate: float = 1.5
+    gamma_1: float = 30.0
+    gamma_2: float = 30.0
+    output_csv: str = "Chapter21_Lesson4_results.csv"
+
+
+def regressor(t: float) -&gt; np.ndarray:
+    """Known bounded regressor used by the numerical experiment."""
+    return np.array(
+        [
+            1.0 + 0.5 * math.sin(0.7 * t),
+            0.7 * math.cos(1.3 * t) + 0.2 * math.sin(2.4 * t),
+        ],
+        dtype=float,
+    )
+
+
+def simulate(config: Configuration) -&gt; tuple[np.ndarray, np.ndarray]:
+    theta_true = np.array([2.0, -1.5], dtype=float)
+    theta_hat = np.zeros(2, dtype=float)
+    gamma = np.array([config.gamma_1, config.gamma_2], dtype=float)
+
+    filtered_y = 0.0
+    filtered_phi = np.zeros(2, dtype=float)
+    integral_delta_squared = 0.0
+
+    rows: list[list[float]] = []
+    number_of_steps = int(round(config.final_time / config.dt))
+
+    for step in range(number_of_steps + 1):
+        time = step * config.dt
+        phi = regressor(time)
+        y = float(phi @ theta_true)
+
+        # Stable strictly proper extension operator H(s) = lambda / (s + lambda).
+        filtered_y += config.dt * (
+            -config.filter_rate * filtered_y + config.filter_rate * y
+        )
+        filtered_phi += config.dt * (
+            -config.filter_rate * filtered_phi + config.filter_rate * phi
+        )
+
+        # Phi_e = [[phi_1, phi_2], [phi_1f, phi_2f]].
+        delta = phi[0] * filtered_phi[1] - phi[1] * filtered_phi[0]
+
+        # mathcalY = adj(Phi_e) Y_e for a 2 x 2 matrix.
+        mixed_1 = filtered_phi[1] * y - phi[1] * filtered_y
+        mixed_2 = -filtered_phi[0] * y + phi[0] * filtered_y
+        mixed = np.array([mixed_1, mixed_2], dtype=float)
+
+        # Two decoupled scalar gradient estimators.
+        theta_hat += (
+            config.dt * gamma * delta * (mixed - delta * theta_hat)
+        )
+        integral_delta_squared += config.dt * delta * delta
+
+        rows.append(
+            [
+                time,
+                phi[0],
+                phi[1],
+                y,
+                filtered_phi[0],
+                filtered_phi[1],
+                filtered_y,
+                delta,
+                mixed_1,
+                mixed_2,
+                theta_hat[0],
+                theta_hat[1],
+                theta_true[0] - theta_hat[0],
+                theta_true[1] - theta_hat[1],
+                integral_delta_squared,
+            ]
+        )
+
+    output_path = Path(config.output_csv)
+    with output_path.open("w", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(
+            [
+                "time",
+                "phi1",
+                "phi2",
+                "y",
+                "phi1_filtered",
+                "phi2_filtered",
+                "y_filtered",
+                "delta",
+                "mixed1",
+                "mixed2",
+                "theta1_hat",
+                "theta2_hat",
+                "theta1_error",
+                "theta2_error",
+                "integral_delta_squared",
+            ]
+        )
+        writer.writerows(rows)
+
+    return theta_true, theta_hat
+
+
+def main() -&gt; None:
+    config = Configuration()
+    theta_true, theta_hat = simulate(config)
+    error = theta_true - theta_hat
+
+    print("DREM two-parameter simulation")
+    print(f"true theta      = {theta_true}")
+    print(f"estimated theta = {theta_hat}")
+    print(f"final error     = {error}")
+    print(f"results written to {config.output_csv}")
+
+
+if __name__ == "__main__":
+    main()
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 13 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>13. C++ Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter21_Lesson4.cpp</h3>
+      <pre><code class="language-cpp">// Chapter 21, Lesson 4: Dynamic Regressor Extension and Mixing.
+// Build: g++ -std=c++17 -O2 Chapter21_Lesson4.cpp -o Chapter21_Lesson4
+
+#include &lt;array&gt;
+#include &lt;cmath&gt;
+#include &lt;fstream&gt;
+#include &lt;iomanip&gt;
+#include &lt;iostream&gt;
+#include &lt;stdexcept&gt;
+#include &lt;string&gt;
+
+namespace {
+constexpr double kDt = 0.002;
+constexpr double kFinalTime = 25.0;
+constexpr double kFilterRate = 1.5;
+constexpr std::array&lt;double, 2&gt; kThetaTrue{2.0, -1.5};
+constexpr std::array&lt;double, 2&gt; kGamma{30.0, 30.0};
+
+std::array&lt;double, 2&gt; regressor(const double t) {
+    return {
+        1.0 + 0.5 * std::sin(0.7 * t),
+        0.7 * std::cos(1.3 * t) + 0.2 * std::sin(2.4 * t)
+    };
+}
+
+double dot(const std::array&lt;double, 2&gt;&amp; a,
+           const std::array&lt;double, 2&gt;&amp; b) {
+    return a[0] * b[0] + a[1] * b[1];
+}
+}  // namespace
+
+int main() {
+    std::array&lt;double, 2&gt; thetaHat{0.0, 0.0};
+    std::array&lt;double, 2&gt; filteredPhi{0.0, 0.0};
+    double filteredY = 0.0;
+    double integralDeltaSquared = 0.0;
+
+    std::ofstream csv("Chapter21_Lesson4_results.csv");
+    if (!csv) {
+        throw std::runtime_error("Cannot open Chapter21_Lesson4_results.csv");
+    }
+    csv &lt;&lt; std::setprecision(15);
+    csv &lt;&lt; "time,phi1,phi2,y,phi1_filtered,phi2_filtered,y_filtered,"
+           "delta,mixed1,mixed2,theta1_hat,theta2_hat,theta1_error,"
+           "theta2_error,integral_delta_squared\n";
+
+    const int steps = static_cast&lt;int&gt;(std::llround(kFinalTime / kDt));
+    for (int step = 0; step &lt;= steps; ++step) {
+        const double t = step * kDt;
+        const auto phi = regressor(t);
+        const double y = dot(phi, kThetaTrue);
+
+        filteredY += kDt * (-kFilterRate * filteredY + kFilterRate * y);
+        for (std::size_t i = 0; i &lt; filteredPhi.size(); ++i) {
+            filteredPhi[i] +=
+                kDt * (-kFilterRate * filteredPhi[i] + kFilterRate * phi[i]);
+        }
+
+        const double delta =
+            phi[0] * filteredPhi[1] - phi[1] * filteredPhi[0];
+        const std::array&lt;double, 2&gt; mixed{
+            filteredPhi[1] * y - phi[1] * filteredY,
+            -filteredPhi[0] * y + phi[0] * filteredY
+        };
+
+        for (std::size_t i = 0; i &lt; thetaHat.size(); ++i) {
+            thetaHat[i] +=
+                kDt * kGamma[i] * delta * (mixed[i] - delta * thetaHat[i]);
+        }
+        integralDeltaSquared += kDt * delta * delta;
+
+        csv &lt;&lt; t &lt;&lt; ',' &lt;&lt; phi[0] &lt;&lt; ',' &lt;&lt; phi[1] &lt;&lt; ',' &lt;&lt; y &lt;&lt; ','
+            &lt;&lt; filteredPhi[0] &lt;&lt; ',' &lt;&lt; filteredPhi[1] &lt;&lt; ',' &lt;&lt; filteredY
+            &lt;&lt; ',' &lt;&lt; delta &lt;&lt; ',' &lt;&lt; mixed[0] &lt;&lt; ',' &lt;&lt; mixed[1] &lt;&lt; ','
+            &lt;&lt; thetaHat[0] &lt;&lt; ',' &lt;&lt; thetaHat[1] &lt;&lt; ','
+            &lt;&lt; kThetaTrue[0] - thetaHat[0] &lt;&lt; ','
+            &lt;&lt; kThetaTrue[1] - thetaHat[1] &lt;&lt; ','
+            &lt;&lt; integralDeltaSquared &lt;&lt; '\n';
+    }
+
+    std::cout &lt;&lt; std::setprecision(10)
+              &lt;&lt; "DREM two-parameter simulation\n"
+              &lt;&lt; "true theta      = [" &lt;&lt; kThetaTrue[0] &lt;&lt; ", "
+              &lt;&lt; kThetaTrue[1] &lt;&lt; "]\n"
+              &lt;&lt; "estimated theta = [" &lt;&lt; thetaHat[0] &lt;&lt; ", "
+              &lt;&lt; thetaHat[1] &lt;&lt; "]\n"
+              &lt;&lt; "final error     = [" &lt;&lt; kThetaTrue[0] - thetaHat[0]
+              &lt;&lt; ", " &lt;&lt; kThetaTrue[1] - thetaHat[1] &lt;&lt; "]\n"
+              &lt;&lt; "results written to Chapter21_Lesson4_results.csv\n";
+
+    return 0;
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 14 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>14. Java Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter21_Lesson4.java</h3>
+      <pre><code class="language-java">// Chapter 21, Lesson 4: Dynamic Regressor Extension and Mixing.
+// Build: javac Chapter21_Lesson4.java
+// Run:   java Chapter21_Lesson4
+
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Locale;
+
+public final class Chapter21_Lesson4 {
+    private static final double DT = 0.002;
+    private static final double FINAL_TIME = 25.0;
+    private static final double FILTER_RATE = 1.5;
+    private static final double[] THETA_TRUE = {2.0, -1.5};
+    private static final double[] GAMMA = {30.0, 30.0};
+
+    private Chapter21_Lesson4() {
+    }
+
+    private static double[] regressor(double time) {
+        return new double[] {
+            1.0 + 0.5 * Math.sin(0.7 * time),
+            0.7 * Math.cos(1.3 * time) + 0.2 * Math.sin(2.4 * time)
+        };
+    }
+
+    private static double dot(double[] a, double[] b) {
+        return a[0] * b[0] + a[1] * b[1];
+    }
+
+    public static void main(String[] args) throws IOException {
+        Locale.setDefault(Locale.ROOT);
+
+        double[] thetaHat = {0.0, 0.0};
+        double[] filteredPhi = {0.0, 0.0};
+        double filteredY = 0.0;
+        double integralDeltaSquared = 0.0;
+
+        Path output = Path.of("Chapter21_Lesson4_results.csv");
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                output, StandardCharsets.UTF_8)) {
+            writer.write(
+                "time,phi1,phi2,y,phi1_filtered,phi2_filtered,y_filtered,"
+                + "delta,mixed1,mixed2,theta1_hat,theta2_hat,theta1_error,"
+                + "theta2_error,integral_delta_squared\n"
+            );
+
+            int steps = (int) Math.round(FINAL_TIME / DT);
+            for (int step = 0; step &lt;= steps; step++) {
+                double time = step * DT;
+                double[] phi = regressor(time);
+                double y = dot(phi, THETA_TRUE);
+
+                filteredY += DT * (-FILTER_RATE * filteredY + FILTER_RATE * y);
+                for (int i = 0; i &lt; filteredPhi.length; i++) {
+                    filteredPhi[i] += DT * (
+                        -FILTER_RATE * filteredPhi[i] + FILTER_RATE * phi[i]
+                    );
+                }
+
+                double delta =
+                    phi[0] * filteredPhi[1] - phi[1] * filteredPhi[0];
+                double[] mixed = {
+                    filteredPhi[1] * y - phi[1] * filteredY,
+                    -filteredPhi[0] * y + phi[0] * filteredY
+                };
+
+                for (int i = 0; i &lt; thetaHat.length; i++) {
+                    thetaHat[i] += DT * GAMMA[i] * delta
+                        * (mixed[i] - delta * thetaHat[i]);
+                }
+                integralDeltaSquared += DT * delta * delta;
+
+                writer.write(String.format(
+                    Locale.ROOT,
+                    "%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,"
+                    + "%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f,%.12f%n",
+                    time, phi[0], phi[1], y, filteredPhi[0], filteredPhi[1],
+                    filteredY, delta, mixed[0], mixed[1], thetaHat[0],
+                    thetaHat[1], THETA_TRUE[0] - thetaHat[0],
+                    THETA_TRUE[1] - thetaHat[1], integralDeltaSquared
+                ));
+            }
+        }
+
+        System.out.printf(Locale.ROOT,
+            "DREM two-parameter simulation%n"
+            + "true theta      = [%.10f, %.10f]%n"
+            + "estimated theta = [%.10f, %.10f]%n"
+            + "final error     = [%.10e, %.10e]%n"
+            + "results written to %s%n",
+            THETA_TRUE[0], THETA_TRUE[1], thetaHat[0], thetaHat[1],
+            THETA_TRUE[0] - thetaHat[0], THETA_TRUE[1] - thetaHat[1], output
+        );
+    }
+}
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 15 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>15. MATLAB and Simulink Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter21_Lesson4.m</h3>
+      <pre><code class="language-matlab">% Chapter 21, Lesson 4: Dynamic Regressor Extension and Mixing
+% Two-parameter DREM simulation using a first-order stable filter.
+
+clear; clc;
+
+dt = 0.002;
+T = 25.0;
+lambda = 1.5;
+gamma = [30.0; 30.0];
+theta_true = [2.0; -1.5];
+
+time = (0:dt:T).';
+number_of_samples = numel(time);
+theta_hat = zeros(2, 1);
+filtered_phi = zeros(2, 1);
+filtered_y = 0.0;
+integral_delta_squared = 0.0;
+
+history = zeros(number_of_samples, 15);
+
+for k = 1:number_of_samples
+    t = time(k);
+    phi = [1.0 + 0.5*sin(0.7*t); ...
+           0.7*cos(1.3*t) + 0.2*sin(2.4*t)];
+    y = phi.' * theta_true;
+
+    % H(s) = lambda / (s + lambda), implemented by forward Euler.
+    filtered_y = filtered_y + dt*(-lambda*filtered_y + lambda*y);
+    filtered_phi = filtered_phi + dt*(-lambda*filtered_phi + lambda*phi);
+
+    % Extended regressor Phi_e = [phi.'; filtered_phi.'].
+    delta = phi(1)*filtered_phi(2) - phi(2)*filtered_phi(1);
+
+    % mathcalY = adj(Phi_e) * Y_e.
+    mixed = [filtered_phi(2)*y - phi(2)*filtered_y; ...
+             -filtered_phi(1)*y + phi(1)*filtered_y];
+
+    % Decoupled scalar DREM estimators.
+    theta_hat = theta_hat + dt*gamma.*delta.*(mixed - delta*theta_hat);
+    integral_delta_squared = integral_delta_squared + dt*delta^2;
+
+    history(k, :) = [t, phi.', y, filtered_phi.', filtered_y, delta, ...
+        mixed.', theta_hat.', (theta_true - theta_hat).', ...
+        integral_delta_squared];
+end
+
+variable_names = {'time','phi1','phi2','y','phi1_filtered', ...
+    'phi2_filtered','y_filtered','delta','mixed1','mixed2', ...
+    'theta1_hat','theta2_hat','theta1_error','theta2_error', ...
+    'integral_delta_squared'};
+results = array2table(history, 'VariableNames', variable_names);
+writetable(results, 'Chapter21_Lesson4_results.csv');
+
+fprintf('DREM two-parameter simulation\n');
+fprintf('true theta      = [%.10f, %.10f]\n', theta_true(1), theta_true(2));
+fprintf('estimated theta = [%.10f, %.10f]\n', theta_hat(1), theta_hat(2));
+fprintf('final error     = [%.3e, %.3e]\n', ...
+    theta_true(1)-theta_hat(1), theta_true(2)-theta_hat(2));
+
+figure('Name', 'Chapter21 Lesson4 DREM');
+plot(time, history(:, 11), 'LineWidth', 1.2); hold on;
+plot(time, history(:, 12), 'LineWidth', 1.2);
+yline(theta_true(1), '--');
+yline(theta_true(2), '--');
+grid on;
+xlabel('Time (s)');
+ylabel('Parameter estimate');
+legend('theta1 hat','theta2 hat','theta1 true','theta2 true', ...
+    'Location','best');
+title('DREM parameter estimates');
+
+% Simulink implementation note:
+% Use one State-Space or Transfer Fcn block per filtered signal with
+% transfer function lambda/(s+lambda). Feed the original and filtered
+% regressions into a MATLAB Function block that computes delta, mixed1,
+% mixed2, and the two scalar update laws. Integrator blocks realize the
+% parameter estimates.
+</code></pre>
+      <h3>Simulink block structure</h3>
+      <p>
+        In Simulink, implement one transfer-function block
+        <strong>\( 1.5/(s+1.5) \)</strong> for the regression output and one for
+        each regressor component. A MATLAB Function block can calculate the
+        determinant and mixed outputs. Two Integrator blocks implement the
+        scalar parameter laws. Add Scope or To Workspace blocks for
+        <strong>\( \Delta \)</strong>, parameter estimates, and residuals. Use
+        saturation or projection around the integrator states if parameter
+        bounds are known.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 16 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>16. Wolfram Mathematica Implementation</h2>
+    <div class="down-content">
+      <h3>Chapter21_Lesson4.nb</h3>
+      <pre><code class="language-mathematica">Notebook[{
+ Cell["Chapter 21, Lesson 4: Dynamic Regressor Extension and Mixing", "Title"],
+ Cell["Two-parameter DREM simulation using a first-order stable filter.", "Text"],
+ Cell[BoxData[
+  RowBox[{"ClearAll", "[", "\"Global`*\"", "]"}]], "Input"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"dt", "=", "0.002"}], ";",
+   RowBox[{"tFinal", "=", "25.0"}], ";",
+   RowBox[{"lambda", "=", "1.5"}], ";",
+   RowBox[{"gamma", "=", RowBox[{"{", RowBox[{"30.0", ",", "30.0"}], "}"}]}], ";",
+   RowBox[{"thetaTrue", "=", RowBox[{"{", RowBox[{"2.0", ",", RowBox[{"-", "1.5"}]}], "}"}]}], ";"
+  }]], "Input"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"phi", "[", "t_", "]", ":=", RowBox[{"{",
+    RowBox[{
+     RowBox[{"1.0", "+", RowBox[{"0.5", " ", RowBox[{"Sin", "[", RowBox[{"0.7", " ", "t"}], "]"}]}]}], ",",
+     RowBox[{RowBox[{"0.7", " ", RowBox[{"Cos", "[", RowBox[{"1.3", " ", "t"}], "]"}]}], "+", RowBox[{"0.2", " ", RowBox[{"Sin", "[", RowBox[{"2.4", " ", "t"}], "]"}]}]}]
+    }], "}"}]}], ";"
+  }]], "Input"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"thetaHat", "=", RowBox[{"{", RowBox[{"0.0", ",", "0.0"}], "}"}]}], ";",
+   RowBox[{"filteredPhi", "=", RowBox[{"{", RowBox[{"0.0", ",", "0.0"}], "}"}]}], ";",
+   RowBox[{"filteredY", "=", "0.0"}], ";",
+   RowBox[{"integralDeltaSquared", "=", "0.0"}], ";",
+   RowBox[{"history", "=", RowBox[{"Reap", "[",
+    RowBox[{"Do", "[",
+     RowBox[{
+      RowBox[{
+       RowBox[{"p", "=", RowBox[{"phi", "[", "t", "]"}]}], ";",
+       RowBox[{"y", "=", RowBox[{"p", ".", "thetaTrue"}]}], ";",
+       RowBox[{"filteredY", "=", RowBox[{"filteredY", "+", RowBox[{"dt", " ", RowBox[{"(", RowBox[{RowBox[{"-", "lambda", " ", "filteredY"}], "+", RowBox[{"lambda", " ", "y"}]}], ")"}]}]}]}], ";",
+       RowBox[{"filteredPhi", "=", RowBox[{"filteredPhi", "+", RowBox[{"dt", " ", RowBox[{"(", RowBox[{RowBox[{"-", "lambda", " ", "filteredPhi"}], "+", RowBox[{"lambda", " ", "p"}]}], ")"}]}]}]}], ";",
+       RowBox[{"delta", "=", RowBox[{RowBox[{RowBox[{"p", "[", RowBox[{"[", "1", "]"}], "]"}], " ", RowBox[{"filteredPhi", "[", RowBox[{"[", "2", "]"}], "]"}]}], "-", RowBox[{RowBox[{"p", "[", RowBox[{"[", "2", "]"}], "]"}], " ", RowBox[{"filteredPhi", "[", RowBox[{"[", "1", "]"}], "]"}]}]}]}], ";",
+       RowBox[{"mixed", "=", RowBox[{"{",
+        RowBox[{
+         RowBox[{RowBox[{RowBox[{"filteredPhi", "[", RowBox[{"[", "2", "]"}], "]"}], " ", "y"}], "-", RowBox[{RowBox[{"p", "[", RowBox[{"[", "2", "]"}], "]"}], " ", "filteredY"}]}], ",",
+         RowBox[{RowBox[{"-", RowBox[{"filteredPhi", "[", RowBox[{"[", "1", "]"}], "]"}]}], " ", "y", "+", RowBox[{RowBox[{"p", "[", RowBox[{"[", "1", "]"}], "]"}], " ", "filteredY"}]}]
+        }], "}"}]}], ";",
+       RowBox[{"thetaHat", "=", RowBox[{"thetaHat", "+", RowBox[{"dt", " ", "gamma", " ", "delta", " ", RowBox[{"(", RowBox[{"mixed", "-", RowBox[{"delta", " ", "thetaHat"}]}], ")"}]}]}]}], ";",
+       RowBox[{"integralDeltaSquared", "=", RowBox[{"integralDeltaSquared", "+", RowBox[{"dt", " ", RowBox[{"delta", "^", "2"}]}]}]}], ";",
+       RowBox[{"Sow", "[", RowBox[{"Join", "[", RowBox[{RowBox[{"{", "t", "}"}], ",", "p", ",", RowBox[{"{", RowBox[{"y", ",", "delta"}], "}"}], ",", "mixed", ",", "thetaHat", ",", RowBox[{"thetaTrue", "-", "thetaHat"}], ",", RowBox[{"{", "integralDeltaSquared", "}"}]}], "]"}], "]"}]
+      }], ",", RowBox[{"{", RowBox[{"t", ",", "0.0", ",", "tFinal", ",", "dt"}], "}"}]}], "]"}], "]"}], "[", RowBox[{"[", RowBox[{"2", ",", "1"}], "]"}], "]"}]}], ";"
+  }]], "Input"],
+ Cell[BoxData[
+  RowBox[{"Print", "[", RowBox[{"\"True theta: \"", ",", "thetaTrue", ",", "\"   Estimated theta: \"", ",", "thetaHat"}], "]"}]], "Input"],
+ Cell[BoxData[
+  RowBox[{"ListLinePlot", "[",
+   RowBox[{
+    RowBox[{"{",
+     RowBox[{
+      RowBox[{"history", "[", RowBox[{"[", RowBox[{"All", ",", RowBox[{"{", RowBox[{"1", ",", "8"}], "}"}]}], "]"}], "]"}], ",",
+      RowBox[{"history", "[", RowBox[{"[", RowBox[{"All", ",", RowBox[{"{", RowBox[{"1", ",", "9"}], "}"}]}], "]"}], "]"}]
+     }], "}"}], ",",
+    RowBox[{"PlotLegends", "-&gt;", RowBox[{"{", RowBox[{"\"theta1 hat\"", ",", "\"theta2 hat\""}], "}"}]}], ",",
+    RowBox[{"AxesLabel", "-&gt;", RowBox[{"{", RowBox[{"\"time\"", ",", "\"estimate\""}], "}"}]}], ",",
+    RowBox[{"PlotRange", "-&gt;", "All"}]
+   }], "]"}]], "Input"]
+}, WindowTitle -&gt; "Chapter21_Lesson4", StyleDefinitions -&gt; "Default.nb"]
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- Section 17 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>17. Problems and Solutions</h2>
+    <div class="down-content">
+      <p>
+        <strong>Problem 1 (Two-parameter mixing):</strong> Starting from
+        <strong>\( y=\phi_1\theta_1+\phi_2\theta_2 \)</strong> and
+        <strong>\( y_f=\phi_{1f}\theta_1+\phi_{2f}\theta_2 \)</strong>, derive
+        the scalar regressions without using a matrix inverse.
+      </p>
+      <p><strong>Solution:</strong> Form</p>
+      <h4 class="mathJax">
+        \[ \mathbf{M}_e=
+        \begin{bmatrix}\phi_1&amp;\phi_2\\\phi_{1f}&amp;\phi_{2f}\end{bmatrix},
+        \qquad \Delta=\phi_1\phi_{2f}-\phi_2\phi_{1f}. \]
+      </h4>
+      <p>Premultiplication by the adjugate gives</p>
+      <h4 class="mathJax">
+        \[ \begin{bmatrix} \phi_{2f}&amp;-\phi_2\\-\phi_{1f}&amp;\phi_1
+        \end{bmatrix} \begin{bmatrix}y\\y_f\end{bmatrix}
+        =\Delta\begin{bmatrix}\theta_1\\\theta_2\end{bmatrix}. \]
+      </h4>
+      <p>Therefore,</p>
+      <h4 class="mathJax">
+        \[ \mathcal{Y}_1=\phi_{2f}y-\phi_2y_f=\Delta\theta_1, \qquad
+        \mathcal{Y}_2=-\phi_{1f}y+\phi_1y_f=\Delta\theta_2. \]
+      </h4>
+
+      <p>
+        <strong>Problem 2 (Exact scalar error solution):</strong> Solve
+        <strong
+          >\( \dot{\tilde\theta}_i=-\gamma_i\Delta^2(t)\tilde\theta_i \)</strong
+        >
+        and state the weakest direct integral condition that forces asymptotic
+        convergence.
+      </p>
+      <p><strong>Solution:</strong> Integration gives</p>
+      <h4 class="mathJax">
+        \[ \tilde\theta_i(t)=
+        \exp\!\left[-\gamma_i\int_{0}^{t}\Delta^2(\tau)d\tau\right]
+        \tilde\theta_i(0). \]
+      </h4>
+      <p>
+        The exponential factor tends to zero exactly when the accumulated
+        integral diverges. Thus the direct condition is
+        <strong>\( \int_0^{\infty}\Delta^2d\tau=\infty \)</strong>, or
+        <strong>\( \Delta\notin\mathcal{L}_2 \)</strong>.
+      </p>
+
+      <p>
+        <strong>Problem 3 (Finite excitation burst):</strong> Suppose
+        <strong>\( \Delta(t)=0 \)</strong> for all
+        <strong>\( t&gt;t_1 \)</strong>, but
+        <strong>\( E=\int_0^{t_1}\Delta^2(\tau)d\tau&gt;0 \)</strong>. Find the
+        final error of the basic DREM gradient estimator.
+      </p>
+      <p><strong>Solution:</strong></p>
+      <h4 class="mathJax">
+        \[ \tilde\theta_i(t) =e^{-\gamma_i E}\tilde\theta_i(0), \qquad t\geq
+        t_1. \]
+      </h4>
+      <p>
+        The excitation burst contracts the error but, for finite
+        <strong>\( E \)</strong>, does not make it identically zero. Exact
+        finite-time recovery requires a modified memory-based or finite-time
+        DREM construction, not the elementary law alone.
+      </p>
+
+      <p>
+        <strong>Problem 4 (Composite Lyapunov derivative):</strong> For the
+        error model and composite law in Section 7, derive
+        <strong>\( \dot V \)</strong>
+        in the ideal mixed-regression case.
+      </p>
+      <p><strong>Solution:</strong> Differentiating the state term yields</p>
+      <h4 class="mathJax">
+        \[ \frac{d}{dt}\left(\mathbf{e}^{\top}\mathbf{P}\mathbf{e}\right)
+        =-\mathbf{e}^{\top}\mathbf{Q}\mathbf{e}
+        +2\mathbf{e}^{\top}\mathbf{P}\mathbf{B}
+        \boldsymbol{\psi}^{\top}\tilde{\boldsymbol{\theta}}. \]
+      </h4>
+      <p>
+        The tracking part of
+        <strong>\( \dot{\hat{\boldsymbol{\theta}}} \)</strong>
+        cancels the cross term. Since
+        <strong
+          >\( \boldsymbol{\mathcal{Y}}-\Delta\hat{\boldsymbol{\theta}}
+          =-\Delta\tilde{\boldsymbol{\theta}} \)</strong
+        >, the prediction part contributes
+        <strong
+          >\( -2\Delta^2\tilde{\boldsymbol{\theta}}^{\top}
+          \mathbf{K}_{D}\tilde{\boldsymbol{\theta}} \)</strong
+        >. Hence
+      </p>
+      <h4 class="mathJax">
+        \[ \dot V=-\mathbf{e}^{\top}\mathbf{Q}\mathbf{e}
+        -2\Delta^2\tilde{\boldsymbol{\theta}}^{\top}
+        \mathbf{K}_{D}\tilde{\boldsymbol{\theta}}\leq0. \]
+      </h4>
+
+      <p>
+        <strong>Problem 5 (Discrete non-overshoot condition):</strong> For the
+        Euler update, derive a condition that keeps the scalar error multiplier
+        nonnegative and no greater than one.
+      </p>
+      <p><strong>Solution:</strong> The ideal discrete error is</p>
+      <h4 class="mathJax">
+        \[ \tilde\theta_i[k+1]
+        =\left(1-h\gamma_i\Delta^2[k]\right)\tilde\theta_i[k]. \]
+      </h4>
+      <p>
+        Requiring the multiplier to belong to
+        <strong>\( [0,1] \)</strong> gives
+        <strong>\( 0\leq h\gamma_i\Delta^2[k]\leq1 \)</strong>. If only
+        asymptotic stability of the frozen scalar recursion is required, the
+        wider interval is <strong>\( 0&lt;h\gamma_i\Delta^2[k]&lt;2 \)</strong>.
+      </p>
+
+      <p>
+        <strong>Problem 6 (Filter design diagnosis):</strong> A three-parameter
+        regression uses the original row and two identical first-order filters
+        with the same pole and initial conditions. What happens to the extended
+        determinant?
+      </p>
+      <p>
+        <strong>Solution:</strong> The two filtered rows are identical.
+        Therefore the square extended matrix has two equal rows and its
+        determinant is identically zero. At least two dynamically distinct
+        extension operators are needed in addition to the original regression.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 18 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>18. Summary</h2>
+    <div class="down-content">
+      <p>
+        DREM begins with a regression linear in unknown parameters. Stable
+        dynamic operators generate additional regressions, which are stacked
+        into a square extended regressor matrix. Multiplication by its adjugate
+        creates scalar equations
+        <strong>\( \mathcal{Y}_i=\Delta\theta_i \)</strong>. The resulting
+        scalar gradient laws have explicit error solutions, elementwise
+        monotonicity in the ideal case, and asymptotic convergence when
+        <strong>\( \Delta\notin\mathcal{L}_2 \)</strong>. In composite adaptive
+        control, the DREM term strengthens model-based parameter correction
+        while the tracking-error term continues to enforce closed-loop behavior.
+      </p>
+      <p>
+        The method does not eliminate the need for informative data. Success
+        depends on the original regression, extension operators, determinant
+        energy, numerical conditioning, and treatment of filter transients and
+        noise. These distinctions are essential before applying DREM to the
+        mechanical-system example in Lesson 5.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Section 19 -->
+<section class="simple-post">
+  <div class="container-fluid">
+    <h2>19. References</h2>
+    <ol>
+      <li>
+        Aranovskiy, S., Bobtsov, A., Ortega, R., &amp; Pyrkin, A. (2017).
+        Performance enhancement of parameter estimators via dynamic regressor
+        extension and mixing. <em>IEEE Transactions on Automatic Control</em>,
+        62(7), 3546–3550. doi:10.1109/TAC.2016.2614889.
+      </li>
+      <li>
+        Ortega, R., Praly, L., Aranovskiy, S., Yi, B., &amp; Zhang, W. (2018).
+        On dynamic regressor extension and mixing parameter estimators: Two
+        Luenberger observers interpretations. <em>Automatica</em>, 95, 548–551.
+        doi:10.1016/j.automatica.2018.06.011.
+      </li>
+      <li>
+        Aranovskiy, S., Belov, A., Ortega, R., Barabanov, N., &amp; Bobtsov, A.
+        (2019). Parameter identification of linear time-invariant systems using
+        dynamic regressor extension and mixing.
+        <em>International Journal of Adaptive Control and Signal Processing</em
+        >, 33(6), 1016–1030. doi:10.1002/acs.3006.
+      </li>
+      <li>
+        Ortega, R., Aranovskiy, S., Pyrkin, A. A., Astolfi, A., &amp; Bobtsov,
+        A. A. (2021). New results on parameter estimation via dynamic regressor
+        extension and mixing: Continuous and discrete-time cases.
+        <em>IEEE Transactions on Automatic Control</em>, 66(5), 2265–2272.
+        doi:10.1109/TAC.2020.3003651.
+      </li>
+      <li>
+        Yi, B., &amp; Ortega, R. (2023). Conditions for convergence of dynamic
+        regressor extension and mixing parameter estimators using LTI filters.
+        <em>IEEE Transactions on Automatic Control</em>, 68(2), 1253–1258.
+        doi:10.1109/TAC.2022.3149964.
+      </li>
+      <li>
+        Ortega, R., Nikiforov, V., &amp; Gerasimov, D. (2020). On modified
+        parameter estimators for identification and adaptive control: A unified
+        framework and some new schemes. <em>Annual Reviews in Control</em>, 50,
+        278–293. doi:10.1016/j.arcontrol.2020.06.002.
+      </li>
+      <li>
+        Korotina, M., Romero, J. G., Aranovskiy, S., Bobtsov, A., &amp; Ortega,
+        R. (2022). A new on-line exponential parameter estimator without
+        persistent excitation. <em>Systems &amp; Control Letters</em>, 159,
+        105079. doi:10.1016/j.sysconle.2021.105079.
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="simple-post">
+  <!-- Navigation Buttons -->
+  <div class="container-fluid mt-5 mb-5 text-center">
+    <div class="row">
+      <div class="col-sm-6 border-rectangle-button">
+        <h1><i class="fa fa-arrow-left mr-1"></i> Previous</h1>
+        <a href="../Chapter21/Lesson3.html">
+          Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+        </a>
+      </div>
+      <div class="col-sm-6 border-rectangle-button">
+        <h1>Next<i class="fa fa-arrow-right ml-2"></i></h1>
+        <a href="../Chapter21/Lesson5.html">
+          Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CaaT Support Section -->
+<section
+  class="caat-support-section"
+  id="caat-support"
+  aria-labelledby="caat-support-title"
+>
+  <div class="caat-support-card">
+    <div class="caat-support-intro">
+      <span class="caat-support-kicker">Support CaaT Academy</span>
+
+      <h2 id="caat-support-title">
+        Help keep these engineering tutorials free and growing
+      </h2>
+
+      <p class="caat-support-description">
+        If these lessons, examples, and project pages help you, a small
+        donation supports the continued creation and improvement of free
+        control, robotics, software, and engineering education resources.
+      </p>
+
+      <nav
+        class="caat-support-socials"
+        aria-label="Abolfazl Mohammadijoo social and professional links"
+      >
+        <a
+          class="caat-support-social-link"
+          href="https://mohammadijoo.ir/en"
+          aria-label="Portfolio"
+          title="Portfolio"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-globe" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.linkedin.com/in/abolfazlmohammadijoo"
+          aria-label="LinkedIn"
+          title="LinkedIn"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-linkedin" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://github.com/mohammadijoo"
+          aria-label="GitHub"
+          title="GitHub"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-github" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.youtube.com/@abolfazlmohammadijoo"
+          aria-label="YouTube"
+          title="YouTube"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-youtube-play" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://www.reddit.com/u/abolfazl1363"
+          aria-label="Reddit"
+          title="Reddit"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-reddit-alien" aria-hidden="true"></i>
+        </a>
+
+        <a
+          class="caat-support-social-link"
+          href="https://scholar.google.com/citations?user=lre83n8AAAAJ&amp;hl=en"
+          aria-label="Google Scholar"
+          title="Google Scholar"
+          target="_blank"
+          rel="noopener noreferrer me"
+        >
+          <i class="fa fa-graduation-cap" aria-hidden="true"></i>
+        </a>
+      </nav>
+    </div>
+
+    <aside
+      class="caat-support-donation"
+      aria-label="Ethereum donation information"
+    >
+      <div class="caat-donation-heading">
+        <span class="caat-ethereum-badge" aria-hidden="true">ETH</span>
+
+        <div>
+          <strong>Ethereum / ERC-20 donation</strong>
+          <span>Use the exact network and address below</span>
+        </div>
+      </div>
+
+      <div class="caat-wallet-row">
+        <code
+          class="caat-wallet-address"
+          data-wallet-address
+          data-address="0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0"
+        >0x716c4Ab160C4B66F31a28AE2448BfF68fc3a2ef0</code>
+
+        <button
+          class="caat-wallet-copy"
+          type="button"
+          data-copy-wallet
+          aria-label="Copy Ethereum donation address"
+          title="Copy Ethereum donation address"
+        >
+          <i class="fa fa-copy" aria-hidden="true"></i>
+          <span data-copy-label>Copy address</span>
+        </button>
+      </div>
+
+      <p class="caat-support-warning">
+        Send only Ethereum/ERC-20 compatible assets to this address.
+        Do not send TRC-20/TRON assets.
+      </p>
+    </aside>
+  </div>
+
+  <p class="caat-support-maintainer">
+    Created and maintained by
+    <a
+      href="https://github.com/mohammadijoo"
+      target="_blank"
+      rel="noopener noreferrer me"
+    >Abolfazl Mohammadijoo</a>.
+  </p>
+</section>
+<!-- /CaaT Support Section -->
+        </div>
+      </div>
+      <!-- Sidebar -->
+      <div id="sidebar">
+        <div class="inner">
+          <!-- Search Box -->
+          <section id="search" class="alt">
+            <form method="get" action="#" role="search" onsubmit="return false;">
+              <label for="sidebar-search-input" class="sr-only">Search course lessons</label>
+              <input
+                type="text"
+                name="search"
+                id="sidebar-search-input"
+                placeholder="Search..."
+              / aria-label="Search course lessons">
+            </form>
+          </section>
+          <!-- Menu -->
+          <nav id="menu" class="tex2jax_ignore">
+            <ul>
+              <li><h3>Adaptive Control</h3></li>
+              <li>
+                <span class="opener">Chapter 1: Introduction to Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter01/Lesson1.html" class="" data-chapter="Chapter01" data-lesson="Lesson1">
+                      Lesson 1: Limitations of Fixed-Parameter Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson2.html" class="" data-chapter="Chapter01" data-lesson="Lesson2">
+                      Lesson 2: What is Adaptive Control? Basic Concepts and Goals
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson3.html" class="" data-chapter="Chapter01" data-lesson="Lesson3">
+                      Lesson 3: Classes of Adaptive Controllers: MRAC, STR, Adaptive Backstepping, Gain Scheduling
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson4.html" class="" data-chapter="Chapter01" data-lesson="Lesson4">
+                      Lesson 4: Adaptive vs Robust vs Optimal Control – Conceptual Comparison
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter01/Lesson5.html" class="" data-chapter="Chapter01" data-lesson="Lesson5">
+                      Lesson 5: Example Applications: Aerospace, Robotics, Process, Automotive
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 2: Uncertainty and Parametric Modeling for Adaptation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter02/Lesson1.html" class="" data-chapter="Chapter02" data-lesson="Lesson1">
+                      Lesson 1: Parametric vs Unmodeled Dynamics vs Disturbances
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson2.html" class="" data-chapter="Chapter02" data-lesson="Lesson2">
+                      Lesson 2: Linearly Parameterized Models: theta^Tphi(x,u) Structures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson3.html" class="" data-chapter="Chapter02" data-lesson="Lesson3">
+                      Lesson 3: Regressor Vectors and Parameter Vectors in Control-Oriented Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson4.html" class="" data-chapter="Chapter02" data-lesson="Lesson4">
+                      Lesson 4: Matching Conditions and “Ideal Parameters” Concept
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter02/Lesson5.html" class="" data-chapter="Chapter02" data-lesson="Lesson5">
+                      Lesson 5: Where Parameter Adaptation Actually Helps (and Where It Doesn’t)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 3: Mathematical Preliminaries for Adaptive Laws</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter03/Lesson1.html" class="" data-chapter="Chapter03" data-lesson="Lesson1">
+                      Lesson 1: Review of Lyapunov Stability (from Nonlinear Control) – Focused on Adaptive Use
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson2.html" class="" data-chapter="Chapter03" data-lesson="Lesson2">
+                      Lesson 2: Quadratic Lyapunov Functions for Combined State–Parameter Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson3.html" class="" data-chapter="Chapter03" data-lesson="Lesson3">
+                      Lesson 3: Basic Gradient Descent and Steepest Descent in Parameter Space
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson4.html" class="" data-chapter="Chapter03" data-lesson="Lesson4">
+                      Lesson 4: Projection Operators and Parameter Constraints (Concept)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter03/Lesson5.html" class="" data-chapter="Chapter03" data-lesson="Lesson5">
+                      Lesson 5: Barbalat’s Lemma and Convergence for Adaptive Systems
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 4: Model Reference Adaptive Control (MRAC) – Conceptual Framework</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter04/Lesson1.html" class="" data-chapter="Chapter04" data-lesson="Lesson1">
+                      Lesson 1: Reference Models and Desired Closed-Loop Behavior
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson2.html" class="" data-chapter="Chapter04" data-lesson="Lesson2">
+                      Lesson 2: Error Model: Tracking Error and Parameter Error Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson3.html" class="" data-chapter="Chapter04" data-lesson="Lesson3">
+                      Lesson 3: Direct vs Indirect MRAC – Structural Differences
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson4.html" class="" data-chapter="Chapter04" data-lesson="Lesson4">
+                      Lesson 4: Continuous-Time vs Discrete-Time MRAC (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter04/Lesson5.html" class="" data-chapter="Chapter04" data-lesson="Lesson5">
+                      Lesson 5: MRAC vs Gain Scheduling vs Self-Tuning Regulators
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 5: MRAC for First-Order Linear Systems – Basics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter05/Lesson1.html" class="" data-chapter="Chapter05" data-lesson="Lesson1">
+                      Lesson 1: First-Order Scalar Plant with Unknown Gain/Time Constant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson2.html" class="" data-chapter="Chapter05" data-lesson="Lesson2">
+                      Lesson 2: Reference Model and Error Dynamics Derivation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson3.html" class="" data-chapter="Chapter05" data-lesson="Lesson3">
+                      Lesson 3: MIT Rule and Gradient Adaptive Law
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson4.html" class="" data-chapter="Chapter05" data-lesson="Lesson4">
+                      Lesson 4: Simple Lyapunov-Based Adaptive Law Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter05/Lesson5.html" class="" data-chapter="Chapter05" data-lesson="Lesson5">
+                      Lesson 5: Simulation-Oriented Example and Interpretation of Parameter Evolution
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 6: MRAC for Second-Order Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter06/Lesson1.html" class="" data-chapter="Chapter06" data-lesson="Lesson1">
+                      Lesson 1: Tracking Problem for a Second-Order Plant
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson2.html" class="" data-chapter="Chapter06" data-lesson="Lesson2">
+                      Lesson 2: Reference Model Selection and Performance Trade-Offs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson3.html" class="" data-chapter="Chapter06" data-lesson="Lesson3">
+                      Lesson 3: Deriving Error Dynamics and Lyapunov Candidate
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson4.html" class="" data-chapter="Chapter06" data-lesson="Lesson4">
+                      Lesson 4: Parameter Update Laws for Second-Order MRAC
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter06/Lesson5.html" class="" data-chapter="Chapter06" data-lesson="Lesson5">
+                      Lesson 5: Practical Considerations: Initial Conditions, Transients, and Saturation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 7: MRAC for General SISO Systems in Canonical Forms</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter07/Lesson1.html" class="" data-chapter="Chapter07" data-lesson="Lesson1">
+                      Lesson 1: Controllable Canonical Form for SISO Plants (From Modern Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson2.html" class="" data-chapter="Chapter07" data-lesson="Lesson2">
+                      Lesson 2: Control Law Structure and Parameterization
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson3.html" class="" data-chapter="Chapter07" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based MRAC for n-th Order Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson4.html" class="" data-chapter="Chapter07" data-lesson="Lesson4">
+                      Lesson 4: Handling Unknown High-Frequency Gain Sign (Sign-Definite Case)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter07/Lesson5.html" class="" data-chapter="Chapter07" data-lesson="Lesson5">
+                      Lesson 5: Example Designs and Limitations of Canonical-Form MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 8: Robust Modifications for MRAC</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter08/Lesson1.html" class="" data-chapter="Chapter08" data-lesson="Lesson1">
+                      Lesson 1: Practical Issues: Noise, Unmodeled Dynamics, Time Delays
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson2.html" class="" data-chapter="Chapter08" data-lesson="Lesson2">
+                      Lesson 2: σ-Modification, e-Modification – Concepts and Design
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson3.html" class="" data-chapter="Chapter08" data-lesson="Lesson3">
+                      Lesson 3: Dead-Zone and Leakage Modifications
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson4.html" class="" data-chapter="Chapter08" data-lesson="Lesson4">
+                      Lesson 4: Trade-Off Between Robustness and Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter08/Lesson5.html" class="" data-chapter="Chapter08" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: MRAC with Robust Modifications vs Plain MRAC
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 9: Parameter Projection and Normalization Techniques</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter09/Lesson1.html" class="" data-chapter="Chapter09" data-lesson="Lesson1">
+                      Lesson 1: Parameter Drift and Why Projection is Needed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson2.html" class="" data-chapter="Chapter09" data-lesson="Lesson2">
+                      Lesson 2: Projection Operator Definition and Properties
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson3.html" class="" data-chapter="Chapter09" data-lesson="Lesson3">
+                      Lesson 3: Implementing Projection in Continuous-Time Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson4.html" class="" data-chapter="Chapter09" data-lesson="Lesson4">
+                      Lesson 4: Normalization of Signals and Regressors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter09/Lesson5.html" class="" data-chapter="Chapter09" data-lesson="Lesson5">
+                      Lesson 5: Impact on Stability and Performance in Adaptive Controllers
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 10: Persistent Excitation and Parameter Convergence</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter10/Lesson1.html" class="" data-chapter="Chapter10" data-lesson="Lesson1">
+                      Lesson 1: Definition of Persistent Excitation (PE)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson2.html" class="" data-chapter="Chapter10" data-lesson="Lesson2">
+                      Lesson 2: PE as a Condition for Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson3.html" class="" data-chapter="Chapter10" data-lesson="Lesson3">
+                      Lesson 3: Examples of PE and Non-PE Inputs
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson4.html" class="" data-chapter="Chapter10" data-lesson="Lesson4">
+                      Lesson 4: State Convergence vs Parameter Convergence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter10/Lesson5.html" class="" data-chapter="Chapter10" data-lesson="Lesson5">
+                      Lesson 5: Practical Limitations: Why Full Parameter Identification is Often Hard
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 11: Indirect Adaptive Control and Self-Tuning Regulators (STR)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter11/Lesson1.html" class="" data-chapter="Chapter11" data-lesson="Lesson1">
+                      Lesson 1: Indirect vs Direct Adaptive Control – Conceptual Distinction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson2.html" class="" data-chapter="Chapter11" data-lesson="Lesson2">
+                      Lesson 2: Self-Tuning Regulator Architecture: Identifier + Controller
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson3.html" class="" data-chapter="Chapter11" data-lesson="Lesson3">
+                      Lesson 3: Online Parameter Estimation Driving Controller Update
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson4.html" class="" data-chapter="Chapter11" data-lesson="Lesson4">
+                      Lesson 4: STR vs MRAC – Advantages and Drawbacks
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter11/Lesson5.html" class="" data-chapter="Chapter11" data-lesson="Lesson5">
+                      Lesson 5: Links to but Distinction from Offline System Identification Course
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 12: Recursive Least Squares (RLS) for Online Parameter Estimation</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter12/Lesson1.html" class="" data-chapter="Chapter12" data-lesson="Lesson1">
+                      Lesson 1: Parametric Model with Linear Regression phi^T(t)theta
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson2.html" class="" data-chapter="Chapter12" data-lesson="Lesson2">
+                      Lesson 2: RLS Update Equations and Forgetting Factors
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson3.html" class="" data-chapter="Chapter12" data-lesson="Lesson3">
+                      Lesson 3: Covariance Matrix Interpretation and Ill-Conditioning
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson4.html" class="" data-chapter="Chapter12" data-lesson="Lesson4">
+                      Lesson 4: RLS vs Gradient Adaptation Laws – Convergence and Speed
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter12/Lesson5.html" class="" data-chapter="Chapter12" data-lesson="Lesson5">
+                      Lesson 5: RLS-Based STR Example for a Simple Process
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 13: Direct Self-Tuning Regulators</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter13/Lesson1.html" class="" data-chapter="Chapter13" data-lesson="Lesson1">
+                      Lesson 1: Direct Adaptive Controllers Without Explicit Parameter Estimates
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson2.html" class="" data-chapter="Chapter13" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Controller Gains and Reference Models
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson3.html" class="" data-chapter="Chapter13" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis via Lyapunov Methods
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson4.html" class="" data-chapter="Chapter13" data-lesson="Lesson4">
+                      Lesson 4: Comparison of Direct STR with Indirect STR Architectures
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter13/Lesson5.html" class="" data-chapter="Chapter13" data-lesson="Lesson5">
+                      Lesson 5: Case Studies: Basic Direct STR Implementation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 14: Discrete-Time Adaptive Control – Essentials</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter14/Lesson1.html" class="" data-chapter="Chapter14" data-lesson="Lesson1">
+                      Lesson 1: Discrete-Time Plant Models for Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson2.html" class="" data-chapter="Chapter14" data-lesson="Lesson2">
+                      Lesson 2: Discrete-Time MRAC: Error Equations and Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson3.html" class="" data-chapter="Chapter14" data-lesson="Lesson3">
+                      Lesson 3: Discrete-Time RLS and Gradient Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson4.html" class="" data-chapter="Chapter14" data-lesson="Lesson4">
+                      Lesson 4: Implementation Issues: Sampling, Quantization, and Delay
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter14/Lesson5.html" class="" data-chapter="Chapter14" data-lesson="Lesson5">
+                      Lesson 5: Example: Discrete-Time Adaptive Control for a Velocity Loop
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 15: Output-Feedback Adaptive Control – Basic Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter15/Lesson1.html" class="" data-chapter="Chapter15" data-lesson="Lesson1">
+                      Lesson 1: When Full State is Not Measured – Problem Setup
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson2.html" class="" data-chapter="Chapter15" data-lesson="Lesson2">
+                      Lesson 2: Simple Observer Structures for Adaptive Use (Luenberger-Type)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson3.html" class="" data-chapter="Chapter15" data-lesson="Lesson3">
+                      Lesson 3: Separation Issues in Adaptive Systems (Nonlinear Coupling)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson4.html" class="" data-chapter="Chapter15" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Output-Feedback MRAC (Conceptual Design)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter15/Lesson5.html" class="" data-chapter="Chapter15" data-lesson="Lesson5">
+                      Lesson 5: Stability Challenges in Output-Feedback Adaptive Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 16: Adaptive Control of Systems with Unknown High-Frequency Gain Sign</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter16/Lesson1.html" class="" data-chapter="Chapter16" data-lesson="Lesson1">
+                      Lesson 1: Problem of Unknown Control Direction
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson2.html" class="" data-chapter="Chapter16" data-lesson="Lesson2">
+                      Lesson 2: Nussbaum-Type Functions – Concept and Role
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson3.html" class="" data-chapter="Chapter16" data-lesson="Lesson3">
+                      Lesson 3: Stability Analysis with Nussbaum Gains
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson4.html" class="" data-chapter="Chapter16" data-lesson="Lesson4">
+                      Lesson 4: Practical Limitations and Implementation Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter16/Lesson5.html" class="" data-chapter="Chapter16" data-lesson="Lesson5">
+                      Lesson 5: Case Study: Simple System with Unknown Input Gain Sign
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 17: Adaptive Backstepping – Fundamentals</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter17/Lesson1.html" class="" data-chapter="Chapter17" data-lesson="Lesson1">
+                      Lesson 1: Strict-Feedback Systems with Parametric Uncertainty
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson2.html" class="" data-chapter="Chapter17" data-lesson="Lesson2">
+                      Lesson 2: Virtual Controls and Parameter Dependence
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson3.html" class="" data-chapter="Chapter17" data-lesson="Lesson3">
+                      Lesson 3: Recursive Design of Adaptive Laws in Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson4.html" class="" data-chapter="Chapter17" data-lesson="Lesson4">
+                      Lesson 4: Lyapunov Function Construction for Adaptive Backstepping
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter17/Lesson5.html" class="" data-chapter="Chapter17" data-lesson="Lesson5">
+                      Lesson 5: Example: Adaptive Backstepping for a 2nd-Order Nonlinear System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 18: Adaptive Control of Nonlinear Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter18/Lesson1.html" class="" data-chapter="Chapter18" data-lesson="Lesson1">
+                      Lesson 1: Nonlinear Parameterization and Challenges
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson2.html" class="" data-chapter="Chapter18" data-lesson="Lesson2">
+                      Lesson 2: Linear-in-the-Parameters Nonlinear Systems and MRAC Extension
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson3.html" class="" data-chapter="Chapter18" data-lesson="Lesson3">
+                      Lesson 3: Lyapunov-Based Adaptive Design for Nonlinear Tracking
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson4.html" class="" data-chapter="Chapter18" data-lesson="Lesson4">
+                      Lesson 4: Examples: Mechanical Systems with Unknown Parameters (Mass, Inertia)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter18/Lesson5.html" class="" data-chapter="Chapter18" data-lesson="Lesson5">
+                      Lesson 5: Limitations and Need for Structural Knowledge of Nonlinearities
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 19: Adaptive Control with Constraints and Saturation (Conceptual)</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter19/Lesson1.html" class="" data-chapter="Chapter19" data-lesson="Lesson1">
+                      Lesson 1: Effects of Actuator Saturation on Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson2.html" class="" data-chapter="Chapter19" data-lesson="Lesson2">
+                      Lesson 2: Modification of Update Laws to Handle Saturation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson3.html" class="" data-chapter="Chapter19" data-lesson="Lesson3">
+                      Lesson 3: Anti-Windup Ideas in the Presence of Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson4.html" class="" data-chapter="Chapter19" data-lesson="Lesson4">
+                      Lesson 4: Safety Considerations: Limiting Parameter Changes and Control Effort
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter19/Lesson5.html" class="" data-chapter="Chapter19" data-lesson="Lesson5">
+                      Lesson 5: Example: Saturated Adaptive Position Control
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 20: Gain Scheduling and Linear Parameter-Varying (LPV) Ideas</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter20/Lesson1.html" class="" data-chapter="Chapter20" data-lesson="Lesson1">
+                      Lesson 1: Scheduling Variables and Operating Conditions
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson2.html" class="" data-chapter="Chapter20" data-lesson="Lesson2">
+                      Lesson 2: Gain Scheduling vs True Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson3.html" class="" data-chapter="Chapter20" data-lesson="Lesson3">
+                      Lesson 3: Stability Considerations in Gain-Scheduled Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson4.html" class="" data-chapter="Chapter20" data-lesson="Lesson4">
+                      Lesson 4: Simple LPV-Like Interpolation of Linear Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter20/Lesson5.html" class="" data-chapter="Chapter20" data-lesson="Lesson5">
+                      Lesson 5: Practical Design of Gain-Scheduled Controllers for Aircraft/Robotics
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 21: Composite Adaptive Control</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter21/Lesson1.html" class="" data-chapter="Chapter21" data-lesson="Lesson1">
+                      Lesson 1: Motivation: Faster Convergence and Better Robustness
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson2.html" class="" data-chapter="Chapter21" data-lesson="Lesson2">
+                      Lesson 2: Combining Tracking Error and Prediction Error for Adaptation
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson3.html" class="" data-chapter="Chapter21" data-lesson="Lesson3">
+                      Lesson 3: Composite Lyapunov Functions for Composite Adaptive Laws
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson4.html" class="active-lesson" data-chapter="Chapter21" data-lesson="Lesson4">
+                      Lesson 4: Dynamic Regressor Extension and Mixing – Conceptual View
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter21/Lesson5.html" class="" data-chapter="Chapter21" data-lesson="Lesson5">
+                      Lesson 5: Example: Composite Adaptive Control in a Simple Mechanical System
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 22: Robust Adaptive Control – Interaction with Robust Methods</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter22/Lesson1.html" class="" data-chapter="Chapter22" data-lesson="Lesson1">
+                      Lesson 1: Sensitivity of Adaptive Systems to Unmodeled Dynamics
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson2.html" class="" data-chapter="Chapter22" data-lesson="Lesson2">
+                      Lesson 2: Robust Adaptive Laws with Leakage, Projection, and σ-Modification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson3.html" class="" data-chapter="Chapter22" data-lesson="Lesson3">
+                      Lesson 3: Qualitative Connection to Robust Control Notions (Margins, Uncertainty)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson4.html" class="" data-chapter="Chapter22" data-lesson="Lesson4">
+                      Lesson 4: When to Prefer Pure Robust Control vs Adaptive Control
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter22/Lesson5.html" class="" data-chapter="Chapter22" data-lesson="Lesson5">
+                      Lesson 5: Combined Robust + Adaptive Architectures (High-Level)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 23: Adaptive Control of MIMO Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter23/Lesson1.html" class="" data-chapter="Chapter23" data-lesson="Lesson1">
+                      Lesson 1: Parametric Uncertainty in Multi-Input Multi-Output Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson2.html" class="" data-chapter="Chapter23" data-lesson="Lesson2">
+                      Lesson 2: Parameterization of Multivariable Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson3.html" class="" data-chapter="Chapter23" data-lesson="Lesson3">
+                      Lesson 3: MRAC for MIMO Plants – Structural and Stability Issues
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson4.html" class="" data-chapter="Chapter23" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Decoupling and Interaction Compensation (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter23/Lesson5.html" class="" data-chapter="Chapter23" data-lesson="Lesson5">
+                      Lesson 5: Example: 2×2 System with Adaptive MIMO Controller
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 24: Implementation Issues and Practical Pitfalls</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter24/Lesson1.html" class="" data-chapter="Chapter24" data-lesson="Lesson1">
+                      Lesson 1: Measurement Noise and Unmodeled Dynamics in Adaptive Controllers
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson2.html" class="" data-chapter="Chapter24" data-lesson="Lesson2">
+                      Lesson 2: Tuning of Adaptation Gains – Speed vs Noise Amplification
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson3.html" class="" data-chapter="Chapter24" data-lesson="Lesson3">
+                      Lesson 3: Sampling, Delays, and Numerical Issues in Real Implementations
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson4.html" class="" data-chapter="Chapter24" data-lesson="Lesson4">
+                      Lesson 4: Parameter Drift, Reset Strategies, and Monitoring
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter24/Lesson5.html" class="" data-chapter="Chapter24" data-lesson="Lesson5">
+                      Lesson 5: Best Practices: Safety Checks, Saturation Handling, and Documentation
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 25: Applications in Robotics and Mechatronics</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter25/Lesson1.html" class="" data-chapter="Chapter25" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Control for Robot Manipulators with Uncertain Inertia
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson2.html" class="" data-chapter="Chapter25" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Trajectory Tracking for Multi-Joint Robots
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson3.html" class="" data-chapter="Chapter25" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Control of Flexible Joint and Flexible Link Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson4.html" class="" data-chapter="Chapter25" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Control in High-Precision Motion Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter25/Lesson5.html" class="" data-chapter="Chapter25" data-lesson="Lesson5">
+                      Lesson 5: Lessons Learned from Lab/Industrial Robotic Applications
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 26: Applications in Aerospace and Automotive Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter26/Lesson1.html" class="" data-chapter="Chapter26" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Flight Control for Changing Aerodynamic Parameters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson2.html" class="" data-chapter="Chapter26" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Autopilots and Envelope Protection (Conceptual Only)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson3.html" class="" data-chapter="Chapter26" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Cruise Control and Powertrain Control (Parameter Adaptation)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson4.html" class="" data-chapter="Chapter26" data-lesson="Lesson4">
+                      Lesson 4: Adaptive Suspension and Chassis Systems
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter26/Lesson5.html" class="" data-chapter="Chapter26" data-lesson="Lesson5">
+                      Lesson 5: Practical Certification/Validation Concerns (High-Level Discussion)
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 27: Applications in Process and Power Systems</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter27/Lesson1.html" class="" data-chapter="Chapter27" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Temperature/Level/Pressure Control in Process Units
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson2.html" class="" data-chapter="Chapter27" data-lesson="Lesson2">
+                      Lesson 2: Adaptive Control in Power Electronics and Inverters
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson3.html" class="" data-chapter="Chapter27" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Frequency/Voltage Control in Power Systems (Conceptual)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson4.html" class="" data-chapter="Chapter27" data-lesson="Lesson4">
+                      Lesson 4: Interaction with Supervisory Layers (MPC/Optimization)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter27/Lesson5.html" class="" data-chapter="Chapter27" data-lesson="Lesson5">
+                      Lesson 5: Industrial Case Study: Adaptive Controller Deployment
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <span class="opener">Chapter 28: Advanced Directions and Links to Other Courses</span>
+                <ul>
+                  <li>
+                    <a href="../Chapter28/Lesson1.html" class="" data-chapter="Chapter28" data-lesson="Lesson1">
+                      Lesson 1: Adaptive Critics and Approximate Dynamic Programming (Pointer to Neural/Intelligent Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson2.html" class="" data-chapter="Chapter28" data-lesson="Lesson2">
+                      Lesson 2: Learning-Based / Data-Driven Adaptive Control (High-Level)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson3.html" class="" data-chapter="Chapter28" data-lesson="Lesson3">
+                      Lesson 3: Adaptive Observers and Estimation (Pointer to Observer Design &amp; Stochastic Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson4.html" class="" data-chapter="Chapter28" data-lesson="Lesson4">
+                      Lesson 4: Adaptive MPC and LPV MPC (Pointer to MPC and Robust Control)
+                    </a>
+                  </li>
+                  <li>
+                    <a href="../Chapter28/Lesson5.html" class="" data-chapter="Chapter28" data-lesson="Lesson5">
+                      Lesson 5: Summary of Adaptive Control Foundations and Research Directions
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              <li>
+                <a href="https://www.youtube.com/@abolfazlmohammadijoo" target="_blank" rel="noopener noreferrer"><i class="fa fa-youtube mr-2" style="font-size: 2rem"></i>Youtube Channel</a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Similar Tutorials -->
+          <div class="featured-posts">
+            <div class="heading">
+              <h2>Similar Tutorials</h2>
+            </div>
+            <div class="owl-carousel owl-theme">
+              <a href="https://github.com/mohammadijoo/Machine_Learning_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Machine_Learning_Tutorials.jpg"
+                    alt="Machine Learning Tutorials"
+                  />
+                  <p>Machine Learning Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Control_and_Robotics_Tutorials" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Control_and_Robotics_Tutorials.jpg"
+                    alt="Control and Robotics Tutorials"
+                  />
+                  <p>Control and Robotics Tutorials</p>
+                </div>
+              </a>
+              <a href="https://github.com/mohammadijoo/Design_Patterns_Kit" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/Design_Patterns_Tutorials.jpg"
+                    alt="Design Patterns Tutorials"
+                  />
+                  <p>Design Patterns Tutorials</p>
+                </div>
+              </a>
+              <a href="https://mohammadijoo.github.io/DevOps_Academy" target="_blank" rel="noopener noreferrer">
+                <div class="featured-item">
+                  <img
+                    src="../../../assets/images/DevOps_Academy.jpg"
+                    alt="DevOps Tutorials"
+                  />
+                  <p>DevOps Tutorials</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <footer id="footer">
+            <a href="https://mohammadijoo.github.io/" target="_blank" rel="noopener noreferrer">
+              <div class="">
+                <img
+                  src="../../../assets/images/Abolfazl_Mohammadijoo.jpg"
+                  alt="Abolfazl Mohammadijoo"
+                  style="width: 100px"
+                />
+              </div>
+            </a>
+            <p class="copyright">
+              © Abolfazl Mohammadijoo — Control &amp; Robotics Tutorials.<br />
+              Licensed for non-commercial educational use only.<br />
+              Commercial use requires permission.
+            </p>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <!-- CDN JavaScript -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/OwlCarousel2/2.3.4/owl.carousel.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/sql.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/matlab.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/mathematica.min.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll("pre code").forEach((block) => {
+          hljs.highlightElement(block);
+        });
+      });
+    </script>
+
+
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        tex2jax: {
+          inlineMath: [["\\(", "\\)"]],
+          displayMath: [["\\[", "\\]"]],
+          processEscapes: true,
+          ignoreClass: "tex2jax_ignore"
+        },
+        messageStyle: "none",
+        showMathMenu: false
+      });
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+
+    <!-- Project JavaScript -->
+    <script src="../../../assets/js/browser.min.js"></script>
+    <script src="../../../assets/js/breakpoints.min.js"></script>
+    <script src="../../../assets/js/transition.js"></script>
+    <script src="../../../assets/js/owl-carousel.js"></script>
+    <script src="../../../assets/js/custom.js"></script>
+    <script src="../../../assets/js/copy_code.js"></script>
+    <script src="../../../assets/js/sidebar_search.js"></script>
+    <script src="../../../assets/js/menu_lesson_highlight.js"></script>
+  </body>
+</html>
